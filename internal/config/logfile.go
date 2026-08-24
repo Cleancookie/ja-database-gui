@@ -14,7 +14,7 @@ import (
 const logMaxBytes = 1 << 20 // 1 MiB
 
 // LogFileName is the log's name inside the config directory.
-const LogFileName = "db-pro.log"
+const LogFileName = "ja-db.log"
 
 // OpenLog points the standard logger at a file in dir, in addition to wherever
 // it already writes.

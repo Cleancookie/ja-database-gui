@@ -1,4 +1,4 @@
-module github.com/alexlaw/db-pro
+module github.com/Cleancookie/ja-db
 
 go 1.25.7
 

@@ -1,6 +1,6 @@
-# db-pro
+# ja-db
 
-A keyboard-first database GUI. Go core, React/webview UI, one binary.
+Just Another DB UI. A keyboard-first database GUI. Go core, React/webview UI, one binary.
 
 Built as a replacement for TablePlus. Supports **MySQL/MariaDB, PostgreSQL, SQL Server and SQLite**.
 
@@ -57,7 +57,7 @@ Open <http://localhost:5173>.
 ### Desktop app
 
 ```sh
-make windows          # -> build/bin/db-pro.exe
+make windows          # -> build/bin/ja-db.exe
 make                  # list every target
 ```
 

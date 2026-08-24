@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alexlaw/db-pro/internal/driver"
+	"github.com/Cleancookie/ja-db/internal/driver"
 )
 
 // dialTimeout bounds the initial connect. Without it a wrong host hangs the UI

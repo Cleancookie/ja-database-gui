@@ -1,4 +1,4 @@
--- Fixture schema for db-pro, MySQL / MariaDB.
+-- Fixture schema for ja-db, MySQL / MariaDB.
 --
 -- Shaped to exercise the cases this app is most likely to get wrong. See
 -- docker/README.md for what each table is for.
@@ -40,7 +40,7 @@ SELECT
   DATE_ADD('2026-01-01 09:00:00', INTERVAL n HOUR)
 FROM seq;
 
--- Composite primary key: the sort db-pro must fall back to when paginating
+-- Composite primary key: the sort ja-db must fall back to when paginating
 -- without an explicit ORDER BY.
 CREATE TABLE order_lines (
   order_id    INT NOT NULL,
@@ -111,7 +111,7 @@ DELIMITER ;
 
 -- InnoDB's row estimate is derived from sampled index statistics, and
 -- immediately after a bulk load it can be off by two orders of magnitude
--- (a freshly loaded 1200-row table reports ~9). db-pro shows these as
+-- (a freshly loaded 1200-row table reports ~9). ja-db shows these as
 -- estimates, but a fixture that looks broken is a bad fixture.
 ANALYZE TABLE customers, order_lines, events, `weird table`;
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/alexlaw/db-pro/internal/activity"
+	"github.com/Cleancookie/ja-db/internal/activity"
 )
 
 func TestMiddlewareRunsOutermostFirst(t *testing.T) {

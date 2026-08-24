@@ -20,7 +20,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/alexlaw/db-pro/internal/activity"
+	"github.com/Cleancookie/ja-db/internal/activity"
 )
 
 // Op describes one unit of database work, before it runs.

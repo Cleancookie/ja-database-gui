@@ -1,4 +1,4 @@
--- Fixture schema for db-pro, PostgreSQL.
+-- Fixture schema for ja-db, PostgreSQL.
 --
 -- Mirrors docker/mysql/01-schema.sql. Postgres additionally gets a second
 -- schema, since it is one of the two dialects where objects nest inside one.
@@ -33,7 +33,7 @@ SELECT
   timestamptz '2026-01-01 09:00:00+00' + (n || ' hours')::interval
 FROM generate_series(1, 1200) AS n;
 
--- Composite primary key: the sort db-pro must fall back to when paginating
+-- Composite primary key: the sort ja-db must fall back to when paginating
 -- without an explicit ORDER BY.
 CREATE TABLE order_lines (
   order_id   int NOT NULL,
@@ -101,7 +101,7 @@ INSERT INTO reporting.daily_totals (day, total)
 SELECT date '2026-01-01' + n, round((n * 91.5)::numeric, 2)
 FROM generate_series(0, 364) AS n;
 
--- reltuples is -1 until a table has been analysed, which db-pro treats as
+-- reltuples is -1 until a table has been analysed, which ja-db treats as
 -- "unknown" and hides. Analysing makes the estimates in the tree real.
 ANALYZE;
 

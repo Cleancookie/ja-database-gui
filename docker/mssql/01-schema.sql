@@ -1,4 +1,4 @@
--- Fixture schema for db-pro, SQL Server.
+-- Fixture schema for ja-db, SQL Server.
 --
 -- Mirrors docker/mysql/01-schema.sql. SQL Server matters most here because it
 -- is the dialect where pagination needs an invented ORDER BY, so the tables
@@ -45,7 +45,7 @@ FROM seq
 OPTION (MAXRECURSION 0);
 GO
 
--- Composite primary key: the sort db-pro must fall back to when paginating
+-- Composite primary key: the sort ja-db must fall back to when paginating
 -- without an explicit ORDER BY.
 CREATE TABLE order_lines (
   order_id   int NOT NULL,
@@ -69,7 +69,7 @@ FROM seq
 OPTION (MAXRECURSION 0);
 GO
 
--- No primary key at all — this is the case that forces db-pro to fall back to
+-- No primary key at all — this is the case that forces ja-db to fall back to
 -- the first column to keep OFFSET/FETCH paging stable.
 CREATE TABLE events (
   occurred_at datetime2 NOT NULL,

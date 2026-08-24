@@ -2,7 +2,7 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 BIN_DIR   := build/bin
-EXE       := $(BIN_DIR)/db-pro.exe
+EXE       := $(BIN_DIR)/ja-db.exe
 FRONTEND  := frontend
 DIST      := $(FRONTEND)/dist
 NODE_MODS := $(FRONTEND)/node_modules
@@ -18,7 +18,7 @@ WEB_SRC   := $(shell find $(FRONTEND)/src -type f 2>/dev/null) \
 
 .PHONY: help
 help:
-	@echo 'db-pro'
+	@echo 'ja-db'
 	@echo
 	@echo '  make windows      cross-compile $(EXE)'
 	@echo '  make check        fmt + vet + typecheck + all tests'
@@ -40,7 +40,7 @@ windows: $(EXE)
 # and the Windows webview binding needs no cgo.
 $(EXE): $(GO_SRC) $(DIST) wails.json
 	@mkdir -p $(BIN_DIR)
-	wails build -platform windows/amd64 -s -ldflags "$(LDFLAGS)" -o db-pro.exe
+	wails build -platform windows/amd64 -s -ldflags "$(LDFLAGS)" -o ja-db.exe
 
 $(DIST): $(NODE_MODS) $(WEB_SRC)
 	cd $(FRONTEND) && npm run build

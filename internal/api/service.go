@@ -9,11 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/alexlaw/db-pro/internal/activity"
-	"github.com/alexlaw/db-pro/internal/config"
-	"github.com/alexlaw/db-pro/internal/driver"
-	"github.com/alexlaw/db-pro/internal/engine"
-	"github.com/alexlaw/db-pro/internal/query"
+	"github.com/Cleancookie/ja-db/internal/activity"
+	"github.com/Cleancookie/ja-db/internal/config"
+	"github.com/Cleancookie/ja-db/internal/driver"
+	"github.com/Cleancookie/ja-db/internal/engine"
+	"github.com/Cleancookie/ja-db/internal/query"
 )
 
 // testConnectionTimeout bounds the "Test connection" button so a wrong host

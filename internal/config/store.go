@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/alexlaw/db-pro/internal/driver"
+	"github.com/Cleancookie/ja-db/internal/driver"
 )
 
 const fileVersion = 1
@@ -53,14 +53,14 @@ type Store struct {
 	conns   []Connection
 }
 
-// DefaultDir is where db-pro keeps its state: %AppData%\db-pro on Windows,
-// ~/.config/db-pro on Linux, ~/Library/Application Support/db-pro on macOS.
+// DefaultDir is where ja-db keeps its state: %AppData%\ja-db on Windows,
+// ~/.config/ja-db on Linux, ~/Library/Application Support/ja-db on macOS.
 func DefaultDir() (string, error) {
 	base, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("locating user config dir: %w", err)
 	}
-	return filepath.Join(base, "db-pro"), nil
+	return filepath.Join(base, "ja-db"), nil
 }
 
 // Open loads the store from dir, creating it if absent.
@@ -276,7 +276,7 @@ func newID() string {
 	b := make([]byte, 8)
 	if _, err := rand.Read(b); err != nil {
 		// crypto/rand failing is unrecoverable and not worth a nil-able ID.
-		panic(fmt.Sprintf("db-pro: crypto/rand unavailable: %v", err))
+		panic(fmt.Sprintf("ja-db: crypto/rand unavailable: %v", err))
 	}
 	return hex.EncodeToString(b)
 }

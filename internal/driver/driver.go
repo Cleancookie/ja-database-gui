@@ -1,4 +1,4 @@
-// Package driver defines the dialect abstraction that the rest of db-pro is
+// Package driver defines the dialect abstraction that the rest of ja-db is
 // written against. Each supported database implements Driver.
 //
 // The interface is introspection-shaped, not SQL-shaped: it hands back
