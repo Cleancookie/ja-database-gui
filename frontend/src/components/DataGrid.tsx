@@ -53,8 +53,9 @@ interface Props {
 }
 
 /**
- * Virtualised result grid. Only the visible rows are in the DOM, so a 100k-row
- * result with pagination off stays responsive.
+ * Virtualised result grid. Only the visible cells are in the DOM — both axes,
+ * since a hundred-column result is as ordinary as a 100k-row one and the
+ * product of the two is what a render costs.
  *
  * Cells are selectable as a range: click one, shift-click another, or hold shift
  * with the arrow keys. What Ctrl+C then produces is decided by the shape of the
@@ -148,11 +149,29 @@ export function DataGrid({
     scrollMargin: gm.headerHeight,
   })
 
-  // Row height changes with the font size, so the virtualiser has to remeasure
-  // or every row would keep its old height.
+  // Columns are virtualised as well as rows. A wide result is as ordinary as a
+  // long one — a hundred-column table put every column of every visible row in
+  // the DOM, thousands of cells, and then paid for all of them on each render:
+  // the first draw stalled for seconds and a single arrow key took most of one.
+  // Widths are already measured per column, so they are the estimate and no
+  // cell has to be remeasured. The columns start right of the record-number
+  // gutter, hence the margin, which also makes an item's `start` the same
+  // content coordinate measuredSpan gives the scroll effect below.
+  const colV = useVirtualizer({
+    horizontal: true,
+    count: meta.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: (i) => widths[i] ?? gm.minCol,
+    overscan: 4,
+    scrollMargin: gm.gutter,
+  })
+
+  // Row height and column widths both change with the font size and with the
+  // result, so both virtualisers have to remeasure or the old geometry sticks.
   useEffect(() => {
     virtualizer.measure()
-  }, [gm.rowHeight, virtualizer])
+    colV.measure()
+  }, [gm.rowHeight, widths, virtualizer, colV])
 
   // A new result set should start at the top, not wherever the last one was,
   // and a selection into rows that are no longer there means nothing.
@@ -279,6 +298,9 @@ export function DataGrid({
   }
 
   const sort = orderBy?.[0]
+  // The visible columns, shared by the header strip and every rendered row so
+  // that a name and the values under it can never come from different windows.
+  const cols = colV.getVirtualItems()
 
   // Built for the selected cell, which right-clicking has just set through
   // mousedown. Whether there is a menu at all is decided by the prop and never
@@ -337,15 +359,17 @@ export function DataGrid({
             never reach the menu. */}
         <ContextMenu items={headerItems} heading={headerName}>
           <div
-            className="chrome sticky top-0 z-10 flex border-b border-[var(--color-border-strong)] bg-[var(--color-panel)] font-bold"
-            style={{ height: gm.headerHeight }}
+            className="chrome sticky top-0 z-10 border-b border-[var(--color-border-strong)] bg-[var(--color-panel)] font-bold"
+            style={{ height: gm.headerHeight, width: totalWidth }}
           >
             <div
-              className="shrink-0 border-r border-[var(--color-border)]"
-              style={{ width: gm.gutter }}
+              className="absolute top-0 left-0 border-r border-[var(--color-border)]"
+              style={{ width: gm.gutter, height: gm.headerHeight }}
               aria-hidden
             />
-            {meta.map((m, i) => {
+            {cols.map((c) => {
+              const i = c.index
+              const m = meta[i]
               const active = sort?.column === m.name
               return (
                 <button
@@ -356,10 +380,10 @@ export function DataGrid({
                   title={`${m.name}${m.column ? ` · ${m.column.dataType}` : ''}${
                     m.column?.primaryKey ? ' · primary key' : ''
                   }`}
-                  className={`flex shrink-0 items-center gap-1 border-r border-[var(--color-border)] px-2 text-left ${
+                  className={`absolute top-0 flex items-center gap-1 border-r border-[var(--color-border)] px-2 text-left ${
                     onSort ? 'hover:bg-[var(--color-accent-dim)]/40' : 'cursor-default'
                   }`}
-                  style={{ width: widths[i] }}
+                  style={{ left: c.start, width: c.size, height: gm.headerHeight }}
                 >
                   {m.column?.primaryKey && (
                     // A text badge rather than a key glyph: symbol fonts vary
@@ -398,7 +422,7 @@ export function DataGrid({
               return (
                 <div
                   key={v.key}
-                  className={`absolute flex ${
+                  className={`absolute ${
                     v.index % 2 === 1 ? 'bg-[var(--color-row-alt)]' : ''
                   } hover:bg-[var(--color-accent-dim)]/25`}
                   style={{
@@ -410,12 +434,14 @@ export function DataGrid({
                   }}
                 >
                   <div
-                    className="chrome flex shrink-0 items-center justify-end border-r border-[var(--color-border)] pr-2 text-[var(--color-faint)] select-none"
-                    style={{ width: gm.gutter }}
+                    className="chrome absolute top-0 left-0 flex items-center justify-end border-r border-[var(--color-border)] pr-2 text-[var(--color-faint)] select-none"
+                    style={{ width: gm.gutter, height: v.size }}
                   >
                     {rowOffset + v.index + 1}
                   </div>
-                  {meta.map((m, ci) => {
+                  {cols.map((c) => {
+                    const ci = c.index
+                    const m = meta[ci]
                     const isFocus = focus?.row === v.index && focus.col === ci
                     const inRange = rect ? inRect(rect, v.index, ci) : false
                     const value = row[ci]
@@ -431,10 +457,15 @@ export function DataGrid({
                         // actually clicked, never on a stale selection.
                         onContextMenu={() => pick(v.index, ci, false)}
                         onDoubleClick={() => onOpenCell?.(v.index, ci)}
-                        className={`shrink-0 truncate border-r border-[var(--color-border)] px-2 ${
+                        className={`absolute top-0 truncate border-r border-[var(--color-border)] px-2 ${
                           m.numeric ? 'text-right' : ''
                         } ${cellSelectionClass(isFocus, inRange)}`}
-                        style={{ width: widths[ci], lineHeight: `${gm.rowHeight}px` }}
+                        style={{
+                          left: c.start,
+                          width: c.size,
+                          height: v.size,
+                          lineHeight: `${gm.rowHeight}px`,
+                        }}
                         title={cellTitle(value, cut, result.textCap)}
                       >
                         <CellBody value={value} cut={cut} />
