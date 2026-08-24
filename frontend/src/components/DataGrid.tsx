@@ -366,7 +366,7 @@ export function DataGrid({
                     // wildly across the platforms this ships to, and a tofu box
                     // next to a column name reads as corruption.
                     <span
-                      className="shrink-0 rounded-full bg-[var(--color-warn)]/20 px-1.5 font-semibold text-[var(--color-warn)]"
+                      className="shrink-0 rounded-full bg-[var(--color-warn-dim)] px-1.5 font-semibold text-[var(--color-warn)]"
                       title="primary key"
                     >
                       PK
@@ -681,7 +681,7 @@ function RecordsGrid({
                   >
                     {m.column?.primaryKey && (
                       <span
-                        className="shrink-0 rounded-full bg-[var(--color-warn)]/20 px-1.5 font-semibold text-[var(--color-warn)]"
+                        className="shrink-0 rounded-full bg-[var(--color-warn-dim)] px-1.5 font-semibold text-[var(--color-warn)]"
                         title="primary key"
                       >
                         PK
@@ -771,7 +771,7 @@ function CellBody({ value, cut }: { value: Cell; cut: boolean }) {
     return (
       <span className="flex min-w-0 items-center gap-1">
         <span className="truncate">{String(value)}</span>
-        <span className="shrink-0 rounded-full bg-[var(--color-warn)]/20 px-1.5 font-semibold text-[var(--color-warn)]">
+        <span className="shrink-0 rounded-full bg-[var(--color-warn-dim)] px-1.5 font-semibold text-[var(--color-warn)]">
           CUT
         </span>
       </span>

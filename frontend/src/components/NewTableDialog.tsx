@@ -233,7 +233,7 @@ export function NewTableDialog({ schema }: { schema: string }) {
           own wording can be checked before it does. */}
       <div className="px-4 pb-4">
         {previewError ? (
-          <p className="rounded-lg border border-[var(--color-danger)]/50 bg-[var(--color-danger)]/10 px-3 py-2 font-[var(--font-mono)] break-words text-[var(--color-danger)]">
+          <p className="rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger-dim)] px-3 py-2 font-[var(--font-mono)] break-words text-[var(--color-danger)]">
             {previewError}
           </p>
         ) : (

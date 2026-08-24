@@ -19,7 +19,7 @@ export function Toasts() {
           role={t.kind === 'error' ? 'alert' : 'status'}
           className={`animate-slide-in pointer-events-auto flex items-start gap-2 rounded-2xl border px-4 py-3 shadow-lg ${
             t.kind === 'error'
-              ? 'border-[var(--color-danger)]/40 bg-[var(--color-danger)]/10'
+              ? 'border-[var(--color-danger)] bg-[var(--color-danger-dim)]'
               : 'border-[var(--color-border)] bg-[var(--color-elevated)]'
           }`}
         >
