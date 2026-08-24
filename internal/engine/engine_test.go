@@ -3,7 +3,7 @@ package engine
 import (
 	"testing"
 
-	"github.com/alexlaw/db-pro/internal/driver"
+	"github.com/Cleancookie/ja-db/internal/driver"
 )
 
 // Sessions are pooled per database for every dialect, not just the one that has

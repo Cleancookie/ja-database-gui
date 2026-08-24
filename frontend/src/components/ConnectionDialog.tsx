@@ -199,7 +199,7 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
         </div>
 
         {test.state === 'failed' && (
-          <p className="mx-4 mb-3 rounded-lg border border-[var(--color-danger)]/50 bg-[var(--color-danger)]/10 px-3 py-2 font-[var(--font-mono)] break-words text-[var(--color-danger)]">
+          <p className="mx-4 mb-3 rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger-dim)] px-3 py-2 font-[var(--font-mono)] break-words text-[var(--color-danger)]">
             {test.message}
           </p>
         )}

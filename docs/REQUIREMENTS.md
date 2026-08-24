@@ -89,7 +89,7 @@ seventeen results, which by itself read as "nothing was filtered".
 `Makefile` added — `make windows` is the headline target. `make check` runs
 fmt, vet, typecheck and both test suites.
 
-Pushed to `git@github.com:Cleancookie/db-pro.git`.
+Pushed to `git@github.com:Cleancookie/ja-db.git`.
 
 ---
 

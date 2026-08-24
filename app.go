@@ -6,11 +6,11 @@ import (
 	"log"
 	"path/filepath"
 
-	"github.com/alexlaw/db-pro/internal/activity"
-	"github.com/alexlaw/db-pro/internal/api"
-	"github.com/alexlaw/db-pro/internal/config"
-	"github.com/alexlaw/db-pro/internal/driver"
-	"github.com/alexlaw/db-pro/internal/engine"
+	"github.com/Cleancookie/ja-db/internal/activity"
+	"github.com/Cleancookie/ja-db/internal/api"
+	"github.com/Cleancookie/ja-db/internal/config"
+	"github.com/Cleancookie/ja-db/internal/driver"
+	"github.com/Cleancookie/ja-db/internal/engine"
 )
 
 // App is the struct Wails binds to the frontend. Every method is a
@@ -34,7 +34,7 @@ func NewApp() (*App, error) {
 	logFile, err := config.OpenLog(dir)
 	if err != nil {
 		// Not fatal: the app works fine, it just cannot be investigated later.
-		log.Printf("db-pro: continuing without a log file: %v", err)
+		log.Printf("ja-db: continuing without a log file: %v", err)
 	}
 	store, err := config.Open(dir)
 	if err != nil {

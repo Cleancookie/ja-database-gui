@@ -13,7 +13,7 @@ specific dependency and, on Linux, one that is frequently absent or locked.
 ## Decision
 
 For the MVP, connection metadata **and passwords** are stored in
-`<user config dir>/db-pro/connections.json`, written with mode `0600` via a
+`<user config dir>/ja-db/connections.json`, written with mode `0600` via a
 write-to-temp-then-rename so a crash cannot truncate the file.
 
 The store is written to be swappable: `config.Store` takes a `SecretStore` for the

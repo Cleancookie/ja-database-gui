@@ -157,7 +157,7 @@ export function Paginator() {
           </div>
         </>
       ) : (
-        <span className="rounded-full bg-[var(--color-warn)]/15 px-2.5 py-0.5 font-semibold text-[var(--color-warn)]">
+        <span className="rounded-full bg-[var(--color-warn-dim)] px-2.5 py-0.5 font-semibold text-[var(--color-warn)]">
           Pagination off — loading every matching row
         </span>
       )}

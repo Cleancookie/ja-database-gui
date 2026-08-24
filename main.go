@@ -21,20 +21,20 @@ var version = "dev"
 
 func main() {
 	start := time.Now()
-	log.Printf("db-pro %s", version)
+	log.Printf("ja-db %s", version)
 
 	app, err := NewApp()
 	if err != nil {
-		log.Fatalf("db-pro: %v", err)
+		log.Fatalf("ja-db: %v", err)
 	}
 	// Config and settings are two small file reads, so this should be single
 	// -digit milliseconds. It is logged because "the app is slow to launch" is
 	// otherwise impossible to attribute: the webview boot dominates, and
 	// without a number here there is no way to rule this side out.
-	log.Printf("db-pro: config loaded in %s", time.Since(start).Round(time.Millisecond))
+	log.Printf("ja-db: config loaded in %s", time.Since(start).Round(time.Millisecond))
 
 	err = wails.Run(&options.App{
-		Title:  "db-pro",
+		Title:  "ja-db",
 		Width:  1440,
 		Height: 900,
 		// Below this the sidebar and grid stop being usable together.
@@ -47,7 +47,7 @@ func main() {
 			// The gap between this and the config line above is the webview
 			// starting; the gap to the frontend's own first mark is the bundle
 			// parsing. Between the three, a slow launch can be attributed.
-			log.Printf("db-pro: webview ready in %s", time.Since(start).Round(time.Millisecond))
+			log.Printf("ja-db: webview ready in %s", time.Since(start).Round(time.Millisecond))
 			app.startup(ctx)
 		},
 		OnShutdown: app.shutdown,
@@ -62,6 +62,6 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Fatalf("db-pro: %v", err)
+		log.Fatalf("ja-db: %v", err)
 	}
 }

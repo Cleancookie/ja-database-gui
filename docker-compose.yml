@@ -1,4 +1,4 @@
-# Test databases for db-pro.
+# Test databases for ja-db.
 #
 #   docker compose up -d mysql          # just MySQL
 #   docker compose up -d                # everything except SQL Server
@@ -12,15 +12,15 @@
 # Credentials are deliberately trivial. These containers bind to localhost and
 # are for local testing only — never expose them.
 
-name: db-pro-test
+name: ja-db-test
 
 services:
   mysql:
     image: mysql:8.4
-    container_name: dbpro-mysql
+    container_name: jadb-mysql
     command: --local-infile=0
     environment:
-      MYSQL_ROOT_PASSWORD: dbpro
+      MYSQL_ROOT_PASSWORD: jadb
       MYSQL_DATABASE: shop
     ports:
       - '127.0.0.1:3306:3306'
@@ -28,7 +28,7 @@ services:
       - ./docker/mysql:/docker-entrypoint-initdb.d:ro
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-uroot', '-pdbpro']
+      test: ['CMD', 'mysqladmin', 'ping', '-h', '127.0.0.1', '-uroot', '-pjadb']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -38,9 +38,9 @@ services:
   # claim is worth actually testing rather than assuming.
   mariadb:
     image: mariadb:11.4
-    container_name: dbpro-mariadb
+    container_name: jadb-mariadb
     environment:
-      MARIADB_ROOT_PASSWORD: dbpro
+      MARIADB_ROOT_PASSWORD: jadb
       MARIADB_DATABASE: shop
     ports:
       - '127.0.0.1:3307:3306'
@@ -56,10 +56,10 @@ services:
 
   postgres:
     image: postgres:17
-    container_name: dbpro-postgres
+    container_name: jadb-postgres
     environment:
-      POSTGRES_PASSWORD: dbpro
-      POSTGRES_USER: dbpro
+      POSTGRES_PASSWORD: jadb
+      POSTGRES_USER: jadb
       POSTGRES_DB: shop
     ports:
       - '127.0.0.1:5432:5432'
@@ -67,7 +67,7 @@ services:
       - ./docker/postgres:/docker-entrypoint-initdb.d:ro
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U dbpro -d shop']
+      test: ['CMD-SHELL', 'pg_isready -U jadb -d shop']
       interval: 5s
       timeout: 5s
       retries: 20
@@ -76,11 +76,11 @@ services:
   # you only wanted a MySQL box.
   mssql:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: dbpro-mssql
+    container_name: jadb-mssql
     profiles: ['mssql']
     environment:
       ACCEPT_EULA: 'Y'
-      MSSQL_SA_PASSWORD: 'dbPro!Passw0rd'
+      MSSQL_SA_PASSWORD: 'jaDb!Passw0rd'
       MSSQL_PID: Developer
     ports:
       - '127.0.0.1:1433:1433'
@@ -101,7 +101,7 @@ services:
   # one-shot container that runs once the server reports healthy.
   mssql-init:
     image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: dbpro-mssql-init
+    container_name: jadb-mssql-init
     profiles: ['mssql']
     depends_on:
       mssql:
@@ -116,7 +116,7 @@ services:
         '-U',
         'sa',
         '-P',
-        'dbPro!Passw0rd',
+        'jaDb!Passw0rd',
         '-C',
         '-b',
         '-i',

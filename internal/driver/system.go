@@ -16,7 +16,7 @@ func IsSystemDatabase(k Kind, name string) bool {
 		}
 	case KindPostgres:
 		// template0/template1 are already excluded by the catalogue query;
-		// "postgres" is the maintenance database, which db-pro connects to as
+		// "postgres" is the maintenance database, which ja-db connects to as
 		// a bootstrap but which almost never holds anything of interest.
 		switch n {
 		case "postgres", "template0", "template1":

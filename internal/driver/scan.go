@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/alexlaw/db-pro/internal/activity"
+	"github.com/Cleancookie/ja-db/internal/activity"
 )
 
 // HardRowCap bounds any single result set, including when the user has turned

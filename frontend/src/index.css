@@ -50,10 +50,16 @@
   --color-on-accent: #ffffff;
 
   /* Status. Pastel-adjacent but darkened enough to be legible as text on
-     paper; the /10–/20 background washes come from the same hue. */
+     paper. */
   --color-danger: #dd5c78;
   --color-success: #2fa27c;
   --color-warn: #c2801e;
+  /* Opaque wash forms, the same relationship `--color-accent-dim` has to
+     `--color-accent`. These used to be the status colour at /10–/20, which let
+     the page gradient through and made an error toast look see-through; each is
+     now that blend baked flat against the theme's own surface. */
+  --color-danger-dim: #faeaef;
+  --color-warn-dim: #f2e8dd;
 
   /* Decorative pastels. Not semantic — these are for the small moments where
      a bit of colour is the whole point (connection dots, object kinds). */
@@ -191,6 +197,8 @@
   --color-danger: #fb4934;
   --color-success: #b8bb26;
   --color-warn: #fe8019;
+  --color-danger-dim: #4a3330;
+  --color-warn-dim: #513c2c;
 
   --color-mint: #8ec07c;
   --color-sky: #83a598;
@@ -236,6 +244,10 @@
   --color-danger: #9d0006;
   --color-success: #79740e;
   --color-warn: #af3a03;
+  /* Cream paper takes a red wash towards tan, so these are pushed a little
+     further towards their own hue than a straight blend would land. */
+  --color-danger-dim: #f7ddd3;
+  --color-warn-dim: #f5ddc4;
 
   --color-mint: #689d6a;
   --color-sky: #458588;
@@ -278,6 +290,8 @@
   --color-danger: #e06c75;
   --color-success: #98c379;
   --color-warn: #e5c07b;
+  --color-danger-dim: #453942;
+  --color-warn-dim: #464543;
 
   --color-mint: #56b6c2;
   --color-sky: #61afef;

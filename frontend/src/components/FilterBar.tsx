@@ -89,13 +89,13 @@ export function FilterBar() {
         }`}
       />
       {dirty && (
-        <span className="shrink-0 rounded-full bg-[var(--color-warn)]/15 px-2 py-0.5 font-semibold text-[var(--color-warn)]">Enter to apply</span>
+        <span className="shrink-0 rounded-full bg-[var(--color-warn-dim)] px-2 py-0.5 font-semibold text-[var(--color-warn)]">Enter to apply</span>
       )}
       {filter && !dirty && (
         <button
           onClick={() => void applyFilter('')}
           title="Clear filter"
-          className="shrink-0 rounded-full px-2 text-[var(--color-muted)] hover:bg-[var(--color-danger)]/15 hover:text-[var(--color-danger)]"
+          className="shrink-0 rounded-full px-2 text-[var(--color-muted)] hover:bg-[var(--color-danger-dim)] hover:text-[var(--color-danger)]"
         >
           ✕
         </button>

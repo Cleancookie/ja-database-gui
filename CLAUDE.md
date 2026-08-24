@@ -1,4 +1,4 @@
-# db-pro — agent instructions
+# ja-db — agent instructions
 
 Keyboard-first database GUI. Go core, React/webview UI, one binary.
 Layout and rationale: [ARCHITECTURE.md](ARCHITECTURE.md). Decisions: `docs/adr/`.
