@@ -272,6 +272,29 @@ route to an action, never a second implementation.
 | The `CREATE` preview | Rendered by the driver through `PreviewCreateTable`, which runs no SQL and is not logged. A preview assembled by different code from the one that executes would eventually be a lie |
 | Activity log | New `ddl` query kind. An irreversible statement is exactly the one worth finding in the log afterwards |
 
+## 2026-08-26 — a click that lands, and the double-click
+
+### Brief
+
+> why does the datatable feel so laggy? when i click it takes a few seconds for
+> a cell to select. also can we make it so double clicking on a cell doesn't
+> pop the cell viewer it would be nice to just select the text. we should add
+> it to the context menu (right click, open cell viewer)
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Cause of the lag | `useCellMenu` subscribed to the *selection*. It is held by `App` and by `SqlEditor`, so every cell click re-rendered the whole shell — sidebar included, and the sidebar's object list is unvirtualised with one Radix menu root per table. Moving a one-cell highlight was doing a few hundred menu roots' worth of work |
+| Fix | The hook reads the store with `getState` and returns a builder that is stable for the life of the component. Correct because the builder only ever runs while the menu is rendering, so `getState` is already current state |
+| Second fix | `Sidebar` is `memo`'d. It takes no props and is the most expensive thing on screen, so no parent re-render should ever cost anything |
+| Double-click | No longer opens the cell viewer. It selects the text inside the cell, which is what a double-click means everywhere else |
+| How the viewer is reached now | `Enter`, the platform menu key, and **Open in cell viewer** at the top of the right-click menu — which was already there from the 2026-08-17 session, so nothing new was added, only the double-click removed |
+
+This reverses "`Enter`, double-click and the platform menu key all reach the
+same viewer" from 2026-08-17. Deliberately: text selection inside a cell is
+worth more than a third route to a dialog that already has two.
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
@@ -315,6 +338,7 @@ test — which is the intended speed bump.
 | Base styles in `index.css` live inside `@layer base` | Unlayered, they sort after Tailwind's utilities at equal specificity and win every tie, so a component cannot opt out of one. That is how `focus-visible:outline-none` on the palette input was silently ignored |
 | `config.ThemeIDs`, the `:root[data-theme]` blocks and `themes.ts` list the same ids | Three hand-kept copies. A theme missing from the Go list is rejected on load and the user's choice silently reverts |
 | `frontend/dist/.gitkeep` stays tracked, and builds must not delete it | `main.go` embeds `frontend/dist`; without it a fresh clone will not compile |
+| No component that renders the app shell subscribes to the grid selection | A click moves a one-cell highlight. If `App` re-renders, so does the unvirtualised sidebar and its menu root per table, and the click takes seconds. `useCellMenu` reads state with `getState` for exactly this reason |
 | A context-menu item fires a store action the palette also exposes | The palette is the primary surface. A menu that calls the API directly is a second code path where the confirmation and the refresh afterwards can drift |
 | Truncate and drop are decided in the store action, never at the call site | `runTruncate` / `runDrop` skip the confirmation by design; anything but a confirmation dialog calling them is a destructive statement with no prompt |
 | No DDL builder emits `CASCADE` | The engine refusing is the useful answer. `CASCADE` would act on objects the user never named |
