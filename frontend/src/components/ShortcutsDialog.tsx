@@ -19,7 +19,8 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+H J K L', 'Move a cell — hjkl, as the arrows do; add Shift to extend'],
   ['Shift+arrows  /  Ctrl+A', 'Extend the range by cell / select the whole result'],
   ['Ctrl+C', 'Copy — a cell as-is, one column as an IN list, wider as CSV'],
-  ['Enter  /  double-click', 'Open the selected cell (JSON viewer, full value)'],
+  ['Enter', 'Open the selected cell (JSON viewer, full value) — also on right-click'],
+  ['Double-click', 'Select the text inside a cell, as anywhere else'],
   ['↑ ↓  /  Ctrl+P N J K', 'Move through the palette'],
   ['Esc', 'Close, or revert an unapplied filter'],
 ]

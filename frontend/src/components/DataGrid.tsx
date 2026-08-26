@@ -42,7 +42,11 @@ interface Props {
   onSort?: (column: string) => void
   /** Row offset of the first row, so numbering continues across pages. */
   rowOffset?: number
-  /** Opens one cell in the viewer — Enter, or a double-click. */
+  /**
+   * Opens one cell in the viewer: Enter, or the right-click menu. Deliberately
+   * not a double-click — that is how you select the text inside a cell, and a
+   * viewer popping open instead is the thing that annoyed us most about it.
+   */
   onOpenCell?: (rowIndex: number, colIndex: number) => void
   /**
    * Right-click actions for one cell. A builder rather than a list because the
@@ -330,7 +334,6 @@ export function DataGrid({
         pick={pick}
         selectedRef={selectedRef}
         repeatRef={repeatRef}
-        onOpenCell={onOpenCell}
         menuItems={menuItems}
         menuHeading={menuHeading}
       />
@@ -456,7 +459,6 @@ export function DataGrid({
                         // one. The menu must always act on the cell that was
                         // actually clicked, never on a stale selection.
                         onContextMenu={() => pick(v.index, ci, false)}
-                        onDoubleClick={() => onOpenCell?.(v.index, ci)}
                         className={`absolute top-0 truncate border-r border-[var(--color-border)] px-2 ${
                           m.numeric ? 'text-right' : ''
                         } ${cellSelectionClass(isFocus, inRange)}`}
@@ -535,7 +537,6 @@ interface RecordsProps {
   pick: (row: number, col: number, extend: boolean) => void
   selectedRef: React.MutableRefObject<HTMLDivElement | null>
   repeatRef: React.MutableRefObject<boolean>
-  onOpenCell?: (rowIndex: number, colIndex: number) => void
   menuItems: MenuItem[] | null
   menuHeading?: string
 }
@@ -565,7 +566,6 @@ function RecordsGrid({
   pick,
   selectedRef,
   repeatRef,
-  onOpenCell,
   menuItems,
   menuHeading,
 }: RecordsProps) {
@@ -733,7 +733,6 @@ function RecordsGrid({
                           ref={isFocus ? selectedRef : undefined}
                           onMouseDown={(e) => pick(c.index, v.index, e.shiftKey)}
                           onContextMenu={() => pick(c.index, v.index, false)}
-                          onDoubleClick={() => onOpenCell?.(c.index, v.index)}
                           className={`absolute top-0 truncate border-r border-b border-[var(--color-border)] px-2 hover:bg-[var(--color-accent-dim)]/25 ${
                             m.numeric ? 'text-right' : ''
                           } ${cellSelectionClass(isFocus, inRange)}`}
