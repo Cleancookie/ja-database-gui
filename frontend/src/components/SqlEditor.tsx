@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { editorCandidates, tokenAt } from '../completion'
 import { activeSqlResult, useActiveKind, useHasSchemas, useStore } from '../store'
 import { Highlight } from './Highlight'
@@ -33,6 +33,11 @@ export function SqlEditor() {
   const kind = useActiveKind()
   const hasSchemas = useHasSchemas()
   const cellMenu = useCellMenu('sql')
+  // Stable for the same reason as in App, and here it is load-bearing: this
+  // component subscribes to `sqlText`, so it re-renders on every keystroke. An
+  // inline arrow would hand the memoised grid a new prop each time and repaint
+  // the whole result while the user types.
+  const onOpenCell = useCallback((row: number, col: number) => openCell('sql', row, col), [openCell])
 
   const completion = useMemo(
     () => ({
@@ -131,7 +136,7 @@ export function SqlEditor() {
           <DataGrid
             result={sqlResult}
             source="sql"
-            onOpenCell={(r, c) => openCell('sql', r, c)}
+            onOpenCell={onOpenCell}
             cellMenu={cellMenu}
           />
         ) : (

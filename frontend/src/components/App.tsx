@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useCallback, useEffect } from 'react'
 import { focusFilter } from '../commands'
 import { isTypingTarget } from '../dom'
 import { activeSqlResult, useStore } from '../store'
@@ -36,6 +36,14 @@ export function App() {
   const toggleSort = useStore((s) => s.toggleSort)
   const openCell = useStore((s) => s.openCell)
   const cellMenu = useCellMenu('browse')
+  // Stable, so the memoised grid is not re-rendered by an inline arrow every
+  // time something else in the shell changes — `busy` toggling on each query
+  // is enough on its own.
+  const onSort = useCallback((column: string) => void toggleSort(column), [toggleSort])
+  const onOpenCell = useCallback(
+    (row: number, col: number) => openCell('browse', row, col),
+    [openCell],
+  )
 
   useEffect(() => {
     void init()
@@ -66,9 +74,9 @@ export function App() {
                     source="browse"
                     columns={columns}
                     orderBy={orderBy}
-                    onSort={(c) => void toggleSort(c)}
+                    onSort={onSort}
                     rowOffset={paginationEnabled ? (page - 1) * pageSize : 0}
-                    onOpenCell={(r, c) => openCell('browse', r, c)}
+                    onOpenCell={onOpenCell}
                     cellMenu={cellMenu}
                   />
                 ) : (

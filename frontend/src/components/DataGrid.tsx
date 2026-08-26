@@ -1,5 +1,5 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { isTypingTarget } from '../dom'
 import { inRect, rectOf, type CellPos, type Rect } from '../selection'
 import { measuredSpan, offsetToShow, scrollTo, uniformSpan } from '../scroll'
@@ -65,7 +65,7 @@ interface Props {
  * with the arrow keys. What Ctrl+C then produces is decided by the shape of the
  * range and by nothing else — see frontend/src/selection.ts.
  */
-export function DataGrid({
+export const DataGrid = memo(function DataGrid({
   result,
   source,
   columns,
@@ -482,7 +482,7 @@ export function DataGrid({
       </div>
     </div>
   )
-}
+})
 
 /** Arrow keys as a step in display coordinates. */
 const ARROWS: Record<string, { row: number; col: number }> = {
