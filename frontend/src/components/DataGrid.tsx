@@ -61,9 +61,10 @@ interface Props {
  * since a hundred-column result is as ordinary as a 100k-row one and the
  * product of the two is what a render costs.
  *
- * Cells are selectable as a range: click one, shift-click another, or hold shift
- * with the arrow keys. What Ctrl+C then produces is decided by the shape of the
- * range and by nothing else — see frontend/src/selection.ts.
+ * Cells are selectable as a range: drag across them, click one and shift-click
+ * another, or hold shift with the arrow keys. What Ctrl+C then produces is
+ * decided by the shape of the range and by nothing else — see
+ * frontend/src/selection.ts.
  */
 export const DataGrid = memo(function DataGrid({
   result,
@@ -102,6 +103,7 @@ export const DataGrid = memo(function DataGrid({
   const clearSelection = useStore((s) => s.clearSelection)
   const focus = selection?.focus ?? null
   const rect = useMemo(() => (selection ? rectOf(selection) : null), [selection])
+  const drag = useCellDrag(source)
 
   /** A click (or a shift-click, which extends instead of starting over). */
   const pick = (row: number, col: number, extend: boolean) => {
@@ -380,6 +382,7 @@ export const DataGrid = memo(function DataGrid({
         labelWidth={sizing.label}
         cellWidth={sizing.cell}
         pick={pick}
+        drag={drag}
         selectedRef={selectedRef}
         repeatRef={repeatRef}
         menuItems={menuItems}
@@ -411,7 +414,10 @@ export const DataGrid = memo(function DataGrid({
   ]
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto font-[var(--font-mono)]">
+    <div
+      ref={scrollRef}
+      className={`h-full overflow-auto font-[var(--font-mono)] ${drag.dragging ? 'select-none' : ''}`}
+    >
       <div style={{ width: totalWidth, minWidth: '100%' }}>
         {/* One menu for the whole strip; each button says which column it is.
             The buttons are never `disabled`, even with no sort to offer: a
@@ -537,7 +543,11 @@ export const DataGrid = memo(function DataGrid({
                       <div
                         key={ci}
                         ref={isFocus ? selectedRef : undefined}
-                        onMouseDown={(e) => pick(v.index, ci, e.shiftKey)}
+                        onMouseDown={(e) => {
+                          pick(v.index, ci, e.shiftKey)
+                          drag.start(e, v.index, ci)
+                        }}
+                        onMouseEnter={() => drag.over(v.index, ci)}
                         // mousedown already fires for the right button, but a
                         // ctrl-click on macOS arrives as a contextmenu without
                         // one. The menu must always act on the cell that was
@@ -586,6 +596,66 @@ const VIM: Record<string, { row: number; col: number }> = {
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))
+}
+
+/** What a cell needs to take part in a drag, in either orientation. */
+interface CellDrag {
+  dragging: boolean
+  start: (e: React.MouseEvent, row: number, col: number) => void
+  over: (row: number, col: number) => void
+}
+
+/**
+ * Dragging across cells selects the range they cover.
+ *
+ * A drag that stays inside one cell is left alone, so selecting part of a value
+ * with the mouse still works — that is what a drag means everywhere else, and
+ * the grid should not take it away for the common case. Only when the pointer
+ * crosses into a second cell does the gesture change meaning: the half-made text
+ * selection is dropped, the grid stops selecting text for the rest of the drag,
+ * and every cell entered extends the range.
+ *
+ * Without that switch a drag paints a text selection straight across the row,
+ * which is never what anyone wanted from a grid — the cells either side of the
+ * one you are reading are unrelated values, and what lands on the clipboard is
+ * them run together with no separator.
+ *
+ * mouseup is watched on the window rather than on a cell: a drag very often ends
+ * outside the grid, and a gesture that never ends leaves every later hover
+ * extending the selection.
+ */
+function useCellDrag(source: ResultSource): CellDrag {
+  const from = useRef<CellPos | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const extendSelection = useStore((s) => s.extendSelection)
+
+  useEffect(() => {
+    const onUp = () => {
+      from.current = null
+      setDragging(false)
+    }
+    window.addEventListener('mouseup', onUp)
+    return () => window.removeEventListener('mouseup', onUp)
+  }, [])
+
+  return {
+    dragging,
+    start(e, row, col) {
+      // Left button only, and not a shift-click: that already means "extend to
+      // here" and starting a drag from it would re-anchor the range.
+      if (e.button !== 0 || e.shiftKey) return
+      from.current = { row, col }
+    },
+    over(row, col) {
+      const f = from.current
+      if (!f || (f.row === row && f.col === col)) return
+      if (!dragging) {
+        setDragging(true)
+        window.getSelection()?.removeAllRanges()
+      }
+      extendSelection(source, { row, col })
+    },
+  }
 }
 
 /**
@@ -692,6 +762,7 @@ interface RecordsProps {
   /** The one uniform width every record column gets, likewise. */
   cellWidth: number
   pick: (row: number, col: number, extend: boolean) => void
+  drag: CellDrag
   selectedRef: React.MutableRefObject<HTMLDivElement | null>
   repeatRef: React.MutableRefObject<boolean>
   menuItems: MenuItem[] | null
@@ -723,6 +794,7 @@ function RecordsGrid({
   labelWidth,
   cellWidth,
   pick,
+  drag,
   selectedRef,
   repeatRef,
   menuItems,
@@ -789,7 +861,10 @@ function RecordsGrid({
   const totalWidth = labelWidth + colV.getTotalSize()
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto font-[var(--font-mono)]">
+    <div
+      ref={scrollRef}
+      className={`h-full overflow-auto font-[var(--font-mono)] ${drag.dragging ? 'select-none' : ''}`}
+    >
       <div style={{ width: totalWidth, minWidth: '100%' }}>
         {/* The record numbers. Sticky on both axes, so the number of the record
             you are reading stays put whichever way you scroll. */}
@@ -867,7 +942,11 @@ function RecordsGrid({
                         <div
                           key={c.key}
                           ref={isFocus ? selectedRef : undefined}
-                          onMouseDown={(e) => pick(c.index, v.index, e.shiftKey)}
+                          onMouseDown={(e) => {
+                            pick(c.index, v.index, e.shiftKey)
+                            drag.start(e, c.index, v.index)
+                          }}
+                          onMouseEnter={() => drag.over(c.index, v.index)}
                           onContextMenu={() => pick(c.index, v.index, false)}
                           className={`absolute top-0 truncate border-r border-b border-[var(--color-border)] px-2 hover:bg-[var(--color-accent-dim)]/25 ${
                             m.numeric ? 'text-right' : ''

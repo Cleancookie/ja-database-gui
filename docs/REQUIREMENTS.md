@@ -372,6 +372,34 @@ The handles are mouse-only. A couple of hundred focusable separators would
 swallow keyboard traversal of the grid, and `Tab` already means "transpose"
 here.
 
+## 2026-08-26 — dragging selects cells, not the line
+
+### Brief
+
+> can we make it so you can only select the text in one cell and not the whole
+> line in the datatable? if i can dragging I probably want to be selecting
+> multiple cells and if i copy them I probably want a csv of those cells […] if
+> it's all one column then i probably want to just copy the values
+
+### Decided
+
+Most of the brief was already built: the clipboard formats — one cell verbatim,
+one column as an `IN` list, anything wider as CSV with a header row — have been
+in `frontend/src/selection.ts` since the range-selection work, and nothing about
+them changed here. The gap was the *gesture*: a range could only be built by
+shift-clicking or by shift-arrows, so a drag fell through to the browser and
+painted a text selection straight across the row.
+
+| Question | Choice |
+| --- | --- |
+| Drag inside one cell | Still an ordinary text selection. That is what a drag means everywhere else, and taking it away for the common case buys nothing |
+| Drag that crosses into a second cell | Switches meaning: the half-made text selection is dropped, the grid stops selecting text for the rest of the gesture, and each cell entered extends the range |
+| Where the switch lives | `useCellDrag` in `DataGrid.tsx`, shared by both orientations. `mouseup` is watched on the window — a drag very often ends outside the grid, and a gesture that never ends leaves every later hover extending the range |
+| `IN` list separator | Left as `', '`. Readable in a `WHERE` clause, and the space is not what makes it paste |
+
+Not built: auto-scroll when a drag reaches the viewport edge. A drag is limited
+to the cells on screen; shift-click still covers the long range.
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
