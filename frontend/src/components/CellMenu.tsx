@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { rectOf, rectSize } from '../selection'
 import { useStore, type ResultSource } from '../store'
 import type { MenuItem } from '../ui'
@@ -14,16 +15,24 @@ import type { MenuItem } from '../ui'
  * reaches for a call that did not exist before it.
  */
 export function useCellMenu(source: ResultSource): (rowIndex: number, colIndex: number) => MenuItem[] {
-  const cellTarget = useStore((s) => s.cellTarget)
-  const openCell = useStore((s) => s.openCell)
-  const copyCell = useStore((s) => s.copyCell)
-  const copyText = useStore((s) => s.copyText)
-  const copySelection = useStore((s) => s.copySelection)
-  const selection = useStore((s) => (s.selection?.source === source ? s.selection : null))
-
-  return (rowIndex, colIndex) => {
-    const cell = cellTarget(source, rowIndex, colIndex)
+  // Everything is read with getState rather than subscribed to, and the
+  // builder is stable for the life of the component.
+  //
+  // Subscribing here is what made clicking a cell feel slow. This hook is held
+  // by App and by SqlEditor — the top of each view — so a subscription to the
+  // *selection* re-rendered the entire shell on every click: the sidebar and
+  // its one Radix menu root per table, the filter bar, the paginator, the
+  // activity tray. On a schema with a few hundred tables that is seconds of
+  // work to move a one-cell highlight. The builder runs while the menu is
+  // being rendered, so getState is already current state; nothing here needs
+  // to re-run when the selection moves.
+  return useCallback((rowIndex, colIndex) => {
+    const s = useStore.getState()
+    const { openCell, copyCell, copyText, copySelection } = s
+    const cell = s.cellTarget(source, rowIndex, colIndex)
     if (!cell) return []
+
+    const selection = s.selection?.source === source ? s.selection : null
 
     // Only offered once the selection is more than the cell that was clicked,
     // where "copy value" already says it better.
@@ -70,5 +79,5 @@ export function useCellMenu(source: ResultSource): (rowIndex: number, colIndex: 
         onSelect: () => void copyText(cell.column),
       },
     ]
-  }
+  }, [source])
 }

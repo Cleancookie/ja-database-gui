@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { describeConnection, formatCount, objectCandidate, OBJECT_ICON, qualifiedName } from '../commands'
 import { rankCandidates } from '../fuzzy'
 import { useStore, type SectionKey } from '../store'
@@ -23,7 +23,14 @@ const GROUP_LABEL: Record<ObjectType, string> = {
   procedure: 'Procedures',
 }
 
-export function Sidebar() {
+/**
+ * Memoised because it is the most expensive thing on screen and none of its
+ * cost is ever the reason a parent re-rendered: the object list is not
+ * virtualised, and every table and view in it carries its own Radix menu root.
+ * It takes no props, so this makes an unrelated re-render of the app shell
+ * free. It still re-renders whenever any store slice it reads below changes.
+ */
+export const Sidebar = memo(function Sidebar() {
   const connections = useStore((s) => s.connections)
   const connectedIds = useStore((s) => s.connectedIds)
   const activeConnectionId = useStore((s) => s.activeConnectionId)
@@ -252,7 +259,7 @@ export function Sidebar() {
       )}
     </aside>
   )
-}
+})
 
 /**
  * A collapsible sidebar section. `grow` marks the one section allowed to take
