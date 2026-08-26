@@ -274,6 +274,23 @@ export function buildActionCommands(s: Store): Command[] {
     })
   }
 
+  // The grid on screen, as a file. Browse shows one page, so that is what it
+  // exports — the page size control is how you ask for more.
+  const exportable = s.view === 'sql' ? s.sqlResults[s.sqlResultIndex] : s.result
+  if (exportable && exportable.columns.length > 0) {
+    cmds.push({
+      id: 'grid:export-csv',
+      title: `Export ${exportable.rows.length} rows as CSV`,
+      subtitle: s.view === 'sql' ? 'The result on screen' : 'The rows on this page',
+      group: 'Query',
+      candidate: {
+        name: 'Export as CSV',
+        keywords: 'export csv download save file spreadsheet excel rows result',
+      },
+      run: () => s.exportCsv(),
+    })
+  }
+
   cmds.push({
     id: 'grid:transpose',
     title: s.transposed ? 'Show rows across' : 'Transpose the grid',

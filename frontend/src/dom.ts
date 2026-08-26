@@ -25,3 +25,18 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   // this covers a nested span inside the editor as well as its content element.
   return target.isContentEditable
 }
+
+/**
+ * Hands the user a text file. An object URL and a synthetic click on an
+ * `<a download>` is the platform's own save path — it works in the browser dev
+ * server and in the WebView2/WebKit shells Wails puts around the same bundle,
+ * so no Go-side file dialog has to exist for it.
+ */
+export function downloadText(filename: string, text: string, type = 'text/csv') {
+  const url = URL.createObjectURL(new Blob([text], { type: `${type};charset=utf-8` }))
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}

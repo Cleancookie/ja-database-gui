@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { api, errorMessage } from './api'
 import { absoluteRowOffset, cellText, isCellTruncated } from './cells'
 import { RECENT_LIMIT, refKey } from './recency'
-import { describeCopy, rectOf, selectionText, type CellPos, type Selection } from './selection'
+import { downloadText } from './dom'
+import { csv, describeCopy, rectOf, selectionText, type CellPos, type Selection } from './selection'
 import { mark, reportText } from './startup'
 import { applyTheme, DEFAULT_THEME } from './themes'
 import type {
@@ -273,6 +274,8 @@ interface State {
     full?: boolean,
   ) => Promise<void>
   copyText: (text: string) => Promise<void>
+  /** Saves the result on screen as a CSV file — the browse page or the editor's. */
+  exportCsv: () => void
   pushToast: (kind: Toast['kind'], message: string) => void
   dismissToast: (id: number) => void
 }
@@ -988,6 +991,33 @@ export const useStore = create<State>((set, get) => {
         // menu item that does nothing.
         get().pushToast('error', 'Could not write to the clipboard')
       }
+    },
+
+    exportCsv() {
+      const s = get()
+      // Whichever grid is on screen — the editor's active result tab, or the
+      // browse page. Same CSV writer the clipboard uses, so a file and a paste
+      // of the same rows are byte-identical.
+      const rs = s.view === 'sql' ? activeSqlResult(s) : s.result
+      if (!rs || rs.columns.length === 0) {
+        s.pushToast('error', 'Nothing to export')
+        return
+      }
+      const stem = s.view === 'sql' ? 'query' : (s.activeRef?.name ?? 'result')
+      const name = `${stem.replace(/[^\w.-]+/g, '_')}.csv`
+      downloadText(
+        name,
+        csv(
+          rs.columns.map((c) => c.name),
+          rs.rows,
+        ),
+      )
+      // The browse grid holds one page, and capped cells are partial in the
+      // file exactly as they are in the grid. Both are the kind of quiet
+      // wrongness a CSV carries off into a spreadsheet, so say them out loud.
+      const cut = rs.truncatedCells?.length ?? 0
+      const note = cut > 0 ? ` — ${cut} cells were cut to ${rs.textCap} characters` : ''
+      s.pushToast(cut > 0 ? 'error' : 'info', `Exported ${rs.rows.length} rows to ${name}${note}`)
     },
 
     pushToast(kind, message) {
