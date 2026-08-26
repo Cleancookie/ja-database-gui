@@ -319,6 +319,59 @@ gives every row its own `position: sticky` column-name cell, so a wide result is
 tens of sticky constraints inside a very wide scroller. One absolutely
 positioned overlay column would be one.
 
+## 2026-08-26 — a palette that keeps up, and column widths
+
+### Brief
+
+> the command palette is slow if there are LOADS of results. one my databases
+> has thousands of tables. is there any way to make this faster? also pressing
+> tab on the datatable still feels slow, is it possible to have it to less
+> calculations? maybe we make it like excel column sizing where the user can
+> resize it but they are all fixed width by default or whatever needs fewer
+> calculations and then double clicking the first resizer … it will calculate
+> and resize all the columns?
+
+### The palette
+
+Measured this time, on 5000 objects, before deciding anything:
+
+| Found | Fix |
+| --- | --- |
+| Ranking copied fuzzysort's matched indices into a JS array for every candidate — and that copy costs more than the matching. Only the two hundred rendered rows can use them | Scoring and highlighting are separate calls: `matchScore` while ranking, `matchPositions` per visible row. `"cus"` 8.5ms → 3.8ms, `"order_line"` 9.8ms → 4.3ms |
+| Every keystroke re-rendered all two hundred rows, and so did every *pixel* of pointer movement across the list — the rows used `mousemove` | Rows are memoised on stable props and hover is `mouseenter`. An arrow key now re-renders two rows |
+| Grouping ran over every match before the list was cut to two hundred | Cut first, group after. 0.59ms → 0.03ms |
+| `orderByRecency` built a key string inside its comparator, so O(n log n) of them | Decorate, sort, undecorate. Worth ~15% of the sort — recorded because the shape is right, not because it was the bottleneck |
+
+`fuzzysort.go` with `keys` and a bounded `limit` was measured too and is *slower*
+than the above in every case but "nothing matches" — its own prepared-target
+cache already covers the part that looked expensive.
+
+### Column widths
+
+The premise did not survive checking: auto-sizing already ran once per result
+rather than once per Tab — that was fixed earlier the same day by hoisting the
+sizing pass above the orientation switch. So fixed-width defaults would have
+bought nothing on Tab, and the auto-sized default stays.
+
+What was built instead is the rest of the request, as a capability in its own
+right:
+
+| Gesture | Effect |
+| --- | --- |
+| Drag a column's right edge | Resizes it, up to four times the default cap |
+| Double-click a column's right edge | Fits it to the widest sampled value, *past* that cap — the cap exists to keep the opening layout sane, not to refuse the ask |
+| Double-click the edge right of the row-number gutter | Fits every column at once |
+| Header right-click → Reset column widths | Back to the measured defaults |
+
+Widths are keyed by column *name*, not index, so a reload or a page turn cannot
+hand a column somebody else's width. The transposed grid is deliberately left
+alone: it gives every record one uniform width on purpose, and per-record
+resizing would undo the thing that makes a wide row readable.
+
+The handles are mouse-only. A couple of hundred focusable separators would
+swallow keyboard traversal of the grid, and `Tab` already means "transpose"
+here.
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
