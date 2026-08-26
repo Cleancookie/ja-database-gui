@@ -295,6 +295,30 @@ This reverses "`Enter`, double-click and the platform menu key all reach the
 same viewer" from 2026-08-17. Deliberately: text selection inside a cell is
 worth more than a third route to a dialog that already has two.
 
+### Follow-up, same day
+
+> pressing tab on the datatable is also laggy can we inspect that and try to
+> fix it? if it's the same thing as clicking on cells from earlier maybe we
+> should scan around to see what else might be prone to the same thing
+
+The scan was every `useStore` subscription against how high in the tree it
+sits. Two more of the same shape, and the work Tab was repeating:
+
+| Found | Fix |
+| --- | --- |
+| `SqlEditor` subscribes to `sqlText`, so it re-renders on every keystroke — and handed `DataGrid` a fresh inline `onOpenCell` arrow each time, repainting the whole result while the user types | `DataGrid` is `memo`'d and both call sites pass `useCallback` handlers. Its other props are already stable store references |
+| `App` subscribes to `busy`, `dialog` and `page`, all of which change without the grid's contents changing | Same fix. The memo only holds because the inline arrows are gone — one unstable prop would void it |
+| Tab re-measured the sample on every flip: the transposed grid computed its label and record widths in its own `useMemo`, and it mounts fresh each time | One sizing pass in `DataGrid`, above the orientation switch, handed down as props. `DataGrid` stays mounted across a transpose, so the memo survives it |
+| The cell menu was rebuilt on every render of the grid, scanning `truncatedCells` to decide whether the cell was cut | `useMemo` on the focus. A repaint cannot change the answer |
+
+Tab still re-mounts the other orientation, which is irreducible — it is a
+different component with a different DOM. What is gone is the measuring.
+
+Not done, and the next thing to look at if the transposed grid still drags: it
+gives every row its own `position: sticky` column-name cell, so a wide result is
+tens of sticky constraints inside a very wide scroller. One absolutely
+positioned overlay column would be one.
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
@@ -339,6 +363,7 @@ test — which is the intended speed bump.
 | `config.ThemeIDs`, the `:root[data-theme]` blocks and `themes.ts` list the same ids | Three hand-kept copies. A theme missing from the Go list is rejected on load and the user's choice silently reverts |
 | `frontend/dist/.gitkeep` stays tracked, and builds must not delete it | `main.go` embeds `frontend/dist`; without it a fresh clone will not compile |
 | No component that renders the app shell subscribes to the grid selection | A click moves a one-cell highlight. If `App` re-renders, so does the unvirtualised sidebar and its menu root per table, and the click takes seconds. `useCellMenu` reads state with `getState` for exactly this reason |
+| `DataGrid` is memoised and every prop it is given is stable | Its parents subscribe to state that changes constantly — `busy`, `dialog`, and `sqlText` on every keystroke. One inline arrow at a call site voids the memo silently, and the grid is the most expensive thing on screen |
 | A context-menu item fires a store action the palette also exposes | The palette is the primary surface. A menu that calls the API directly is a second code path where the confirmation and the refresh afterwards can drift |
 | Truncate and drop are decided in the store action, never at the call site | `runTruncate` / `runDrop` skip the confirmation by design; anything but a confirmation dialog calling them is a destructive statement with no prompt |
 | No DDL builder emits `CASCADE` | The engine refusing is the useful answer. `CASCADE` would act on objects the user never named |

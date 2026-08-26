@@ -126,19 +126,39 @@ export const DataGrid = memo(function DataGrid({
     [result.truncatedCells],
   )
 
-  // Widths are measured from a sample rather than the whole result: scanning
-  // 100k rows to size columns would cost more than rendering them.
-  const widths = useMemo(() => {
+  // Every width either orientation needs, from one pass over the sample.
+  //
+  // Measured from a sample rather than the whole result: scanning 100k rows to
+  // size columns would cost more than rendering them. It lives here, above the
+  // orientation switch, so pressing Tab does not re-scan — the transposed grid
+  // used to measure its own two widths on mount, which meant every flip paid
+  // for a fresh pass over the sample.
+  const sizing = useMemo(() => {
     const sample = result.rows.slice(0, WIDTH_SAMPLE_ROWS)
-    return meta.map((m, i) => {
-      let longest = m.name.length + (m.column?.primaryKey ? 2 : 0)
+    const px = (chars: number, min: number) =>
+      Math.round(Math.min(gm.maxCol, Math.max(min, chars * gm.charPx + gm.padPx)))
+    // The longest value anywhere, and the longest column name: the transposed
+    // grid gives every record one uniform width and holds the names in its own
+    // left column, so those are the two numbers it needs.
+    let widestValue = 0
+    let widestName = 0
+    const columns = meta.map((m, i) => {
+      const pk = m.column?.primaryKey
+      let longest = m.name.length + (pk ? 2 : 0)
+      // Three, not two: the badge sits next to the name in the label column
+      // rather than sharing a truncating header with it.
+      const nameChars = m.name.length + (pk ? 3 : 0)
+      if (nameChars > widestName) widestName = nameChars
       for (const row of sample) {
         const len = displayValue(row[i]).length
         if (len > longest) longest = len
+        if (len > widestValue) widestValue = len
       }
-      return Math.round(Math.min(gm.maxCol, Math.max(gm.minCol, longest * gm.charPx + gm.padPx)))
+      return px(longest, gm.minCol)
     })
+    return { columns, label: px(widestName, gm.gutter), cell: px(widestValue, gm.minCol) }
   }, [meta, result.rows, gm])
+  const widths = sizing.columns
 
   const totalWidth = widths.reduce((a, b) => a + b, 0) + gm.gutter
 
@@ -311,11 +331,15 @@ export const DataGrid = memo(function DataGrid({
   // by the selection: mounting the trigger conditionally would rebuild the row
   // area on the first right-click, taking the element the event came from with
   // it. The placeholder is all but unreachable for the same reason.
-  const menuItems: MenuItem[] | null = !cellMenu
-    ? null
-    : focus
-      ? cellMenu(focus.row, focus.col)
-      : [{ label: 'No cell selected', onSelect: () => {}, disabled: true }]
+  //
+  // Memoised because building it reads the result — including a scan for
+  // whether this cell was truncated — and nothing about a repaint of the grid
+  // changes the answer. Only a move of the focus does.
+  const menuItems = useMemo<MenuItem[] | null>(() => {
+    if (!cellMenu) return null
+    if (!focus) return [{ label: 'No cell selected', onSelect: () => {}, disabled: true }]
+    return cellMenu(focus.row, focus.col)
+  }, [cellMenu, focus, result])
   const menuHeading = focus ? meta[focus.col]?.name : undefined
 
   // Transposing swaps the axes only: the selection, the keyboard, the menu and
@@ -331,6 +355,8 @@ export const DataGrid = memo(function DataGrid({
         rowOffset={rowOffset}
         focus={focus}
         rect={rect}
+        labelWidth={sizing.label}
+        cellWidth={sizing.cell}
         pick={pick}
         selectedRef={selectedRef}
         repeatRef={repeatRef}
@@ -534,6 +560,10 @@ interface RecordsProps {
   rowOffset: number
   focus: CellPos | null
   rect: Rect | null
+  /** Width of the sticky column-name strip, measured by the parent. */
+  labelWidth: number
+  /** The one uniform width every record column gets, likewise. */
+  cellWidth: number
   pick: (row: number, col: number, extend: boolean) => void
   selectedRef: React.MutableRefObject<HTMLDivElement | null>
   repeatRef: React.MutableRefObject<boolean>
@@ -563,6 +593,8 @@ function RecordsGrid({
   rowOffset,
   focus,
   rect,
+  labelWidth,
+  cellWidth,
   pick,
   selectedRef,
   repeatRef,
@@ -570,29 +602,6 @@ function RecordsGrid({
   menuHeading,
 }: RecordsProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
-
-  // The left column has to fit the longest column *name*, since that is what it
-  // holds; the data columns are sized from the values, sampled like the other
-  // orientation does.
-  const labelWidth = useMemo(() => {
-    let longest = 0
-    for (const m of meta) {
-      const len = m.name.length + (m.column?.primaryKey ? 3 : 0)
-      if (len > longest) longest = len
-    }
-    return Math.round(Math.min(gm.maxCol, Math.max(gm.gutter, longest * gm.charPx + gm.padPx)))
-  }, [meta, gm])
-
-  const cellWidth = useMemo(() => {
-    let longest = 0
-    for (const row of result.rows.slice(0, WIDTH_SAMPLE_ROWS)) {
-      for (const v of row) {
-        const len = displayValue(v).length
-        if (len > longest) longest = len
-      }
-    }
-    return Math.round(Math.min(gm.maxCol, Math.max(gm.minCol, longest * gm.charPx + gm.padPx)))
-  }, [result.rows, gm])
 
   // Both axes start inside the sticky chrome — the rows below the record
   // numbers, the records right of the column names — and both virtualisers are
