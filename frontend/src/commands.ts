@@ -87,18 +87,23 @@ export function buildNavigationCommands(s: Store): Command[] {
     const recent = new Map(s.recentObjects.map((k, i) => [k, i]))
     // The object currently on screen is excluded from Recent: offering to
     // navigate to where you already are is noise at the top of the list.
-    const indexOf = (o: SchemaObject) =>
+    const lookup = (o: SchemaObject) =>
       s.activeRef?.name === o.name &&
       s.activeRef?.schema === o.schema &&
       s.activeRef?.database === s.activeDatabase
         ? -1
         : (recent.get(refKey(s.activeDatabase, o.schema, o.name)) ?? -1)
+    // Resolved once per object rather than on every read of it: the sort below
+    // wants it, and so does the command built from it.
+    const position = new Map(s.objects.map((o) => [o, lookup(o)]))
+    const indexOf = (o: SchemaObject) => position.get(o) ?? -1
 
     for (const o of orderByRecency(s.objects, indexOf)) {
       const i = indexOf(o)
+      const qualified = qualifiedName(o)
       cmds.push({
-        id: `object:${qualifiedName(o)}:${o.type}`,
-        title: qualifiedName(o),
+        id: `object:${qualified}:${o.type}`,
+        title: qualified,
         subtitle: o.type + (o.rowEstimate != null ? ` · ~${formatCount(o.rowEstimate)} rows` : ''),
         group: i >= 0 ? 'Recent' : 'Open',
         candidate: objectCandidate(o, i),

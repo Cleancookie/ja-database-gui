@@ -77,7 +77,15 @@ export function objectBias(schema: string | undefined, type: ObjectType, recentI
  * from bias arithmetic.
  */
 export function orderByRecency<T>(items: T[], indexOf: (item: T) => number): T[] {
-  return [...items].sort((a, b) => rank(indexOf(a)) - rank(indexOf(b)))
+  // Decorate, sort, undecorate. `indexOf` builds a key string, and calling it
+  // from inside the comparator meant O(n log n) of them rather than one per
+  // item. Measured at 5000 objects this is worth about 15% of the sort and no
+  // more — it is here because the shape is right, not because it was the
+  // bottleneck. Array.prototype.sort is stable and the decoration preserves
+  // order, so the result is unchanged.
+  const ranked = items.map((item) => ({ item, at: rank(indexOf(item)) }))
+  ranked.sort((a, b) => a.at - b.at)
+  return ranked.map((r) => r.item)
 }
 
 function rank(i: number): number {
