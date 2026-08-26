@@ -21,6 +21,8 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+C', 'Copy — a cell as-is, one column as an IN list, wider as CSV'],
   ['Enter', 'Open the selected cell (JSON viewer, full value) — also on right-click'],
   ['Double-click', 'Select the text inside a cell, as anywhere else'],
+  ['Drag a column edge', 'Resize it · double-click the edge to fit its contents'],
+  ['Double-click the gutter edge', 'Fit every column to its contents at once'],
   ['↑ ↓  /  Ctrl+P N J K', 'Move through the palette'],
   ['Esc', 'Close, or revert an unapplied filter'],
 ]

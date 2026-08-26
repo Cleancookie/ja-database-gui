@@ -142,6 +142,9 @@ export const DataGrid = memo(function DataGrid({
     // left column, so those are the two numbers it needs.
     let widestValue = 0
     let widestName = 0
+    // The raw count per column as well as the width, because autofit is
+    // allowed past the cap that keeps the *default* layout sane.
+    const chars: number[] = []
     const columns = meta.map((m, i) => {
       const pk = m.column?.primaryKey
       let longest = m.name.length + (pk ? 2 : 0)
@@ -154,11 +157,30 @@ export const DataGrid = memo(function DataGrid({
         if (len > longest) longest = len
         if (len > widestValue) widestValue = len
       }
+      chars.push(longest)
       return px(longest, gm.minCol)
     })
-    return { columns, label: px(widestName, gm.gutter), cell: px(widestValue, gm.minCol) }
+    return { columns, chars, label: px(widestName, gm.gutter), cell: px(widestValue, gm.minCol) }
   }, [meta, result.rows, gm])
-  const widths = sizing.columns
+
+  // Widths the user has set, by column *name* rather than by index: a reload, a
+  // page turn or a re-order should not hand a column somebody else's width, and
+  // a name no longer in the result is simply ignored. Absent means "the
+  // measured default", which is what the header menu resets to.
+  const [sized, setSized] = useState<Record<string, number>>({})
+  const widths = useMemo(
+    () => meta.map((m, i) => sized[m.name] ?? sizing.columns[i]),
+    [meta, sizing, sized],
+  )
+  // A dragged or fitted width may go well past the cap on the default layout —
+  // that cap exists so a column of 4 kB documents does not open two thousand
+  // pixels wide, not to stop anyone asking for it.
+  const clampWidth = (px: number) => Math.round(Math.min(gm.maxCol * 4, Math.max(gm.minCol, px)))
+  const fitted = (i: number) => clampWidth(sizing.chars[i] * gm.charPx + gm.padPx)
+  const setWidth = (name: string, px: number) => setSized((d) => ({ ...d, [name]: clampWidth(px) }))
+  const fitColumn = (name: string, i: number) => setSized((d) => ({ ...d, [name]: fitted(i) }))
+  const fitAllColumns = () => setSized(Object.fromEntries(meta.map((m, i) => [m.name, fitted(i)])))
+  const resetWidths = () => setSized({})
 
   const totalWidth = widths.reduce((a, b) => a + b, 0) + gm.gutter
 
@@ -377,6 +399,15 @@ export const DataGrid = memo(function DataGrid({
       label: 'Copy all column names',
       onSelect: () => void copyText(meta.map((m) => m.name).join(', ')),
     },
+    {
+      // The only route back from a drag or a fit. Widths are per column name
+      // and outlive a reload, so without this a column dragged to 2000px stays
+      // that way for as long as the table is open.
+      label: 'Reset column widths',
+      separatorBefore: true,
+      disabled: Object.keys(sized).length === 0,
+      onSelect: resetWidths,
+    },
   ]
 
   return (
@@ -436,6 +467,33 @@ export const DataGrid = memo(function DataGrid({
                     </span>
                   )}
                 </button>
+              )
+            })}
+            {/* Drag handles, over the buttons rather than inside them: a
+                handle inside a <button> would make every drag a sort click.
+                Mouse-only by design — a couple of hundred focusable
+                separators would swallow keyboard traversal of the grid, and
+                Tab already means "transpose" here. */}
+            <ColumnResizer
+              left={gm.gutter}
+              height={gm.headerHeight}
+              label="Fit every column to its contents"
+              title="Double-click to fit every column to its contents"
+              onFit={fitAllColumns}
+            />
+            {cols.map((c) => {
+              const m = meta[c.index]
+              return (
+                <ColumnResizer
+                  key={`resize-${m.name}-${c.index}`}
+                  left={c.start + c.size}
+                  height={gm.headerHeight}
+                  label={`Resize ${m.name}`}
+                  title="Drag to resize · double-click to fit the contents"
+                  width={c.size}
+                  onResize={(px) => setWidth(m.name, px)}
+                  onFit={() => fitColumn(m.name, c.index)}
+                />
               )
             })}
           </div>
@@ -528,6 +586,75 @@ const VIM: Record<string, { row: number; col: number }> = {
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n))
+}
+
+/**
+ * A column edge: drag to resize, double-click to fit.
+ *
+ * Not `Resizer.tsx`. That one is one handle per panel backed by a persisted
+ * setting, and the machinery it carries — following the saved value, writing to
+ * disk on release, arrow keys — is the wrong shape for a couple of hundred
+ * transient handles whose whole state is one number in a component above. What
+ * is shared is the pointer-capture idiom, which is ten lines and is the reason
+ * a fast drag across the grid does not lose the gesture.
+ *
+ * `width` and `onResize` are optional together: the handle over the row-number
+ * gutter only ever fits, since there is nothing there to size.
+ */
+function ColumnResizer({
+  left,
+  height,
+  label,
+  title,
+  width,
+  onResize,
+  onFit,
+}: {
+  left: number
+  height: number
+  label: string
+  title: string
+  width?: number
+  onResize?: (px: number) => void
+  onFit: () => void
+}) {
+  const startX = useRef(0)
+  const startWidth = useRef(0)
+  const [dragging, setDragging] = useState(false)
+  const draggable = width !== undefined && onResize !== undefined
+
+  return (
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={label}
+      title={title}
+      onPointerDown={(e) => {
+        if (!draggable || e.button !== 0) return
+        e.currentTarget.setPointerCapture(e.pointerId)
+        startX.current = e.clientX
+        startWidth.current = width
+        setDragging(true)
+      }}
+      onPointerMove={(e) => {
+        if (!dragging) return
+        onResize?.(startWidth.current + e.clientX - startX.current)
+      }}
+      onPointerUp={(e) => {
+        if (!dragging) return
+        e.currentTarget.releasePointerCapture(e.pointerId)
+        setDragging(false)
+      }}
+      // A gesture taken over by the browser keeps the width reached rather than
+      // snapping back, the same as the panel handles.
+      onPointerCancel={() => setDragging(false)}
+      onDoubleClick={onFit}
+      className={`absolute top-0 z-20 w-1.5 -translate-x-1/2 rounded-full transition-colors duration-150 hover:bg-[var(--color-accent)] ${
+        draggable ? 'cursor-col-resize' : 'cursor-default'
+      } ${dragging ? 'bg-[var(--color-accent)]' : ''}`}
+      style={{ left, height }}
+    />
+  )
 }
 
 /**
