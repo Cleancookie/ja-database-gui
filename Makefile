@@ -3,6 +3,7 @@ SHELL := /bin/bash
 
 BIN_DIR   := build/bin
 EXE       := $(BIN_DIR)/ja-db.exe
+LOG       := $(BIN_DIR)/ja-db.log
 FRONTEND  := frontend
 DIST      := $(FRONTEND)/dist
 NODE_MODS := $(FRONTEND)/node_modules
@@ -21,6 +22,7 @@ help:
 	@echo 'ja-db'
 	@echo
 	@echo '  make windows      cross-compile $(EXE)'
+	@echo '  make open         build, then launch $(EXE) in the background'
 	@echo '  make check        fmt + vet + typecheck + all tests'
 	@echo
 	@echo '  make dev          run the API dev server (pair with: make web)'
@@ -41,6 +43,11 @@ windows: $(EXE)
 $(EXE): $(GO_SRC) $(DIST) wails.json
 	@mkdir -p $(BIN_DIR)
 	wails build -platform windows/amd64 -s -ldflags "$(LDFLAGS)" -o ja-db.exe
+
+# Launch detached so the terminal stays usable; stdout/stderr go to the log.
+.PHONY: open
+open: $(EXE)
+	@nohup $(EXE) >$(LOG) 2>&1 & echo "launched $(EXE) (pid $$!), log: $(LOG)"
 
 $(DIST): $(NODE_MODS) $(WEB_SRC)
 	cd $(FRONTEND) && npm run build
