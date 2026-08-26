@@ -5,6 +5,10 @@ Layout and rationale: [ARCHITECTURE.md](ARCHITECTURE.md). Decisions: `docs/adr/`
 
 ## Commits
 
+Always make small atomic commits and treat this as an append only log
+This helps in future with telling a story of how the code came to be
+Always aim to commit code at the end of every reply
+
 Subject starts with one of exactly four emoji, then a space, then an imperative
 capitalised description with no trailing full stop. Nothing enforces this — you
 are the enforcement.
