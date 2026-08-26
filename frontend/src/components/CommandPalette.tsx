@@ -1,8 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildActionCommands, buildNavigationCommands, type Command } from '../commands'
-import { rankCandidates, type Scored } from '../fuzzy'
+import { matchPositions, rankCandidates, type Scored } from '../fuzzy'
 import { useStore } from '../store'
 import { Highlight } from './Highlight'
+
+/**
+ * How many rows are ever put in the DOM. The list is not virtualised, and
+ * nobody scrolls a fuzzy-matched list past its first screen — past this the
+ * answer is a better query, not more rows.
+ */
+const MAX_ROWS = 200
 
 /**
  * The palettes. Rebuilt from live state each time one opens, so what is offered
@@ -30,8 +37,13 @@ export function CommandPalette() {
     return mode === 'go' ? buildNavigationCommands(s) : buildActionCommands(s)
   }, [mode])
 
+  // Cut to what is rendered *before* grouping. A database with thousands of
+  // tables ranks thousands of candidates, and grouping them all — building a
+  // map of arrays and flattening it — to then show two hundred was most of the
+  // work done on each keystroke.
   const results = useMemo(
-    () => groupContiguously(rankCandidates(query, commands, (c) => c.candidate)).slice(0, 200),
+    () =>
+      groupContiguously(rankCandidates(query, commands, (c) => c.candidate).slice(0, MAX_ROWS)),
     [query, commands],
   )
 
@@ -55,13 +67,19 @@ export function CommandPalette() {
     el?.scrollIntoView({ block: 'nearest' })
   }, [selected])
 
-  if (!open) return null
+  // Stable, so the memoised rows below are not all rebuilt to move a highlight
+  // by one. Declared before the early return: hooks cannot be conditional.
+  const run = useCallback(
+    (cmd: Command | undefined) => {
+      if (!cmd) return
+      setPalette(null)
+      void cmd.run()
+    },
+    [setPalette],
+  )
+  const onHover = useCallback((i: number) => setSelected(i), [])
 
-  const run = (cmd: Command | undefined) => {
-    if (!cmd) return
-    setPalette(null)
-    void cmd.run()
-  }
+  if (!open) return null
 
   const onKeyDown = (e: React.KeyboardEvent) => {
     switch (e.key) {
@@ -170,52 +188,92 @@ export function CommandPalette() {
                 : 'No matching commands'}
             </div>
           )}
-          {results.map(({ item, match }, i) => {
-            const prevGroup = i > 0 ? results[i - 1].item.group : null
-            return (
-              <div key={item.id}>
-                {item.group !== prevGroup && (
-                  <div className="px-3 pt-3 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase">
-                    {item.group}
-                  </div>
-                )}
-                <button
-                  data-index={i}
-                  onMouseMove={() => setSelected(i)}
-                  onClick={() => run(item)}
-                  data-highlight={i === selected || undefined}
-                  className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left ${
-                    i === selected ? '' : 'hover:bg-[var(--color-accent-dim)]/25'
-                  }`}
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">
-                      <Highlighted
-                        text={item.title}
-                        positions={alignToTitle(item, match.positions)}
-                      />
-                    </span>
-                    {item.subtitle && (
-                      <span className="block truncate text-[var(--color-muted)]">
-                        {item.subtitle}
-                      </span>
-                    )}
-                  </span>
-                  {item.shortcut && (
-                    <kbd className="shrink-0 rounded-lg border border-[var(--color-border-strong)] px-1.5 py-0.5 font-[var(--font-mono)] text-[var(--color-muted)]">
-                      {item.shortcut}
-                    </kbd>
-                  )}
-                </button>
-              </div>
-            )
-          })}
+          {results.map(({ item }, i) => (
+            <Row
+              key={item.id}
+              item={item}
+              query={query}
+              index={i}
+              selected={i === selected}
+              heading={i > 0 && results[i - 1].item.group === item.group ? null : item.group}
+              onHover={onHover}
+              onRun={run}
+            />
+          ))}
           </Highlight>
         </div>
       </div>
     </div>
   )
 }
+
+/**
+ * One result row.
+ *
+ * Memoised, and every prop it takes is stable while the query is: moving the
+ * selection with the arrow keys then re-renders the row being left and the row
+ * being entered, not all two hundred. The highlight positions are worked out in
+ * here rather than passed in — ranking deliberately does not produce them, and
+ * a fresh array as a prop would defeat the memo anyway.
+ *
+ * Hover uses `mouseenter`, not `mousemove`. With `mousemove` every pixel of
+ * pointer movement across the list set the selection again, so the whole list
+ * re-rendered at the pointer's sample rate.
+ */
+const Row = memo(function Row({
+  item,
+  query,
+  index,
+  selected,
+  heading,
+  onHover,
+  onRun,
+}: {
+  item: Command
+  query: string
+  index: number
+  selected: boolean
+  /** The group name, when this row is the first of its group. */
+  heading: string | null
+  onHover: (index: number) => void
+  onRun: (cmd: Command) => void
+}) {
+  return (
+    <div>
+      {heading && (
+        <div className="px-3 pt-3 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase">
+          {heading}
+        </div>
+      )}
+      <button
+        data-index={index}
+        onMouseEnter={() => onHover(index)}
+        onClick={() => onRun(item)}
+        data-highlight={selected || undefined}
+        className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left ${
+          selected ? '' : 'hover:bg-[var(--color-accent-dim)]/25'
+        }`}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="block truncate">
+            <Highlighted
+              text={item.title}
+              positions={alignToTitle(item, matchPositions(query, item.candidate))}
+            />
+          </span>
+          {item.subtitle && (
+            <span className="block truncate text-[var(--color-muted)]">{item.subtitle}</span>
+          )}
+        </span>
+        {item.shortcut && (
+          <kbd className="shrink-0 rounded-lg border border-[var(--color-border-strong)] px-1.5 py-0.5 font-[var(--font-mono)] text-[var(--color-muted)]">
+            {item.shortcut}
+          </kbd>
+        )}
+      </button>
+    </div>
+  )
+})
 
 /**
  * Keeps each group's entries together while preserving relevance order.

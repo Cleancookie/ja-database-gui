@@ -23,12 +23,32 @@
  *    with only weak matches, they are all still offered.
  */
 
-import fuzzysort from 'fuzzysort'
+import fuzzysort, { type Result } from 'fuzzysort'
 
 export interface Match {
   score: number
   /** Indices into the matched label, for highlighting. */
   positions: number[]
+}
+
+/**
+ * Where a query matched, before the result is turned into a score or into
+ * highlight positions.
+ *
+ * Kept as fuzzysort's own result rather than a copy: materialising the matched
+ * indices into a JS array is the single most expensive thing about ranking a
+ * large list — measurably more than the matching itself — and only the handful
+ * of rows actually rendered ever need them. See `matchPositions`.
+ */
+interface FieldMatch {
+  result: Result
+  /** Subtracted from the score, for matching something other than the name. */
+  penalty: number
+  /**
+   * How far the matched string runs ahead of `name`, or null when the match
+   * was not on anything the caller renders and has no honest highlighting.
+   */
+  offset: number | null
 }
 
 /**
@@ -61,59 +81,73 @@ export interface Candidate {
 
 export interface Scored<T> {
   item: T
-  match: Match
+  score: number
 }
 
-function single(query: string, target: string): Match | null {
-  const r = fuzzysort.single(query, target)
-  if (!r) return null
-  // fuzzysort's `indexes` is a readonly typed-array-like; copy it so callers
-  // can treat it as a plain array.
-  return { score: r.score, positions: Array.from(r.indexes) }
-}
-
-/**
- * Scores a candidate. Returned positions always index `name`, so highlighting
- * lines up with what the palette renders.
- */
-export function matchCandidate(query: string, c: Candidate): Match | null {
-  const bias = c.bias ?? 0
-  if (!query) return { score: bias, positions: [] }
-
-  const qualified = c.qualifier ? `${c.qualifier}.${c.name}` : c.name
-
+/** Where a non-empty query matches a candidate, and at what discount. */
+function bestField(query: string, c: Candidate): FieldMatch | null {
   // A dotted query is an explicit "schema.table", so match it that way.
   if (query.includes('.')) {
-    const m = single(query, qualified)
-    if (!m) return null
-    // Shift positions onto the name and drop any landing in the schema part.
-    const offset = qualified.length - c.name.length
-    return {
-      score: m.score + bias,
-      positions: m.positions.map((p) => p - offset).filter((p) => p >= 0),
-    }
+    const qualified = c.qualifier ? `${c.qualifier}.${c.name}` : c.name
+    const m = fuzzysort.single(query, qualified)
+    return m ? { result: m, penalty: 0, offset: qualified.length - c.name.length } : null
   }
 
-  const onName = single(query, c.name)
-  if (onName) return { score: onName.score + bias, positions: onName.positions }
+  const onName = fuzzysort.single(query, c.name)
+  if (onName) return { result: onName, penalty: 0, offset: 0 }
 
   // Fall back to the schema, then hidden keywords — both discounted so they
-  // can never displace a genuine name match.
+  // can never displace a genuine name match, and neither highlights anything:
+  // the characters that matched are not in what the row shows.
   if (c.qualifier) {
-    const onQualifier = single(query, c.qualifier)
-    if (onQualifier) {
-      return { score: onQualifier.score - QUALIFIER_PENALTY + bias, positions: [] }
-    }
+    const m = fuzzysort.single(query, c.qualifier)
+    if (m) return { result: m, penalty: QUALIFIER_PENALTY, offset: null }
   }
 
   if (c.keywords) {
-    const onKeywords = single(query, c.keywords)
-    if (onKeywords) {
-      return { score: onKeywords.score - KEYWORD_PENALTY + bias, positions: [] }
-    }
+    const m = fuzzysort.single(query, c.keywords)
+    if (m) return { result: m, penalty: KEYWORD_PENALTY, offset: null }
   }
 
   return null
+}
+
+/**
+ * A candidate's score, or null when it does not match at all.
+ *
+ * This is what ranking uses. It deliberately does not produce highlight
+ * positions — see `matchPositions`.
+ */
+export function matchScore(query: string, c: Candidate): number | null {
+  const bias = c.bias ?? 0
+  if (!query) return bias
+  const m = bestField(query, c)
+  return m ? m.result.score - m.penalty + bias : null
+}
+
+/**
+ * The characters of `name` that the query matched, for highlighting.
+ *
+ * Always indices into `name`, so highlighting lines up with what the palette
+ * renders. Called once per *rendered* row rather than once per candidate: the
+ * copy out of fuzzysort's internal buffer costs more than the match, and a
+ * result nobody can see does not need it. fuzzysort caches its prepared
+ * targets, so asking a second time for a row on screen is cheap.
+ */
+export function matchPositions(query: string, c: Candidate): number[] {
+  if (!query) return []
+  const m = bestField(query, c)
+  if (!m || m.offset === null) return []
+  const positions = Array.from(m.result.indexes)
+  if (m.offset === 0) return positions
+  // Shift onto the name and drop any landing in the schema part.
+  return positions.map((p) => p - m.offset!).filter((p) => p >= 0)
+}
+
+/** Score and positions together. */
+export function matchCandidate(query: string, c: Candidate): Match | null {
+  const score = matchScore(query, c)
+  return score === null ? null : { score, positions: matchPositions(query, c) }
 }
 
 /**
@@ -127,17 +161,17 @@ export function rankCandidates<T>(
 ): Scored<T>[] {
   const scored: Scored<T>[] = []
   for (const item of items) {
-    const match = matchCandidate(query, toCandidate(item))
-    if (match) scored.push({ item, match })
+    const score = matchScore(query, toCandidate(item))
+    if (score !== null) scored.push({ item, score })
   }
   // Array.prototype.sort is stable, so equal scores keep registry order.
-  scored.sort((a, b) => b.match.score - a.match.score)
+  scored.sort((a, b) => b.score - a.score)
 
   if (!query || scored.length === 0) return scored
 
-  const best = scored[0].match.score
+  const best = scored[0].score
   const cutoff = Math.max(ABSOLUTE_FLOOR, best * RELATIVE_CUTOFF)
-  return scored.filter((s) => s.match.score >= cutoff)
+  return scored.filter((s) => s.score >= cutoff)
 }
 
 /**
