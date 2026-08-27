@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -52,17 +53,35 @@ func New(store *config.Store, settings *config.SettingsStore, eng *engine.Engine
 // that depends on the outcome. Deliberately plain `log` — this app has no
 // logging framework and a query log is not a reason to add one.
 func logQuery(e query.Entry) {
+	sql := logSQL(e.Op.SQL)
 	switch {
 	case e.Err != nil:
-		log.Printf("query %s %s db=%q failed in %s: %v",
-			e.Op.ID, e.Op.Kind, e.Op.Database, e.Elapsed.Round(time.Millisecond), e.Err)
+		log.Printf("query %s %s db=%q %s failed in %s: %v",
+			e.Op.ID, e.Op.Kind, e.Op.Database, sql, e.Elapsed.Round(time.Millisecond), e.Err)
 	case e.RowsRead > 0:
-		log.Printf("query %s %s db=%q %d rows in %s",
-			e.Op.ID, e.Op.Kind, e.Op.Database, e.RowsRead, e.Elapsed.Round(time.Millisecond))
+		log.Printf("query %s %s db=%q %s %d rows in %s",
+			e.Op.ID, e.Op.Kind, e.Op.Database, sql, e.RowsRead, e.Elapsed.Round(time.Millisecond))
 	default:
-		log.Printf("query %s %s db=%q ok in %s",
-			e.Op.ID, e.Op.Kind, e.Op.Database, e.Elapsed.Round(time.Millisecond))
+		log.Printf("query %s %s db=%q %s ok in %s",
+			e.Op.ID, e.Op.Kind, e.Op.Database, sql, e.Elapsed.Round(time.Millisecond))
 	}
+}
+
+// logSQLMax caps the statement in the log line. The introspect ops carry short
+// labels ("list objects", "describe foo.bar") and survive whole; a browse
+// carries a real SELECT, of which the head is enough to tell two apart.
+const logSQLMax = 120
+
+// logSQL flattens a statement onto one line and caps its length, so that one
+// query stays one grep-able line.
+func logSQL(sql string) string {
+	flat := strings.Join(strings.Fields(sql), " ")
+	// Rune-wise, not byte-wise: a table name can be non-ASCII and half a rune
+	// in the log is worse than a longer line.
+	if r := []rune(flat); len(r) > logSQLMax {
+		flat = string(r[:logSQLMax]) + "…"
+	}
+	return strconv.Quote(flat)
 }
 
 func (s *Service) Shutdown() { s.engine.Shutdown() }
