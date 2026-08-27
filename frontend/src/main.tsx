@@ -1,6 +1,7 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { App } from './components/App'
+import { Boundary, installCrashReporting } from './components/Boundary'
 import { installObservers } from './perf'
 import { mark } from './startup'
 import './index.css'
@@ -12,12 +13,18 @@ mark('script start')
 // Before the first render, so the interactions during startup are measured too.
 installObservers()
 
+// Before the first render for the same reason: a throw while the tree is first
+// mounting is exactly the crash that used to leave nothing behind.
+installCrashReporting()
+
 const root = document.getElementById('root')
 if (!root) throw new Error('#root is missing from index.html')
 
 createRoot(root).render(
   <StrictMode>
-    <App />
+    <Boundary>
+      <App />
+    </Boundary>
   </StrictMode>,
 )
 

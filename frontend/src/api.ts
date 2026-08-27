@@ -191,7 +191,7 @@ export const api = {
   logClient: (line: string) => invoke<void>('LogClient', [line], { line }),
 }
 
-export function errorMessage(e: unknown): string {
-  if (e instanceof Error) return e.message
-  return String(e)
-}
+// Re-exported so `import { api, errorMessage } from './api'` keeps working. It
+// lives in ./errors because this file reads `window` as it loads, and the
+// DOM-free logic modules — crash.ts — need the helper without that.
+export { errorMessage } from './errors'
