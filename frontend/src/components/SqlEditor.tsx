@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from 'react'
 import { editorCandidates, tokenAt } from '../completion'
 import { activeSqlResult, useActiveKind, useHasSchemas, useStore } from '../store'
+import { DatabasePicker } from './DatabasePicker'
 import { Highlight } from './Highlight'
 import { Editor } from '../ui'
 import { useCellMenu } from './CellMenu'
@@ -29,7 +30,6 @@ export function SqlEditor() {
   const objects = useStore((s) => s.objects)
   const columns = useStore((s) => s.columns)
   const activeRef = useStore((s) => s.activeRef)
-  const activeDatabase = useStore((s) => s.activeDatabase)
   const kind = useActiveKind()
   const hasSchemas = useHasSchemas()
   const cellMenu = useCellMenu('sql')
@@ -53,17 +53,11 @@ export function SqlEditor() {
         <span className="font-semibold tracking-wider text-[var(--color-faint)] uppercase">
           SQL
         </span>
-        {/* Which database the statement will run against. The connection is
-            already scoped to it, so `use` is never needed — but that is only
-            reassuring if it is on screen. */}
-        {activeDatabase && (
-          <span
-            title="Statements run against this database — chosen in the sidebar"
-            className="max-w-[12rem] truncate rounded-lg bg-[var(--color-elevated)] px-1.5 py-0.5 font-[var(--font-mono)] text-[var(--color-muted)]"
-          >
-            {activeDatabase}
-          </span>
-        )}
+        {/* Which database the statement will run against, and a way to change
+            it without leaving the editor. Always rendered: as a chip shown
+            only when a database was already chosen, it went missing in exactly
+            the case where the user needed it most. */}
+        <DatabasePicker />
         <button
           onClick={() => void runSql()}
           disabled={busy || !sqlText.trim()}
