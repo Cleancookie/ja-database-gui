@@ -196,6 +196,24 @@ export function buildActionCommands(s: Store): Command[] {
     run: () => s.setView(s.view === 'sql' ? 'data' : 'sql'),
   })
 
+  // The dropdown is in the editor's header, so the command has to open the
+  // editor before it can focus it — after the render that mounts it, the way
+  // Ctrl+F waits for the filter bar.
+  cmds.push({
+    id: 'sql:pick-database',
+    title: s.activeConnectionId ? 'Choose the database to query' : 'Choose a connection to query',
+    subtitle: 'The dropdown in the SQL editor header',
+    group: 'Query',
+    candidate: {
+      name: 'Choose the database',
+      keywords: 'switch use catalog schema connection editor run against',
+    },
+    run: () => {
+      s.setView('sql')
+      requestAnimationFrame(focusDatabasePicker)
+    },
+  })
+
   cmds.push({
     id: 'tray:toggle',
     title: s.trayOpen ? 'Hide the activity tray' : 'Show running queries',
@@ -557,6 +575,17 @@ export function registerFilterFocus(fn: (() => void) | null) {
 
 export function focusFilter() {
   filterFocus?.()
+}
+
+/** The editor's database picker owns this id — see components/DatabasePicker.tsx. */
+export const DATABASE_PICKER_ID = 'database-picker'
+
+/**
+ * Unlike the filter, this one is a real `<select>`, so the DOM is enough and no
+ * registration handle is needed.
+ */
+export function focusDatabasePicker() {
+  document.getElementById(DATABASE_PICKER_ID)?.focus()
 }
 
 export function describeConnection(kind: string, host?: string, file?: string): string {

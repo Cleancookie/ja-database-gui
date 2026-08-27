@@ -1,12 +1,6 @@
+import { DATABASE_PICKER_ID } from '../commands'
 import { useStore } from '../store'
 import { pickerModel } from '../picker'
-
-/** The id the palette command focuses — see commands.ts. */
-export const DATABASE_PICKER_ID = 'database-picker'
-
-export function focusDatabasePicker() {
-  document.getElementById(DATABASE_PICKER_ID)?.focus()
-}
 
 /**
  * Which database the statement runs against, and a way to change it.
