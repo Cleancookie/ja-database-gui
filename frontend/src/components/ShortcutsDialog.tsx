@@ -10,6 +10,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+E', 'Toggle the SQL editor'],
   ['Ctrl+Enter', 'Run the query (in the editor)'],
   ['Ctrl+R', 'Refresh the current rows'],
+  ['Ctrl+Shift+R', 'Reload the app — the escape hatch if the UI wedges'],
   ['Ctrl+←  /  Ctrl+→', 'Previous / next page'],
   ['Ctrl+`', 'Toggle the activity tray (query log)'],
   ['Ctrl+Shift+A', 'Open connections'],

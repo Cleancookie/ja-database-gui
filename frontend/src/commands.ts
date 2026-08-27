@@ -523,6 +523,18 @@ export function buildActionCommands(s: Store): Command[] {
     run: () => s.setDialog({ kind: 'shortcuts' }),
   })
 
+  // Unconditional, and last: reaching for this means something is already
+  // wrong, and it should never be the thing that is missing.
+  cmds.push({
+    id: 'app:reload',
+    title: 'Reload the app',
+    subtitle: 'Keeps connections — they live in the Go process',
+    group: 'App',
+    shortcut: 'Ctrl+Shift+R',
+    candidate: { name: 'Reload the app', keywords: 'restart refresh stuck frozen crash wedged' },
+    run: () => window.location.reload(),
+  })
+
   return cmds
 }
 
