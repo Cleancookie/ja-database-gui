@@ -4,6 +4,7 @@ import { absoluteRowOffset, cellText, isCellTruncated } from './cells'
 import { RECENT_LIMIT, refKey } from './recency'
 import { downloadText } from './dom'
 import { csv, describeCopy, rectOf, selectionText, type CellPos, type Selection } from './selection'
+import { startFlushing } from './perf'
 import { mark, reportText } from './startup'
 import { applyTheme, DEFAULT_THEME } from './themes'
 import type {
@@ -440,6 +441,11 @@ export const useStore = create<State>((set, get) => {
         // written to the log file, where it can be read after the fact.
         void api.logClient(`startup ${reportText()}`).catch(() => {
           // A failed log line is never worth a toast.
+        })
+        // From here on the interaction timings go the same way, so that "why
+        // did it feel slow yesterday" is a question the log file answers.
+        startFlushing((line) => {
+          void api.logClient(line).catch(() => {})
         })
       } catch (e) {
         get().pushToast('error', errorMessage(e))

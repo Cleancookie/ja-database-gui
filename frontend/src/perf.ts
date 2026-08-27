@@ -74,8 +74,10 @@ export class PerfLog {
   private worstEvents: Sample[] = []
   /** Slow events not yet written to the log file. */
   private notable: Sample[] = []
+  private total = 0
 
   record(s: Sample) {
+    this.total++
     const ms = Math.round(s.ms)
     const sample: Sample = { ...s, ms }
 
@@ -150,6 +152,11 @@ export class PerfLog {
     return out
   }
 
+  /** Total measurements taken, so a flush can tell an idle app from a busy one. */
+  get recorded(): number {
+    return this.total
+  }
+
   /** The palette command's readout, and what gets flushed to the log file. */
   reportText(): string {
     const rows = this.summary()
@@ -196,6 +203,19 @@ export async function span<T>(name: string, fn: () => Promise<T>): Promise<T> {
 }
 
 /**
+ * React Profiler sink. Records commits slower than a frame.
+ *
+ * `phase` is kept because it is the difference between a diagnosis and a
+ * guess: a slow "mount" means the component is being thrown away and rebuilt
+ * when it should have been updated, which is a different fix entirely from a
+ * slow "update".
+ */
+export function onCommit(id: string, phase: string, actualDuration: number) {
+  if (actualDuration < SLOW_COMMIT_MS) return
+  perf.record({ name: `${id} ${phase}`, ms: actualDuration })
+}
+
+/**
  * Subscribes to the browser's interaction and long-task instrumentation.
  *
  * Safe to call once at startup on any browser: an unsupported entry type throws
@@ -228,12 +248,60 @@ export function installObservers() {
   })
 }
 
-function observe(options: PerformanceObserverInit, onList: (list: PerformanceObserverEntryList) => void) {
+/**
+ * `durationThreshold` is part of Event Timing but not of this TypeScript
+ * release's PerformanceObserverInit, so it is declared here rather than
+ * dropped — the browser reads it whatever the types say.
+ */
+type ObserveOptions = PerformanceObserverInit & { durationThreshold?: number }
+
+function observe(options: ObserveOptions, onList: (list: PerformanceObserverEntryList) => void) {
   if (typeof PerformanceObserver === 'undefined') return
   try {
     new PerformanceObserver(onList).observe(options)
   } catch {
     // WebKitGTK supports neither entry type. Losing the observer is expected
     // there and must not take the app's startup with it.
+  }
+}
+
+/** How often the aggregate is written to the log file. */
+const FLUSH_MS = 30_000
+
+/**
+ * Starts writing measurements to `sink`, which is the Go log file.
+ *
+ * Two kinds of line. Anything at or above SLOW_MS gets its own, with the
+ * handler/render breakdown intact, because a single 400ms click is the thing
+ * worth chasing and an average would hide it. Everything else is covered by a
+ * periodic aggregate.
+ *
+ * Nothing is written while the app sits idle — an unattended app should not
+ * fill the log — and the pending lines are flushed when the window is hidden,
+ * which is the last chance before it is closed.
+ *
+ * Returns a function that stops the flushing.
+ */
+export function startFlushing(sink: (line: string) => void, log: PerfLog = perf) {
+  let lastRecorded = 0
+
+  const flush = () => {
+    for (const e of log.drainNotable()) {
+      sink(`perf slow ${e.name} ${e.ms}ms${e.detail ? ` (${e.detail})` : ''}`)
+    }
+    if (log.recorded === lastRecorded) return
+    lastRecorded = log.recorded
+    sink(`perf ${log.reportText()}`)
+  }
+
+  const timer = setInterval(flush, FLUSH_MS)
+  const onHidden = () => {
+    if (document.visibilityState === 'hidden') flush()
+  }
+  document.addEventListener('visibilitychange', onHidden)
+
+  return () => {
+    clearInterval(timer)
+    document.removeEventListener('visibilitychange', onHidden)
   }
 }

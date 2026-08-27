@@ -8,6 +8,7 @@
  */
 
 import type { Candidate } from './fuzzy'
+import { perf } from './perf'
 import { reportText } from './startup'
 import { objectBias, orderByRecency, refKey } from './recency'
 import { rectOf, rectSize } from './selection'
@@ -220,6 +221,26 @@ export function buildActionCommands(s: Store): Command[] {
     run: () => {
       console.info('startup:', reportText())
       s.pushToast('info', reportText())
+    },
+  })
+
+  cmds.push({
+    id: 'app:performance',
+    title: 'Show performance report',
+    subtitle: 'The slowest interactions since launch',
+    group: 'App',
+    candidate: { name: 'Performance report', keywords: 'slow lag timing profile jank' },
+    // The worst individual events as well as the aggregate: an average hides
+    // the one 400ms click that is the reason anyone went looking. Also written
+    // to the log file periodically — see perf.ts — so quitting loses nothing.
+    run: () => {
+      const worst = perf
+        .worst(5)
+        .map((e) => `${e.name} ${e.ms}ms${e.detail ? ` (${e.detail})` : ''}`)
+        .join(' · ')
+      console.info('perf:', perf.reportText())
+      if (worst) console.info('perf worst:', worst)
+      s.pushToast('info', worst || perf.reportText())
     },
   })
 

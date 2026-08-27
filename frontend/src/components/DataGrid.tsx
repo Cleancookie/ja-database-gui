@@ -1,6 +1,7 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, Profiler, useEffect, useMemo, useRef, useState } from 'react'
 import { isTypingTarget } from '../dom'
+import { onCommit } from '../perf'
 import { inRect, rectOf, type CellPos, type Rect } from '../selection'
 import { measuredSpan, offsetToShow, scrollTo, uniformSpan } from '../scroll'
 import { useStore, type ResultSource } from '../store'
@@ -66,7 +67,19 @@ interface Props {
  * decided by the shape of the range and by nothing else — see
  * frontend/src/selection.ts.
  */
-export const DataGrid = memo(function DataGrid({
+export const DataGrid = memo(function DataGrid(props: Props) {
+  // Event Timing says whether a slow click was spent rendering; it cannot say
+  // which component did it. The grid is the one worth naming — the largest
+  // render in the app, and the one every browse interaction goes through.
+  // Wrapping here rather than inside covers the records view nested below too.
+  return (
+    <Profiler id={`grid ${props.source}`} onRender={onCommit}>
+      <Grid {...props} />
+    </Profiler>
+  )
+})
+
+function Grid({
   result,
   source,
   columns,
@@ -576,7 +589,7 @@ export const DataGrid = memo(function DataGrid({
       </div>
     </div>
   )
-})
+}
 
 /** Arrow keys as a step in display coordinates. */
 const ARROWS: Record<string, { row: number; col: number }> = {

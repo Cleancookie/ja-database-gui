@@ -5,6 +5,7 @@
 // above this file knows which is in play.
 // See docs/adr/0001-go-core-with-two-transports.md.
 
+import { span } from './perf'
 import type {
   ActivityResult,
   Capabilities,
@@ -58,7 +59,14 @@ export class ApiError extends Error {
  * transport needs a single JSON body instead, so `httpBody` maps those
  * arguments into the shape cmd/devserver expects.
  */
-async function call<T>(method: string, args: unknown[], httpBody: unknown): Promise<T> {
+function call<T>(method: string, args: unknown[], httpBody: unknown): Promise<T> {
+  // Timed here rather than at each of the thirty call sites below. The span is
+  // what separates "the database was slow" from "our UI was slow" — no other
+  // measurement can, and the two feel identical to whoever is clicking.
+  return span(`api ${method}`, () => invoke<T>(method, args, httpBody))
+}
+
+async function invoke<T>(method: string, args: unknown[], httpBody: unknown): Promise<T> {
   const bindings = wailsBindings()
   if (bindings) {
     const fn = bindings[method]
@@ -174,8 +182,13 @@ export const api = {
 
   clearQueryHistory: () => call<void>('ClearQueryHistory', [], {}),
 
-  /** Sends a line to the Go log file, which is the only place it persists. */
-  logClient: (line: string) => call<void>('LogClient', [line], { line }),
+  /**
+   * Sends a line to the Go log file, which is the only place it persists.
+   *
+   * Deliberately untimed — it is how the timings are flushed, and measuring it
+   * would mean every flush produced fresh measurements to flush.
+   */
+  logClient: (line: string) => invoke<void>('LogClient', [line], { line }),
 }
 
 export function errorMessage(e: unknown): string {
