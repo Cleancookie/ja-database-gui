@@ -977,3 +977,71 @@ func TestBatchReturnsRows(t *testing.T) {
 		}
 	}
 }
+
+// countKind is how many entries of one kind the activity log holds.
+func countKind(svc *Service, kind activity.Kind) int {
+	n := 0
+	for _, e := range svc.Activity().Queries {
+		if e.Kind == kind {
+			n++
+		}
+	}
+	return n
+}
+
+// ReadRows needs the column list before it can build a SELECT, and used to
+// re-read it every time — a second serial round trip in front of every page
+// change, sort and filter. Only the first browse should introspect.
+func TestReadRowsIntrospectsColumnsOnce(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 5)
+
+	ref := driver.ObjectRef{Database: "main", Name: "orders"}
+	req := ReadRowsRequest{
+		ConnectionID:     id,
+		Ref:              ref,
+		ApplyDefaultSort: true,
+		Pagination:       Pagination{Enabled: true, Page: 1, PageSize: 2},
+	}
+
+	before := countKind(svc, activity.KindIntrospect)
+	for page := 1; page <= 3; page++ {
+		req.Pagination.Page = page
+		if _, err := svc.ReadRows(context.Background(), req); err != nil {
+			t.Fatalf("reading page %d: %v", page, err)
+		}
+	}
+
+	if got := countKind(svc, activity.KindIntrospect) - before; got != 1 {
+		t.Errorf("three browses ran %d introspects, want 1", got)
+	}
+	if got := countKind(svc, activity.KindBrowse) - before; got != 3 {
+		t.Errorf("three browses ran %d browse queries, want 3", got)
+	}
+}
+
+// Dropping a table must not leave the next browse of a table recreated under
+// that name reading the dropped table's columns.
+func TestDropObjectInvalidatesCachedColumns(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 1)
+	ref := driver.ObjectRef{Database: "main", Name: "orders"}
+
+	if _, err := svc.ListColumns(context.Background(), id, ref); err != nil {
+		t.Fatalf("first ListColumns: %v", err)
+	}
+	if _, err := svc.DropObject(context.Background(), DropObjectRequest{
+		ConnectionID: id, Ref: ref, Type: driver.ObjectTable,
+	}); err != nil {
+		t.Fatalf("dropping: %v", err)
+	}
+	mustRun(t, svc, id, "CREATE TABLE orders (ref TEXT)")
+
+	cols, err := svc.ListColumns(context.Background(), id, ref)
+	if err != nil {
+		t.Fatalf("ListColumns after recreate: %v", err)
+	}
+	if len(cols) != 1 || cols[0].Name != "ref" {
+		t.Errorf("got %+v, want the recreated table's single 'ref' column", cols)
+	}
+}

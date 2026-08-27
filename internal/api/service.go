@@ -31,6 +31,9 @@ type Service struct {
 	// See internal/query: tracking and logging are middleware there rather
 	// than repeated at every call site.
 	runner *query.Runner
+	// columns memoises column metadata for columnTTL. Metadata only — rows are
+	// never cached. See columncache.go.
+	columns *columnCache
 }
 
 func New(store *config.Store, settings *config.SettingsStore, eng *engine.Engine, act *activity.Registry) *Service {
@@ -46,6 +49,7 @@ func New(store *config.Store, settings *config.SettingsStore, eng *engine.Engine
 			query.Tracking(act),
 			query.Logging(logQuery),
 		),
+		columns: newColumnCache(columnTTL, time.Now),
 	}
 }
 
@@ -253,6 +257,9 @@ func (s *Service) Disconnect(connID string) {
 	// goroutines blocked until the server notices the socket has gone.
 	s.activity.CancelConnection(connID)
 	s.engine.Disconnect(connID)
+	// Nothing cached for this connection describes anything still open, and the
+	// next Connect may reach a different server behind the same id.
+	s.columns.invalidateConnection(connID)
 }
 
 func (s *Service) ConnectedIDs() []string { return s.engine.Connected() }
@@ -334,7 +341,17 @@ func (s *Service) ListObjects(ctx context.Context, connID, database string) ([]d
 	return out, nil
 }
 
+// ListColumns reads a table's columns, from the cache when it has a live entry.
+//
+// A cache hit runs no query, so it produces no log line and no activity entry —
+// it is not dodging the middleware chain, there is simply nothing to record.
+// The chain still runs on every miss.
 func (s *Service) ListColumns(ctx context.Context, connID string, ref driver.ObjectRef) ([]driver.Column, error) {
+	if cached, ok := s.columns.get(connID, ref); ok {
+		s.noteColumnCache()
+		return cached, nil
+	}
+
 	sess, err := s.session(ctx, connID, ref.Database)
 	if err != nil {
 		return nil, err
@@ -356,7 +373,25 @@ func (s *Service) ListColumns(ctx context.Context, connID string, ref driver.Obj
 	if cols == nil {
 		cols = []driver.Column{}
 	}
+	s.columns.put(connID, ref, cols)
+	s.noteColumnCache()
 	return cols, nil
+}
+
+// columnCacheEvery is how often the running hit rate is logged. Every decision
+// would be a line per grid interaction; never would leave "is the 5s TTL long
+// enough?" a matter of opinion.
+const columnCacheEvery = 25
+
+// noteColumnCache logs the running hit rate periodically.
+func (s *Service) noteColumnCache() {
+	hits, misses := s.columns.stats()
+	total := hits + misses
+	if total == 0 || total%columnCacheEvery != 0 {
+		return
+	}
+	log.Printf("columns cache: %d hits, %d misses (%d%% hit) ttl=%s",
+		hits, misses, 100*hits/total, columnTTL)
 }
 
 // Pagination carries the three modes the UI offers: paged, or off entirely.
@@ -694,6 +729,10 @@ func (s *Service) DropObject(ctx context.Context, req DropObjectRequest) (*drive
 	if err != nil {
 		return nil, err
 	}
+	// Whatever was cached for this ref describes something that no longer
+	// exists — and a table recreated under the same name inside the TTL would
+	// otherwise be browsed with the dropped table's columns.
+	s.columns.invalidate(req.ConnectionID, req.Ref)
 	return s.exec(ctx, sess, req.ConnectionID, req.Ref.Database, stmt)
 }
 
@@ -711,6 +750,7 @@ func (s *Service) CreateTable(ctx context.Context, req CreateTableRequest) (*dri
 	if err != nil {
 		return nil, err
 	}
+	s.columns.invalidate(req.ConnectionID, req.Spec.Ref)
 	return s.exec(ctx, sess, req.ConnectionID, req.Spec.Ref.Database, stmt)
 }
 
@@ -785,6 +825,13 @@ func (s *Service) RunSQL(ctx context.Context, req RunSQLRequest) (*RunSQLResult,
 	if err != nil {
 		return nil, err
 	}
+
+	// Arbitrary SQL may have altered any table on this connection, so the whole
+	// connection's metadata goes. Unconditionally, and on failure too: a batch
+	// that errors partway may still have committed the ALTER before it. One
+	// re-read on the next browse is a cheap price on a path this cold, and
+	// guessing which tables a statement touched is not worth being wrong about.
+	defer s.columns.invalidateConnection(req.ConnectionID)
 
 	settings := s.settings.Get()
 	maxRows := req.MaxRows
