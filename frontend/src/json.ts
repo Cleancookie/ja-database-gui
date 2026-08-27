@@ -81,6 +81,41 @@ export function summarise(value: unknown): string {
   return n === 1 ? '{ 1 key }' : `{ ${n} keys }`
 }
 
+/** The root of every path the viewer builds, as JSONPath spells it. */
+export const JSON_PATH_ROOT = '$'
+
+/** A key that needs no quoting inside a path. */
+const BARE_KEY = /^[A-Za-z_$][A-Za-z0-9_$]*$/
+
+/**
+ * The JSONPath of a child, given its parent's path.
+ *
+ * Built on the way *down* the tree, one segment at a time, so a node knows its
+ * own path without a second walk to find it. Array children are bracketed by
+ * index; object keys are dotted when they are bare identifiers and quoted
+ * otherwise — a key holding a dot or a space would otherwise produce a path
+ * that addresses something else when pasted back into a query.
+ */
+export function jsonPathChild(parent: string, key: string, inArray: boolean): string {
+  if (inArray) return `${parent}[${key}]`
+  if (BARE_KEY.test(key)) return `${parent}.${key}`
+  return `${parent}['${key.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}']`
+}
+
+/**
+ * What "copy value" puts on the clipboard.
+ *
+ * A string copies as its own text, without the quotes: someone copying a
+ * postcode out of a document wants to paste a postcode. Containers have no
+ * bare form, so they copy as re-indented JSON. The quoted form is
+ * `formatJson`, offered alongside this one.
+ */
+export function jsonValueText(value: unknown): string {
+  if (typeof value === 'string') return value
+  if (value !== null && typeof value === 'object') return formatJson(value)
+  return String(value)
+}
+
 /** Re-indented JSON, for the text view and for copying. */
 export function formatJson(value: unknown): string {
   return JSON.stringify(value, null, 2)

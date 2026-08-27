@@ -3,6 +3,8 @@ import {
   formatBytes,
   jsonEntries,
   jsonKind,
+  jsonPathChild,
+  jsonValueText,
   looksLikeJson,
   parseJson,
   summarise,
@@ -72,6 +74,51 @@ describe('jsonEntries', () => {
   it('has no children for scalars or null', () => {
     expect(jsonEntries(null)).toEqual([])
     expect(jsonEntries(7)).toEqual([])
+  })
+})
+
+describe('jsonPathChild', () => {
+  it('indexes arrays with brackets and objects with a dot', () => {
+    expect(jsonPathChild('$', '0', true)).toBe('$[0]')
+    expect(jsonPathChild('$', 'postcode', false)).toBe('$.postcode')
+    expect(jsonPathChild('$.users[0]', 'postcode', false)).toBe('$.users[0].postcode')
+  })
+
+  // The point of quoting: a key with a dot or a space in it would otherwise
+  // build a path that addresses something else entirely when pasted back.
+  it('quotes a key that is not a bare identifier', () => {
+    expect(jsonPathChild('$', 'odd key', false)).toBe("$['odd key']")
+    expect(jsonPathChild('$', 'a.b', false)).toBe("$['a.b']")
+    expect(jsonPathChild('$', '', false)).toBe("$['']")
+    expect(jsonPathChild('$', '2fast', false)).toBe("$['2fast']")
+    expect(jsonPathChild('$', "it's", false)).toBe("$['it\\'s']")
+  })
+
+  it('treats $ and _ as identifier characters, as JSONPath does', () => {
+    expect(jsonPathChild('$', '_id', false)).toBe('$._id')
+    expect(jsonPathChild('$', '$ref', false)).toBe('$.$ref')
+  })
+
+  // Non-ASCII keys are common in real documents and legal unquoted in most
+  // JSONPath implementations, but quoting them is never wrong — so quote.
+  it('quotes a non-ASCII key', () => {
+    expect(jsonPathChild('$', 'naïve', false)).toBe("$['naïve']")
+  })
+})
+
+describe('jsonValueText', () => {
+  // A string is copied as its own text: pasting a postcode should not paste
+  // the quotes around it.
+  it('gives a scalar its bare text', () => {
+    expect(jsonValueText('SW1A 1AA')).toBe('SW1A 1AA')
+    expect(jsonValueText(42)).toBe('42')
+    expect(jsonValueText(false)).toBe('false')
+    expect(jsonValueText(null)).toBe('null')
+  })
+
+  it('gives a container its re-indented JSON', () => {
+    expect(jsonValueText({ a: 1 })).toBe('{\n  "a": 1\n}')
+    expect(jsonValueText([])).toBe('[]')
   })
 })
 

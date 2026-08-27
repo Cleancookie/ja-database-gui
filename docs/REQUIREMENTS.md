@@ -400,6 +400,30 @@ painted a text selection straight across the row.
 Not built: auto-scroll when a drag reaches the viewport edge. A drag is limited
 to the cells on screen; shift-click still covers the long range.
 
+## 2026-08-27 — right-click in the JSON tree
+
+### Brief
+
+> can we upgrade the json viewer? I want to be able to right click on a key name
+> to bring up a context menu. I want to copy the key name or maybe the key path
+> or value etc. If I click click on a value I might want to copy the value or key
+> or key path etc
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Path notation | JSONPath — `$.users[0].address.postcode`. Chosen over dotted, bracket-only and dialect-specific arrow forms because it pastes into `jsonb_path_query` and most JSON tooling unchanged. Object keys are dotted when they are bare identifiers, `['quoted']` otherwise — a key holding a dot or a space would otherwise build a path that addresses something else |
+| Where the path comes from | Built on the way *down* the tree, one segment per `Node`, by `jsonPathChild` in `json.ts`. No second walk to find a node's own path |
+| One menu or two | One. Right-clicking a key and right-clicking a value give the same four items, because both things you might want are on it either way and making the reader aim at the key buys nothing |
+| Number of Radix roots | One for the whole tree, with the clicked node in state — the arrangement `DataGrid` already uses. A root per node is hundreds of them in a document of any size |
+| `Copy value` on a string | The bare text, without quotes: someone copying a postcode wants to paste a postcode. `Copy value as JSON` keeps the quotes and escapes, and is disabled where the two would be identical (numbers, booleans, null, containers) so the menu keeps its shape between nodes |
+| Stale targets | Cleared when the value prop changes — the dialog swaps in the full document once a cut cell finishes fetching, and a target left pointing into the old one would copy data no longer on screen |
+
+Not built: keyboard equivalents on the tree rows, and palette entries. Both would
+need a focus model the tree does not have — it is a set of toggle buttons, not a
+grid with a cursor.
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
