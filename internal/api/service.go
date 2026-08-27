@@ -991,21 +991,40 @@ func trimLeadingNoise(s string) string {
 
 // --- internals ---------------------------------------------------------------------
 
-// session resolves a live connection. For dialects that reach other databases
-// through qualified names, database is left off the session key so a single
-// connection serves the whole server.
+// sessionDatabase is which database the pooled connection is opened against.
+//
+// The selected database, for every dialect that has databases at all. This used
+// to be gated on Caps().DatabasePerConnection, which is true only for postgres,
+// and the two questions are not the same one:
+//
+//   - DatabasePerConnection asks whether switching database *requires* a new
+//     connection. For MySQL and SQL Server it does not — they reach other
+//     databases through qualified names on one connection.
+//   - This asks what the connection's *current* database should be, and the
+//     answer is always the one the user picked.
+//
+// Conflating them left MySQL and SQL Server connections with no current
+// database. Every path that generates its own SQL survived that, because the
+// drivers qualify object names with the database (see mysqlDriver.target). The
+// SQL editor does not and cannot: it runs the user's own text, so
+// `select * from seq_orders` reached a connection with no default and MySQL
+// answered "Error 1046 (3D000): No database selected".
+//
+// SQLite ignores the value — its DSN is the file — so no flag is needed for it.
+//
+// A pass-through, and named anyway: this is where a dialect exception would go,
+// and the test that guards the invariant calls it.
+func sessionDatabase(database string) string {
+	return database
+}
+
+// session resolves a live connection.
 func (s *Service) session(ctx context.Context, connID, database string) (*engine.Session, error) {
 	cfg, err := s.store.DriverConfig(connID)
 	if err != nil {
 		return nil, err
 	}
-	d, err := driver.Get(cfg.Kind)
-	if err != nil {
-		return nil, err
-	}
-	target := ""
-	if d.Caps().DatabasePerConnection {
-		target = database
-	}
-	return s.engine.Acquire(ctx, connID, cfg, target)
+	// No driver lookup here any more: Acquire does its own, and the dialect no
+	// longer decides which database the session opens against.
+	return s.engine.Acquire(ctx, connID, cfg, sessionDatabase(database))
 }

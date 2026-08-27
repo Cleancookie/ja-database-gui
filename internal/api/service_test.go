@@ -1045,3 +1045,50 @@ func TestDropObjectInvalidatesCachedColumns(t *testing.T) {
 		t.Errorf("got %+v, want the recreated table's single 'ref' column", cols)
 	}
 }
+
+// The SQL editor is the only path that runs the user's own unqualified text.
+// Everything else — browse, count, DDL — goes through the drivers' `target`,
+// which fully qualifies the object name with its database, so those paths work
+// against a connection that has no current database at all. The editor cannot:
+// `select * from seq_orders` needs the connection itself to be scoped, and
+// MySQL answers "Error 1046 (3D000): No database selected" when it is not.
+//
+// `session` used to leave the database off unless Caps().DatabasePerConnection,
+// which is true only for postgres — so on MySQL and SQL Server the selected
+// database reached the generated SQL but never the connection. This asserts the
+// invariant the editor depends on: whatever database the user picked ends up in
+// the DSN.
+func TestTheSelectedDatabaseReachesTheDSN(t *testing.T) {
+	for _, kind := range []driver.Kind{driver.KindMySQL, driver.KindPostgres, driver.KindMSSQL} {
+		t.Run(string(kind), func(t *testing.T) {
+			d, err := driver.Get(kind)
+			if err != nil {
+				t.Fatalf("driver.Get(%s): %v", kind, err)
+			}
+			cfg := driver.ConnConfig{Kind: kind, Host: "db", User: "u", Password: "p"}
+			dsn, err := d.DSN(cfg, sessionDatabase("global4_laravel"))
+			if err != nil {
+				t.Fatalf("DSN: %v", err)
+			}
+			if !strings.Contains(dsn, "global4_laravel") {
+				t.Fatalf("selected database missing from DSN, so the connection has none: %s", dsn)
+			}
+		})
+	}
+}
+
+// SQLite has no databases; the UI still calls the single file "main", and that
+// must not be mistaken for something to open.
+func TestSQLiteIgnoresTheSelectedDatabase(t *testing.T) {
+	d, err := driver.Get(driver.KindSQLite)
+	if err != nil {
+		t.Fatalf("driver.Get: %v", err)
+	}
+	dsn, err := d.DSN(driver.ConnConfig{Kind: driver.KindSQLite, File: "/tmp/x.db"}, sessionDatabase("main"))
+	if err != nil {
+		t.Fatalf("DSN: %v", err)
+	}
+	if strings.Contains(dsn, "main") {
+		t.Fatalf("sqlite DSN should not carry a database name: %s", dsn)
+	}
+}
