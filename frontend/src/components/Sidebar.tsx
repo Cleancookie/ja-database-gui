@@ -4,7 +4,7 @@ import { rankCandidates } from '../fuzzy'
 import { useStore, type SectionKey } from '../store'
 import { ConnectionMenu } from './ConnectionMenu'
 import { Highlight } from './Highlight'
-import { ObjectMenu } from './ObjectMenu'
+import { ObjectListMenu, objectKey } from './ObjectMenu'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import type { ObjectType, SchemaObject } from '../types'
 
@@ -26,8 +26,7 @@ const GROUP_LABEL: Record<ObjectType, string> = {
 /**
  * Memoised because it is the most expensive thing on screen and none of its
  * cost is ever the reason a parent re-rendered: the object list is not
- * virtualised, and every table and view in it carries its own Radix menu root.
- * It takes no props, so this makes an unrelated re-render of the app shell
+ * virtualised. It takes no props, so this makes an unrelated re-render of the app shell
  * free. It still re-renders whenever any store slice it reads below changes.
  */
 export const Sidebar = memo(function Sidebar() {
@@ -199,6 +198,7 @@ export const Sidebar = memo(function Sidebar() {
             {objects.length === 0 && (
               <p className="px-1.5 py-2 text-[var(--color-faint)]">No objects</p>
             )}
+            <ObjectListMenu>
             {GROUP_ORDER.map((type) => {
               const list = grouped.get(type)
               if (!list || list.length === 0) return null
@@ -216,10 +216,12 @@ export const Sidebar = memo(function Sidebar() {
                   {list.map((o) => {
                     const qualified = qualifiedName(o)
                     const active = activeRef?.name === o.name && activeRef?.schema === o.schema
-                    const row = (
+                    return (
                       <button
+                        key={`${type}:${qualified}`}
                         onClick={() => openObject(o)}
                         title={qualified}
+                        data-object={objectKey(o)}
                         data-highlight={active || undefined}
                         className={`relative flex w-full items-center gap-1.5 rounded-lg px-2 py-[0.2rem] text-left ${
                           active
@@ -241,19 +243,11 @@ export const Sidebar = memo(function Sidebar() {
                         )}
                       </button>
                     )
-                    // Only tables and views have anything to describe; the
-                    // other kinds get the plain row with no menu.
-                    return type === 'table' || type === 'view' ? (
-                      <ObjectMenu key={`${type}:${qualified}`} object={o}>
-                        {row}
-                      </ObjectMenu>
-                    ) : (
-                      <span key={`${type}:${qualified}`}>{row}</span>
-                    )
                   })}
                 </section>
               )
             })}
+            </ObjectListMenu>
           </Highlight>
         </Section>
       )}

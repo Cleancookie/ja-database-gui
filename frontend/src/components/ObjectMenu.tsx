@@ -1,66 +1,99 @@
+import { useCallback, useState } from 'react'
 import { refLabel, useStore } from '../store'
 import { ContextMenu, Dialog, dialogButton, type MenuItem } from '../ui'
 import { qualifiedName } from '../commands'
 import type { ObjectRef, ObjectType, SchemaObject } from '../types'
 
 /**
- * Wraps a sidebar table or view row in its right-click menu.
+ * The right-click items for a sidebar table or view.
  *
  * Every item here is a store action that the command palette also exposes —
  * this menu is a second route to them, not a second implementation. Whether a
  * destructive item confirms first, and what gets refreshed afterwards, lives in
  * the action; see the `truncateTable` / `dropObject` block in store.ts.
  *
- * Functions and procedures have nothing here that applies, so the sidebar only
- * wraps tables and views.
+ * Read with getState rather than subscribed to: the builder runs while the menu
+ * is being rendered, so state is already current, and a subscription here would
+ * re-render the menu wrapper for changes it does not show.
  */
-export function ObjectMenu({
-  object,
-  children,
-}: {
-  object: SchemaObject
-  children: React.ReactNode
-}) {
-  const activeDatabase = useStore((s) => s.activeDatabase)
-  const truncateIsDelete = useStore((s) => s.capabilities?.truncateIsDelete ?? false)
-  const openObject = useStore((s) => s.openObject)
-  const openDetails = useStore((s) => s.openDetails)
-  const truncateTable = useStore((s) => s.truncateTable)
-  const dropObject = useStore((s) => s.dropObject)
-  const newTable = useStore((s) => s.newTable)
-
-  const ref = { database: activeDatabase, schema: object.schema, name: object.name }
+export function objectMenuItems(object: SchemaObject): MenuItem[] {
+  const s = useStore.getState()
+  const ref = {
+    database: s.activeDatabase,
+    schema: object.schema,
+    name: object.name,
+  }
 
   const items: MenuItem[] = [
-    { label: 'Open rows', onSelect: () => void openObject(object) },
-    { label: 'Show details', onSelect: () => void openDetails(ref) },
+    { label: 'Open rows', onSelect: () => void s.openObject(object) },
+    { label: 'Show details', onSelect: () => void s.openDetails(ref) },
     {
       label: 'New table…',
       separatorBefore: true,
       // Defaulted to this object's schema, which is nearly always where a table
       // being added alongside it belongs.
-      onSelect: () => newTable(object.schema),
+      onSelect: () => s.newTable(object.schema),
     },
   ]
 
   if (object.type === 'table') {
     items.push({
-      label: truncateIsDelete ? 'Empty table (DELETE)' : 'Empty table (TRUNCATE)',
+      label: s.capabilities?.truncateIsDelete ? 'Empty table (DELETE)' : 'Empty table (TRUNCATE)',
       separatorBefore: true,
       danger: true,
-      onSelect: () => void truncateTable(ref),
+      onSelect: () => void s.truncateTable(ref),
     })
   }
   items.push({
     label: object.type === 'view' ? 'Drop view…' : 'Drop table…',
     separatorBefore: object.type !== 'table',
     danger: true,
-    onSelect: () => void dropObject(ref, object.type),
+    onSelect: () => void s.dropObject(ref, object.type),
   })
+  return items
+}
+
+/** What a sidebar row carries so the list's one menu can tell which object was hit. */
+export function objectKey(o: SchemaObject): string {
+  return `${o.type}:${qualifiedName(o)}`
+}
+
+/**
+ * The sidebar object list's one right-click menu.
+ *
+ * A Radix menu root per row registers document-level key and pointer listeners
+ * of its own, so keystroke cost anywhere in the app — typing in the WHERE box
+ * included — grew with the number of tables. One root around the list, told
+ * which row was hit via `data-object` (see `objectKey`), costs the same at any
+ * size. The grid does the same for its cells.
+ *
+ * State lives here, not in Sidebar, so choosing a row does not re-render the
+ * list: `children` keeps its identity across this component's own renders.
+ *
+ * Only tables and views have anything to describe. A right-click anywhere else
+ * in the list is stopped before it reaches Radix, which leaves the platform's
+ * own behaviour untouched. The menu key on a focused row raises a native
+ * contextmenu event at that row, so it lands in the same handler.
+ */
+export function ObjectListMenu({ children }: { children: React.ReactNode }) {
+  const [object, setObject] = useState<SchemaObject | null>(null)
+
+  const onContextMenuCapture = useCallback((e: React.MouseEvent) => {
+    const key = (e.target as Element).closest<HTMLElement>('[data-object]')?.dataset.object
+    const hit = key ? useStore.getState().objects.find((o) => objectKey(o) === key) : undefined
+    if (hit && (hit.type === 'table' || hit.type === 'view')) {
+      setObject(hit)
+      return
+    }
+    e.stopPropagation()
+  }, [])
 
   return (
-    <ContextMenu items={items} heading={qualifiedName(object)}>
-      {children}
+    <ContextMenu
+      items={object ? objectMenuItems(object) : []}
+      heading={object ? qualifiedName(object) : undefined}
+    >
+      <div onContextMenuCapture={onContextMenuCapture}>{children}</div>
     </ContextMenu>
   )
 }
