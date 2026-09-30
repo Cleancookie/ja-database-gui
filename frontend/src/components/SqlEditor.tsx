@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { editorCandidates, tokenAt } from '../completion'
 import { runSqlFromEditor, sqlEditorHandle } from '../sqlEditorRun'
 import { activeSqlResult, useActiveKind, useHasSchemas, useStore } from '../store'
@@ -7,6 +7,7 @@ import { Highlight } from './Highlight'
 import { Editor } from '../ui'
 import { useCellMenu } from './CellMenu'
 import { DataGrid } from './DataGrid'
+import { LIMITS, Resizer, useResizable } from './Resizer'
 
 /**
  * SQL editor.
@@ -81,73 +82,108 @@ export function SqlEditor() {
         </button>
       </div>
 
-      {/* Fixed height with its own scrolling, as the textarea had. The editor
-          grows its own content area, so the height belongs on the wrapper. */}
-      <div className="h-40 shrink-0 overflow-auto border-b border-[var(--color-border)] bg-[var(--color-elevated)]">
-        <Editor
-          autoFocus
-          value={sqlText}
-          onChange={setSqlText}
-          onSubmit={() => void runSqlFromEditor()}
-          onHasSelectionChange={setHasSelection}
-          handleRef={sqlEditorHandle}
-          dialect={kind}
-          completion={completion}
-          placeholder="select * from …"
-          ariaLabel="SQL editor"
-          className="p-3 leading-relaxed"
-        />
-      </div>
-
-      {/* One tab per result set. A batch is one round trip that can answer
-          several times over, and before this the later answers were dropped
-          on the floor. Hidden for the single result that most runs produce. */}
-      {sqlResults.length > 1 && (
-        <Highlight className="chrome flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5">
-          {sqlResults.map((r, i) => (
-            <button
-              key={i}
-              onClick={() => selectSqlResult(i)}
-              title={r.query}
-              data-highlight={i === sqlResultIndex || undefined}
-              className={`relative shrink-0 rounded-lg px-2 py-0.5 ${
-                i === sqlResultIndex
-                  ? 'font-bold text-[var(--color-accent)]'
-                  : 'text-[var(--color-muted)] hover:bg-[var(--color-elevated)]'
-              }`}
-            >
-              Result {i + 1}{' '}
-              <span className="text-[var(--color-faint)]">
-                {r.rows.length}
-                {r.truncated ? '+' : ''}
-              </span>
-            </button>
-          ))}
-          {moreSqlResults && (
-            <span
-              className="shrink-0 px-2 text-[var(--color-warn)]"
-              title="The batch produced more result sets than are shown"
-            >
-              more not shown
-            </span>
-          )}
-        </Highlight>
-      )}
-
-      <div className="min-h-0 flex-1">
-        {sqlResult ? (
-          <DataGrid
-            result={sqlResult}
-            source="sql"
-            onOpenCell={onOpenCell}
-            cellMenu={cellMenu}
-          />
-        ) : (
-          <div className="flex h-full items-center justify-center text-[var(--color-faint)]">
-            Results appear here
+      {/* The editor scrolls inside its pane; the editor grows its own content
+          area, so the height belongs on the wrapper. */}
+      <ResultsSplit
+        top={
+          <div className="h-full overflow-auto bg-[var(--color-elevated)]">
+            <Editor
+              autoFocus
+              value={sqlText}
+              onChange={setSqlText}
+              onSubmit={() => void runSqlFromEditor()}
+              onHasSelectionChange={setHasSelection}
+              handleRef={sqlEditorHandle}
+              dialect={kind}
+              completion={completion}
+              placeholder="select * from …"
+              ariaLabel="SQL editor"
+              className="p-3 leading-relaxed"
+            />
           </div>
-        )}
+        }
+        bottom={
+          <>
+          {/* One tab per result set. A batch is one round trip that can answer
+              several times over, and before this the later answers were dropped
+              on the floor. Hidden for the single result that most runs produce. */}
+          {sqlResults.length > 1 && (
+            <Highlight className="chrome flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5">
+              {sqlResults.map((r, i) => (
+                <button
+                  key={i}
+                  onClick={() => selectSqlResult(i)}
+                  title={r.query}
+                  data-highlight={i === sqlResultIndex || undefined}
+                  className={`relative shrink-0 rounded-lg px-2 py-0.5 ${
+                    i === sqlResultIndex
+                      ? 'font-bold text-[var(--color-accent)]'
+                      : 'text-[var(--color-muted)] hover:bg-[var(--color-elevated)]'
+                  }`}
+                >
+                  Result {i + 1}{' '}
+                  <span className="text-[var(--color-faint)]">
+                    {r.rows.length}
+                    {r.truncated ? '+' : ''}
+                  </span>
+                </button>
+              ))}
+              {moreSqlResults && (
+                <span
+                  className="shrink-0 px-2 text-[var(--color-warn)]"
+                  title="The batch produced more result sets than are shown"
+                >
+                  more not shown
+                </span>
+              )}
+            </Highlight>
+          )}
+
+          <div className="min-h-0 flex-1">
+            {sqlResult ? (
+              <DataGrid
+                result={sqlResult}
+                source="sql"
+                onOpenCell={onOpenCell}
+                cellMenu={cellMenu}
+              />
+            ) : (
+              <div className="flex h-full items-center justify-center text-[var(--color-faint)]">
+                Results appear here
+              </div>
+            )}
+          </div>
+          </>
+        }
+      />
+    </div>
+  )
+}
+
+/**
+ * The editor above, the results below, and a handle between them.
+ *
+ * The drag state lives here and not in SqlEditor, and both panes arrive as
+ * props: React skips a child element whose identity has not changed, so a
+ * pixel of drag re-renders this small shell and nothing inside either pane —
+ * CodeMirror and the virtualised grid are only resized by CSS. The size is
+ * committed to settings on release, like the tray.
+ *
+ * The top pane is a flex basis that may shrink, bounded by min heights on both
+ * panes, so a small window squeezes the editor rather than losing the results.
+ */
+function ResultsSplit({ top, bottom }: { top: ReactNode; bottom: ReactNode }) {
+  const resize = useResizable('sqlEditorHeightPx', LIMITS.sqlEditor)
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        className="relative border-b border-[var(--color-border)]"
+        style={{ flex: `0 1 ${resize.size}px`, minHeight: LIMITS.sqlEditor.min }}
+      >
+        {top}
+        <Resizer {...resize} axis="y" label="Resize the editor" className="-bottom-0.5" />
       </div>
+      <div className="flex min-h-24 flex-1 flex-col">{bottom}</div>
     </div>
   )
 }
