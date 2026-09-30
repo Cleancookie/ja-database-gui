@@ -8,8 +8,11 @@
 import { span } from './perf'
 import type {
   ActivityResult,
+  ApplyResult,
   Capabilities,
   CellValue,
+  ChangesPreview,
+  ChangesRequest,
   Column,
   Connection,
   ConnectResult,
@@ -152,6 +155,15 @@ export const api = {
 
   countRows: (req: { connectionId: string; ref: ObjectRef; filter: string }) =>
     call<number>('CountRows', [req], req),
+
+  /** The statements applyChanges would run. Runs none of them. Rejects with the
+   *  reason when a change does not fit the table (wrong key, read-only column …). */
+  previewChanges: (req: ChangesRequest) =>
+    call<ChangesPreview>('PreviewChanges', [req], req),
+
+  /** One transaction. A conflict comes back as a result, not a thrown error;
+   *  a change that does not fit the table rejects like previewChanges does. */
+  applyChanges: (req: ChangesRequest) => call<ApplyResult>('ApplyChanges', [req], req),
 
   runSql: (req: { connectionId: string; database: string; sql: string; maxRows: number }) =>
     call<RunSQLResult>('RunSQL', [req], req),

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -125,6 +126,71 @@ func TestOnlyLoopbackIsServed(t *testing.T) {
 	} {
 		if err := requireLoopback(addr); (err == nil) != ok {
 			t.Errorf("requireLoopback(%q) = %v, want ok=%v", addr, err, ok)
+		}
+	}
+}
+
+// The two new routes, in the body shape api.ts sends: a conflict is a 200 with a
+// result, and a change that does not fit the table is a 500 with a message.
+func TestChangesOverHTTP(t *testing.T) {
+	dir := t.TempDir()
+	svc, err := build(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(svc.Shutdown)
+	h := newHandler(svc)
+
+	conn, err := svc.SaveConnection(api.SaveConnectionRequest{Connection: config.Connection{
+		Name: "t", Kind: driver.KindSQLite, File: filepath.Join(dir, "t.db"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec := post(h, "RunSQL", `{"connectionId":"`+conn.ID+`","sql":"create table t(id integer primary key, n text); insert into t values (1,'a')"}`); rec.Code != http.StatusOK {
+		t.Fatalf("RunSQL: %d %s", rec.Code, rec.Body)
+	}
+	target := `"connectionId":"` + conn.ID + `","ref":{"database":"main","schema":"","name":"t"}`
+
+	rec := post(h, "PreviewChanges", `{`+target+`,"changes":[{"op":"update","key":{"id":1},"set":{"n":{"kind":"value","value":"b"}}}]}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("PreviewChanges: %d %s", rec.Code, rec.Body)
+	}
+	var prev api.ChangesPreview
+	if err := json.Unmarshal(rec.Body.Bytes(), &prev); err != nil || len(prev.Statements) != 1 {
+		t.Fatalf("preview = %s (%v)", rec.Body, err)
+	}
+
+	rec = post(h, "ApplyChanges", `{`+target+`,"changes":[{"op":"update","key":{"id":99},"set":{"n":{"kind":"null"}}}]}`)
+	var res api.ApplyResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || rec.Code != http.StatusOK {
+		t.Fatalf("ApplyChanges: %d %s", rec.Code, rec.Body)
+	}
+	if res.Conflict == nil || res.Applied != 0 {
+		t.Errorf("result = %+v, want a conflict", res)
+	}
+
+	rec = post(h, "ApplyChanges", `{`+target+`,"changes":[{"op":"update","key":{"nope":1},"set":{"n":{"kind":"null"}}}]}`)
+	if rec.Code != http.StatusInternalServerError || !strings.Contains(rec.Body.String(), "not part of the key") {
+		t.Errorf("a mismatched key: %d %s, want a 500 saying why", rec.Code, rec.Body)
+	}
+}
+
+// A Service method with no route is a capability the browser transport silently
+// lacks. Shutdown is the lifecycle hook, not API.
+func TestEveryServiceMethodHasARoute(t *testing.T) {
+	svc, err := build(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(svc.Shutdown)
+	table := routes(svc)
+
+	typ := reflect.TypeOf(svc)
+	for i := 0; i < typ.NumMethod(); i++ {
+		name := typ.Method(i).Name
+		if _, ok := table[name]; !ok && name != "Shutdown" {
+			t.Errorf("api.Service.%s has no devserver route", name)
 		}
 	}
 }

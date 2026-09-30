@@ -17,6 +17,10 @@ export interface Capabilities {
   /** Seeds the type field in the new-table dialog. A starting point, not a
    *  whitelist — the field takes any type the engine accepts. */
   commonTypes: string[]
+  /** False on SQLite, which has no DEFAULT keyword for an UPDATE: hide "reset
+   *  to default" there. An insert may still carry a `default` cell — the
+   *  column is simply left out. */
+  setToDefault: boolean
 }
 
 export interface Connection {
@@ -218,6 +222,58 @@ export interface ReadRowsResult {
   /** The sort the page was read with — the default one when none was asked for. */
   orderBy: Sort[] | null
   hasMore: boolean
+}
+
+/**
+ * What one cell is to become. Three intents a bare string cannot tell apart:
+ * text to store, NULL, and "whatever the column defaults to". Go: api.CellValue —
+ * renamed here because CellValue above is the result of readCell.
+ */
+export interface CellInput {
+  kind: 'value' | 'null' | 'default'
+  /** Text to store, for kind 'value'. Coerced server-side by the column's type. */
+  value?: string
+}
+
+export interface RowChange {
+  op: 'update' | 'insert' | 'delete'
+  /** ORIGINAL values of the key columns, exactly readRows' editKey, as readRows
+   *  sent them (bigints and decimals stay strings). Update and delete only. */
+  key?: Record<string, unknown>
+  /** Update: the changed columns only. Insert: the columns given a value. */
+  set?: Record<string, CellInput>
+}
+
+export interface ChangesRequest {
+  connectionId: string
+  ref: ObjectRef
+  /** Applied in this order. */
+  changes: RowChange[]
+}
+
+export interface Statement {
+  /** Parameterised text — what runs. */
+  sql: string
+  /** The same statement with values written in, for a person to read. Never run. */
+  display: string
+}
+
+export interface ChangesPreview {
+  /** One per change, in order. */
+  statements: Statement[]
+}
+
+export interface ChangeConflict {
+  /** Into ChangesRequest.changes, from 0. */
+  index: number
+  message: string
+}
+
+/** All or nothing: applied is changes.length and conflict is absent, or applied
+ *  is 0, the transaction rolled back, and conflict says which change and why. */
+export interface ApplyResult {
+  applied: number
+  conflict?: ChangeConflict
 }
 
 export interface ConnectResult {

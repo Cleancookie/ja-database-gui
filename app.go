@@ -114,6 +114,14 @@ func (a *App) CountRows(req api.CountRowsRequest) (int64, error) {
 	return a.svc.CountRows(a.ctx, req)
 }
 
+func (a *App) PreviewChanges(req api.ChangesRequest) (api.ChangesPreview, error) {
+	return a.svc.PreviewChanges(a.ctx, req)
+}
+
+func (a *App) ApplyChanges(req api.ChangesRequest) (api.ApplyResult, error) {
+	return a.svc.ApplyChanges(a.ctx, req)
+}
+
 func (a *App) RunSQL(req api.RunSQLRequest) (*api.RunSQLResult, error) {
 	return a.svc.RunSQL(a.ctx, req)
 }

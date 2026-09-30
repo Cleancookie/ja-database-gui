@@ -162,13 +162,15 @@ func routes(s *api.Service) map[string]route {
 			return s.PreviewCreateTable(r)
 		}),
 
-		"ReadRows":      withReq(s.ReadRows),
-		"ReadCell":      withReq(s.ReadCell),
-		"CountRows":     withReq(s.CountRows),
-		"RunSQL":        withReq(s.RunSQL),
-		"TruncateTable": withReq(s.TruncateTable),
-		"DropObject":    withReq(s.DropObject),
-		"CreateTable":   withReq(s.CreateTable),
+		"ReadRows":       withReq(s.ReadRows),
+		"ReadCell":       withReq(s.ReadCell),
+		"CountRows":      withReq(s.CountRows),
+		"PreviewChanges": withReq(s.PreviewChanges),
+		"ApplyChanges":   withReq(s.ApplyChanges),
+		"RunSQL":         withReq(s.RunSQL),
+		"TruncateTable":  withReq(s.TruncateTable),
+		"DropObject":     withReq(s.DropObject),
+		"CreateTable":    withReq(s.CreateTable),
 	}
 }
 
