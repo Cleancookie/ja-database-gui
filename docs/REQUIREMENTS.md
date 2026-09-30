@@ -522,6 +522,8 @@ test — which is the intended speed bump.
 | Palette results are cut relative to the best score | Fuzzy matching is permissive by nature; ordering alone does not narrow a list |
 | Activity polling is driven by the store's in-flight count, never by a bare timer | An idle app must issue no requests. A poller that runs regardless is a background load on every connected database |
 | The query history is a fixed ring with capped retained SQL | It grows for the whole session otherwise, and holds statement text |
+| Full SQL and error text beyond the preview live only in a 0700 per-process temp directory, at most one file per ring slot, removed on eviction, `ClearQueryHistory` and `Shutdown`; bound arguments and row values are never written | Long statements must stay readable without the log growing. The directory holds queries, so it is private and temporary. `internal/activity/registry_test.go` |
+| The temp sweep never removes the directory of a live process | Two running instances share the temp directory. `TestSweepRemovesDeadAndAgedDirectoriesOnly` |
 | Query timers extrapolate from the last snapshot, never from `startedAt` | `startedAt` is the server's wall clock; clock skew would show a fresh query as minutes old |
 | The UI is sized in `rem` from a single root font size | The Settings slider must scale spacing and controls, not just text |
 | No component names a colour literal; every one is a `var(--color-…)` token | A theme is then a block of custom properties in `index.css` and nothing else. One literal is a component that stays light in a dark theme |

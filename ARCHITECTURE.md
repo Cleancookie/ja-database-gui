@@ -369,10 +369,19 @@ its own `*sql.Conn`; see `docs/WISHLIST.md`.
 Finished queries stay in the pane, so the tray doubles as a log of what the
 session has run. `Registry.history` is a fixed ring of `historySize` (500)
 entries holding every kind, catalogue reads included — see "The activity log
-keeps everything" above. Retained SQL is capped at `historySQLLimit` (2000
-chars) and error text at 500, because a ring of editor statements is the one
-place here where retained strings could add up. `ClearQueryHistory` empties the
-ring.
+keeps everything" above. The ring holds only a preview of each statement (300
+runes, `sqlTruncated` says it was cut) and of each error (500, `errorTruncated`),
+because a ring of editor statements is the one place here where retained strings
+could add up. `ClearQueryHistory` empties the ring.
+
+The full text of anything cut is spilled to `<id>.json` in a per-process temp
+directory (`ja-db-activity-<pid>-…`, mode 0700, created on first use) and read
+back by `QuerySQL` / `api.querySql` when the user asks. A file goes when its
+ring slot is overwritten or the log is cleared, so there are never more than 500.
+`Service.Shutdown` removes the directory; `activity.New` sweeps directories left
+by dead processes (by pid on Unix, by age on Windows). If the directory cannot
+be made, the log falls back to a 2000-rune in-memory cut. Only statement text and
+the error are written — never bound arguments or row values.
 
 Four things about the tray are deliberate:
 
