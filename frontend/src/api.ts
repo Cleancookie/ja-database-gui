@@ -8,6 +8,7 @@
 import { span } from './perf'
 import type {
   ActivityResult,
+  QuerySqlResult,
   ApplyResult,
   Capabilities,
   CellValue,
@@ -191,6 +192,9 @@ export const api = {
   activity: () => call<ActivityResult>('Activity', [], {}),
 
   cancelQuery: (id: string) => call<void>('CancelQuery', [id], { id }),
+
+  /** The whole statement and error of an entry the tray shows truncated. */
+  querySql: (id: string) => call<QuerySqlResult>('QuerySQL', [id], { id }),
 
   clearQueryHistory: () => call<void>('ClearQueryHistory', [], {}),
 

@@ -347,13 +347,26 @@ export interface QueryInfo {
   connectionId: string
   database: string
   kind: QueryKind
+  /** A preview of at most 300 characters; `querySql` has the whole statement. */
   sql: string
+  /** `sql` is cut. The whole statement is fetched with `api.querySql`. */
+  sqlTruncated?: boolean
   startedAt: string
   /** Frozen once the phase is terminal. */
   elapsedMs: number
   phase: QueryPhase
   rowsRead: number
+  /** A preview of at most 500 characters. */
   error?: string
+  errorTruncated?: boolean
+}
+
+/** The whole text behind a QueryInfo. Mirrors api.QuerySQLResult. */
+export interface QuerySqlResult {
+  sql: string
+  error?: string
+  /** False once the text has been evicted from the log; `sql` is then only the preview. */
+  kept: boolean
 }
 
 export interface SessionInfo {

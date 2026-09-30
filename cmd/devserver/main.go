@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -18,8 +19,12 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"github.com/Cleancookie/ja-db/internal/activity"
 	"github.com/Cleancookie/ja-db/internal/api"
@@ -42,8 +47,25 @@ func main() {
 	}
 	defer svc.Shutdown()
 
+	// Serve until interrupted rather than log.Fatal-ing out of ListenAndServe,
+	// which would skip the deferred Shutdown and leave the activity log's temp
+	// directory behind.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	srv := &http.Server{Addr: *addr, Handler: newHandler(svc)}
+	go func() {
+		<-ctx.Done()
+		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = srv.Shutdown(shutCtx)
+	}()
+
 	log.Printf("devserver listening on http://%s", *addr)
-	log.Fatal(http.ListenAndServe(*addr, newHandler(svc)))
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		log.Printf("devserver: %v", err)
+		svc.Shutdown()
+		os.Exit(1)
+	}
 }
 
 // requireLoopback refuses any address that is reachable from another machine.
@@ -132,6 +154,7 @@ func routes(s *api.Service) map[string]route {
 		"ConnectedIDs":      withArgs(func(context.Context, args) (any, error) { return s.ConnectedIDs(), nil }),
 		"GetSettings":       withArgs(func(context.Context, args) (any, error) { return s.GetSettings(), nil }),
 		"Activity":          withArgs(func(context.Context, args) (any, error) { return s.Activity(), nil }),
+		"QuerySQL":          withArgs(func(_ context.Context, a args) (any, error) { return s.QuerySQL(a.ID), nil }),
 		"ClearQueryHistory": withArgs(func(context.Context, args) (any, error) { s.ClearQueryHistory(); return nil, nil }),
 		"CancelQuery":       withArgs(func(_ context.Context, a args) (any, error) { s.CancelQuery(a.ID); return nil, nil }),
 		"Disconnect":        withArgs(func(_ context.Context, a args) (any, error) { s.Disconnect(a.ID); return nil, nil }),

@@ -178,6 +178,19 @@ func TestChangesOverHTTP(t *testing.T) {
 
 // A Service method with no route is a capability the browser transport silently
 // lacks. Shutdown is the lifecycle hook, not API.
+// api.ts sends one loose scalar as {id}; an id nothing kept is an answer, not
+// an error.
+func TestQuerySQLOverHTTP(t *testing.T) {
+	rec := post(testHandler(t), "QuerySQL", `{"id":"q999999"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d, body %s", rec.Code, rec.Body)
+	}
+	var got api.QuerySQLResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil || got.Kept {
+		t.Fatalf("body %s, err %v, want kept=false", rec.Body, err)
+	}
+}
+
 func TestEveryServiceMethodHasARoute(t *testing.T) {
 	svc, err := build(t.TempDir())
 	if err != nil {

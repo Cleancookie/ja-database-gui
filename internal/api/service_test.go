@@ -760,6 +760,30 @@ func TestActivityRecordsFailuresWithTheDatabaseMessage(t *testing.T) {
 	}
 }
 
+// The tray shows a preview; QuerySQL is how the rest of a long statement is
+// read back.
+func TestQuerySQLReturnsTheWholeStatementTheLogTruncated(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 1)
+
+	long := "SELECT 'x' AS pad, " + strings.Repeat("1 + ", 400) + "1 AS n FROM orders"
+	if _, err := svc.RunSQL(context.Background(), RunSQLRequest{ConnectionID: id, SQL: long}); err != nil {
+		t.Fatalf("select: %v", err)
+	}
+
+	latest := svc.Activity().Queries[0]
+	if !latest.SQLTruncated || len(latest.SQL) >= len(long) {
+		t.Fatalf("log entry not truncated: flag %v, %d of %d bytes", latest.SQLTruncated, len(latest.SQL), len(long))
+	}
+	got := svc.QuerySQL(latest.ID)
+	if !got.Kept || got.SQL != long {
+		t.Fatalf("QuerySQL = kept %v, %d bytes, want the whole %d-byte statement", got.Kept, len(got.SQL), len(long))
+	}
+	if gone := svc.QuerySQL("q999999"); gone.Kept || gone.SQL != "" {
+		t.Fatalf("unknown id = %+v, want nothing kept", gone)
+	}
+}
+
 // Catalogue reads reach the log like anything else. They were dropped once, and
 // the effect was a log the user could not trust: a describe ran, was visible for
 // a few milliseconds, and left no trace. The tray hides them from the *view* by

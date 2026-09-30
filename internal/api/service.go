@@ -88,7 +88,10 @@ func logSQL(sql string) string {
 	return strconv.Quote(flat)
 }
 
-func (s *Service) Shutdown() { s.engine.Shutdown() }
+func (s *Service) Shutdown() {
+	s.engine.Shutdown()
+	s.activity.Close()
+}
 
 // --- settings ----------------------------------------------------------------------
 
@@ -137,6 +140,22 @@ func (s *Service) Activity() ActivityResult {
 
 // CancelQuery stops one running query.
 func (s *Service) CancelQuery(id string) { s.activity.Cancel(id) }
+
+// QuerySQLResult is the whole text of one activity-log entry. Kept is false
+// when the text has been evicted, in which case SQL and Error hold only the
+// preview the log still has, or nothing for an id it never knew.
+type QuerySQLResult struct {
+	SQL   string `json:"sql"`
+	Error string `json:"error,omitempty"`
+	Kept  bool   `json:"kept"`
+}
+
+// QuerySQL returns the full statement and error of a query the tray shows
+// truncated. It reads a temp file, never the database.
+func (s *Service) QuerySQL(id string) QuerySQLResult {
+	sql, errText, kept := s.activity.Full(id)
+	return QuerySQLResult{SQL: sql, Error: errText, Kept: kept}
+}
 
 // ClearQueryHistory empties the finished half of the activity list. Anything
 // still running stays, since it is not history yet.
