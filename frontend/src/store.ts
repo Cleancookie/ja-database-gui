@@ -5,15 +5,22 @@ import { RECENT_LIMIT, refKey } from './recency'
 import { downloadText } from './dom'
 import { csv, describeCopy, rectOf, selectionText, type CellPos, type Selection } from './selection'
 import { startFlushing } from './perf'
+import {
+  INITIAL_EDIT_STATE,
+  createEditSlice,
+  guardUnload,
+  type EditActions,
+  type EditState,
+} from './storeEdits'
 import { mark, reportText } from './startup'
 import { applyTheme, DEFAULT_THEME } from './themes'
 import type {
   ActivityResult,
   Capabilities,
   Cell,
-  Column,
   Connection,
   CreateTableSpec,
+  GridColumn,
   Kind,
   ObjectDetail,
   ObjectRef,
@@ -58,6 +65,9 @@ export type DialogState =
   | { kind: 'confirmTruncate'; ref: ObjectRef }
   | { kind: 'confirmDrop'; ref: ObjectRef; type: ObjectType }
   | { kind: 'newTable'; schema: string }
+  | { kind: 'reviewChanges' }
+  /** Staged edits are about to be lost; `proceed` is what the user asked for. */
+  | { kind: 'confirmDiscard'; count: number; proceed: () => void | Promise<void> }
 
 /** Which grid a cell came from, since only the browse grid can re-read it. */
 export type ResultSource = 'browse' | 'sql'
@@ -92,7 +102,7 @@ export const DEFAULT_SETTINGS: Settings = {
   trayHeightPx: 260,
 }
 
-interface State {
+export interface State extends EditState, EditActions {
   // catalogue
   drivers: Record<Kind, Capabilities> | null
   connections: Connection[]
@@ -119,7 +129,7 @@ interface State {
    * file for a need that is entirely about the last few minutes.
    */
   recentObjects: string[]
-  columns: Column[]
+  columns: GridColumn[]
   result: ResultSet | null
   orderBy: Sort[]
   /**
@@ -334,6 +344,8 @@ export const useStore = create<State>((set, get) => {
       set({
         result: res.result,
         columns: res.columns,
+        editKey: res.editKey ?? [],
+        readOnlyReason: res.readOnlyReason,
         // A table opened without a sort gets the server's default — primary
         // key descending. Adopting it here is what marks the header and what
         // gives the next header click something to cycle on from. sortChosen
@@ -375,7 +387,12 @@ export const useStore = create<State>((set, get) => {
     })()
   }
 
+  const edits = createEditSlice(set, get, { tracked, fetchRows })
+  const holdForDiscard = edits.holdForDiscard
+
   return {
+    ...INITIAL_EDIT_STATE,
+    ...edits.actions,
     drivers: null,
     connections: [],
     connectedIds: [],
@@ -418,6 +435,7 @@ export const useStore = create<State>((set, get) => {
     toasts: [],
 
     async init() {
+      guardUnload(get)
       try {
         const [drivers, connections, connectedIds, settings] = await Promise.all([
           api.drivers(),
@@ -461,6 +479,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     async connect(id) {
+      if (holdForDiscard(() => get().connect(id))) return
       set({ busy: true })
       try {
         const res = await tracked(() => api.connect(id))
@@ -489,6 +508,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     async disconnect(id) {
+      if (get().activeConnectionId === id && holdForDiscard(() => get().disconnect(id))) return
       try {
         await api.disconnect(id)
       } catch (e) {
@@ -527,6 +547,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     async openObject(o) {
+      if (holdForDiscard(() => get().openObject(o))) return
       const s = get()
       if (!s.activeConnectionId) return
       // Functions and procedures have no rows to browse. Selecting one in the
@@ -555,6 +576,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     async reload() {
+      if (holdForDiscard(() => get().reload())) return
       await fetchRows()
     },
 
@@ -563,6 +585,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     async applyFilter(filter) {
+      if (holdForDiscard(() => get().applyFilter(filter))) return
       set({ filter, page: 1, totalCount: null })
       await fetchRows()
     },
@@ -570,22 +593,26 @@ export const useStore = create<State>((set, get) => {
     async setPage(p) {
       const page = Math.max(1, p)
       if (page === get().page) return
+      if (holdForDiscard(() => get().setPage(p))) return
       set({ page })
       await fetchRows()
     },
 
     async setPageSize(pageSize) {
+      if (holdForDiscard(() => get().setPageSize(pageSize))) return
       // Jumping to page 1 avoids landing past the end of a smaller result.
       set({ pageSize, page: 1 })
       await fetchRows()
     },
 
     async setPaginationEnabled(on) {
+      if (holdForDiscard(() => get().setPaginationEnabled(on))) return
       set({ paginationEnabled: on, page: 1 })
       await fetchRows()
     },
 
     async toggleSort(column) {
+      if (holdForDiscard(() => get().toggleSort(column))) return
       const current = get().orderBy[0]
       let orderBy: Sort[]
       if (!current || current.column !== column) orderBy = [{ column, desc: false }]
@@ -601,6 +628,7 @@ export const useStore = create<State>((set, get) => {
 
     async clearSort() {
       if (get().orderBy.length === 0 && get().sortChosen) return
+      if (holdForDiscard(() => get().clearSort())) return
       set({ orderBy: [], sortChosen: true, page: 1 })
       await fetchRows()
     },
@@ -637,7 +665,12 @@ export const useStore = create<State>((set, get) => {
       // The row count in the sidebar is now wrong, and so is the grid if this is
       // the table on screen.
       await get().selectDatabase(get().activeDatabase)
-      if (sameRef(get().activeRef, ref)) await fetchRows()
+      // The rows the staged edits point at are gone. The confirmation that got
+      // here already said every row would be deleted.
+      if (sameRef(get().activeRef, ref)) {
+        set({ staged: INITIAL_EDIT_STATE.staged, editing: null })
+        await fetchRows()
+      }
     },
 
     async dropObject(ref, type) {
@@ -670,6 +703,8 @@ export const useStore = create<State>((set, get) => {
           totalCount: null,
           selection: null,
           view: 'data',
+          staged: INITIAL_EDIT_STATE.staged,
+          editing: null,
         })
       }
       set({ recentObjects: get().recentObjects.filter((k) => k !== refKey(ref.database, ref.schema, ref.name)) })
