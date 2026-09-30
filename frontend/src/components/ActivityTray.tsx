@@ -1,11 +1,11 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { transportName } from '../api'
+import { api, errorMessage, transportName } from '../api'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import { elapsedFor, isRunning, trayStatus } from '../activity'
 import { formatCount, formatDuration } from '../commands'
 import { useStore } from '../store'
 import { Dialog, dialogButton } from '../ui'
-import type { QueryInfo, QueryKind, QueryPhase } from '../types'
+import type { QueryInfo, QueryKind, QueryPhase, QuerySqlResult } from '../types'
 
 /** How often Go is asked what is running — only while something is. */
 const POLL_MS = 700
@@ -210,17 +210,46 @@ const QueryRow = memo(function QueryRow({
   const running = isRunning(query)
   const elapsed = elapsedFor(query, polledAt, now)
 
-  // Go caps the SQL it retains per history entry, so for a very long statement
-  // this copies what was kept rather than the original. Saying so beats a
-  // silent partial copy.
-  const copySql = async () => {
-    await copyText(query.sql)
-    if (query.sql.endsWith('…')) {
-      pushToast('info', `Copied ${query.id}, trimmed to the length the log keeps`)
-    } else {
-      pushToast('info', `Copied the statement for ${query.id}`)
+  const [open, setOpen] = useState(false)
+  // `final` is whether the query had finished when this was fetched: a finished
+  // entry never changes, so that copy is kept for good; a running one is asked
+  // for again each time the row opens.
+  const [full, setFull] = useState<{ result: QuerySqlResult; final: boolean } | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const cut = Boolean(query.sqlTruncated || query.errorTruncated)
+  const needsFetch = open && cut && !(full?.final)
+
+  useEffect(() => {
+    if (!needsFetch) return
+    let stale = false
+    const final = !running
+    setLoadError(null)
+    api
+      .querySql(query.id)
+      .then((result) => {
+        if (!stale) setFull({ result, final })
+      })
+      .catch((e) => {
+        if (!stale) setLoadError(errorMessage(e))
+      })
+    return () => {
+      stale = true
     }
+    // `running` is deliberately absent: a row finishing while open must not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [needsFetch, query.id])
+
+  const sql = full?.result.sql ?? query.sql
+  const error = full?.result.error ?? query.error
+  const loading = needsFetch && !loadError
+  const evicted = full !== null && !full.result.kept
+
+  const copySql = async () => {
+    await copyText(sql)
+    pushToast('info', `Copied the statement for ${query.id}`)
   }
+
+  const toggle = () => setOpen((o) => !o)
 
   const requestCancel = () => {
     if (confirmDestructive) setDialog({ kind: 'confirmCancel', queryId: query.id, sql: query.sql })
@@ -229,68 +258,105 @@ const QueryRow = memo(function QueryRow({
 
   return (
     <li
-      className={`flex items-center gap-2 border-b border-[var(--color-border)] px-3 py-1 last:border-b-0 ${
+      className={`border-b border-[var(--color-border)] last:border-b-0 ${
         running ? '' : 'text-[var(--color-faint)]'
       }`}
     >
-      <span className="w-12 shrink-0 font-[var(--font-mono)] text-[var(--color-muted)]">
-        {query.id}
-      </span>
-      <span className="w-16 shrink-0 truncate">{KIND_LABEL[query.kind] ?? query.kind}</span>
-      <span className={`flex w-32 shrink-0 items-center gap-1.5 ${PHASE_CLASS[query.phase]}`}>
-        <span className="truncate uppercase">{query.phase}</span>
-        {/* Rows read is the honest version of "we are scanning": it moves. */}
-        {query.rowsRead > 0 && (
-          <span className="font-[var(--font-mono)] text-[var(--color-faint)]">
-            {formatCount(query.rowsRead)}
-          </span>
+      {/* A div, not a button: the Cancel button lives inside it. Enter and
+          Space act only when the row itself has focus, so they never
+          double as Cancel. */}
+      <div
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={toggle}
+        onKeyDown={(e) => {
+          if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+            e.preventDefault()
+            toggle()
+          }
+        }}
+        className="flex cursor-default items-center gap-2 px-3 py-1 hover:bg-[var(--color-elevated)] focus-visible:bg-[var(--color-elevated)] focus-visible:outline-none"
+      >
+        <span className="w-12 shrink-0 font-[var(--font-mono)] text-[var(--color-muted)]">
+          {query.id}
+        </span>
+        <span className="w-16 shrink-0 truncate">{KIND_LABEL[query.kind] ?? query.kind}</span>
+        <span className={`flex w-32 shrink-0 items-center gap-1.5 ${PHASE_CLASS[query.phase]}`}>
+          <span className="truncate uppercase">{query.phase}</span>
+          {/* Rows read is the honest version of "we are scanning": it moves. */}
+          {query.rowsRead > 0 && (
+            <span className="font-[var(--font-mono)] text-[var(--color-faint)]">
+              {formatCount(query.rowsRead)}
+            </span>
+          )}
+        </span>
+        <span
+          className="w-24 shrink-0 truncate text-[var(--color-faint)]"
+          title={query.database ? `${name} / ${query.database}` : name}
+        >
+          {name}
+        </span>
+        {/* One line here: the tray is a glance, and the row only ever holds the
+            preview. Expanding fetches the rest. */}
+        <span
+          title={(query.error ? `${query.sql}\n\n${query.error}\n\n` : `${query.sql}\n\n`) + 'Click to expand'}
+          className={`min-w-0 flex-1 truncate font-[var(--font-mono)] ${
+            query.error ? 'text-[var(--color-danger)]' : ''
+          }`}
+        >
+          {query.error ?? query.sql}
+        </span>
+        {running ? (
+          <IndeterminateBar
+            className="h-[3px] w-14 shrink-0 rounded-full"
+            warn={query.phase === 'cancelling'}
+          />
+        ) : (
+          <span className="w-14 shrink-0" />
         )}
-      </span>
-      <span
-        className="w-24 shrink-0 truncate text-[var(--color-faint)]"
-        title={query.database ? `${name} / ${query.database}` : name}
-      >
-        {name}
-      </span>
-      {/* One line here: the tray is a glance, and rendering a megabyte
-          statement into a row nobody is reading would cost the scroll
-          performance the tray is meant to have. Clicking copies the whole
-          statement instead — the text is already in the snapshot, it is only
-          the *rendering* that is trimmed. */}
-      <button
-        onClick={() => void copySql()}
-        title={
-          (query.error ? `${query.sql}\n\n${query.error}\n\n` : `${query.sql}\n\n`) +
-          'Click to copy the statement'
-        }
-        className={`min-w-0 flex-1 truncate text-left font-[var(--font-mono)] hover:underline ${
-          query.error ? 'text-[var(--color-danger)]' : ''
-        }`}
-      >
-        {query.error ?? query.sql}
-      </button>
-      {running ? (
-        <IndeterminateBar
-          className="h-[3px] w-14 shrink-0 rounded-full"
-          warn={query.phase === 'cancelling'}
-        />
-      ) : (
-        <span className="w-14 shrink-0" />
+        <span
+          className={`w-14 shrink-0 text-right font-[var(--font-mono)] ${
+            running && elapsed > 5000 ? 'text-[var(--color-warn)]' : ''
+          }`}
+        >
+          {formatDuration(elapsed)}
+        </span>
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            requestCancel()
+          }}
+          disabled={!running || query.phase === 'cancelling'}
+          className="w-16 shrink-0 rounded-lg border border-[var(--color-border-strong)] py-0.5 text-[var(--color-danger)] disabled:invisible enabled:hover:border-[var(--color-danger)]"
+        >
+          Cancel
+        </button>
+      </div>
+      {open && (
+        <div className="border-t border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 text-[var(--color-text)]">
+          <pre className="max-h-64 overflow-auto font-[var(--font-mono)] break-all whitespace-pre-wrap select-text">
+            {sql}
+          </pre>
+          {error && (
+            <pre className="mt-2 max-h-64 overflow-auto font-[var(--font-mono)] break-all whitespace-pre-wrap text-[var(--color-danger)] select-text">
+              {error}
+            </pre>
+          )}
+          <div className="mt-2 flex items-center gap-3 text-[var(--color-faint)]">
+            <button
+              onClick={() => void copySql()}
+              disabled={loading}
+              className="rounded-lg border border-[var(--color-border-strong)] px-2 py-0.5 text-[var(--color-muted)] disabled:opacity-40 enabled:hover:border-[var(--color-accent)]"
+            >
+              Copy full SQL
+            </button>
+            {loading && <span>Loading the full text…</span>}
+            {loadError && <span className="text-[var(--color-danger)]">{loadError}</span>}
+            {evicted && <span>full text no longer kept</span>}
+          </div>
+        </div>
       )}
-      <span
-        className={`w-14 shrink-0 text-right font-[var(--font-mono)] ${
-          running && elapsed > 5000 ? 'text-[var(--color-warn)]' : ''
-        }`}
-      >
-        {formatDuration(elapsed)}
-      </span>
-      <button
-        onClick={requestCancel}
-        disabled={!running || query.phase === 'cancelling'}
-        className="w-16 shrink-0 rounded-lg border border-[var(--color-border-strong)] py-0.5 text-[var(--color-danger)] disabled:invisible enabled:hover:border-[var(--color-danger)]"
-      >
-        Cancel
-      </button>
     </li>
   )
 })
