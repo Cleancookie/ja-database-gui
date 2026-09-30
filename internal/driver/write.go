@@ -4,16 +4,18 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Row writes. A dialect supplies its placeholders and its string literal; the
 // statements themselves are assembled once, here.
 //
-// Two renderings come out of the same assembly. SQL is parameterised and is what
+// Three renderings come out of the same assembly. SQL is parameterised and is what
 // runs — a value is never concatenated into it. Display has the literals inlined
-// so a person can read what will happen, and is never executed. They share one
-// template function, so the preview cannot describe a statement that differs from
-// the one that runs.
+// so a person can read what will happen, and is never executed. Short is Display
+// with any long string literal cut, for reading a statement that sets a 200 KB
+// value. They share one template function, so the preview cannot describe a
+// statement that differs from the one that runs.
 
 // ChangeOp is the kind of row change.
 type ChangeOp string
@@ -45,12 +47,17 @@ type Change struct {
 	Set []Assignment // update, insert
 }
 
-// Stmt is a built statement. Run SQL with Args. Display is for people only.
+// Stmt is a built statement. Run SQL with Args. Display and Short are for people
+// only; Short is Display with string literals over ShortLiteralChars cut.
 type Stmt struct {
 	SQL     string
 	Args    []any
 	Display string
+	Short   string
 }
+
+// ShortLiteralChars is how much of a string literal Short keeps.
+const ShortLiteralChars = 160
 
 // rowWriter is the per-dialect part of a write. Unexported, like textCapper: the
 // Driver interface stays introspection-shaped plus the few Build* entry points.
@@ -99,8 +106,9 @@ func buildChange(d writerDriver, target string, ch Change) (Stmt, error) {
 	if err != nil {
 		return Stmt{}, err
 	}
-	display, _ := renderChange(d, target, ch, func(v any) string { return literal(d, v) })
-	return Stmt{SQL: bound, Args: args, Display: display}, nil
+	display, _ := renderChange(d, target, ch, func(v any) string { return literal(d, v, 0) })
+	short, _ := renderChange(d, target, ch, func(v any) string { return literal(d, v, ShortLiteralChars) })
+	return Stmt{SQL: bound, Args: args, Display: display, Short: short}, nil
 }
 
 // renderChange is the one template. val renders each value position: as a
@@ -173,8 +181,14 @@ func whereKey(d Driver, key []KeyCond, val func(any) string) (string, error) {
 	return " WHERE " + strings.Join(conds, " AND "), nil
 }
 
-// literal renders a bound value the way it would be typed, for Display.
-func literal(w rowWriter, v any) string {
+// literal renders a bound value the way it would be typed, for Display. With
+// maxChars > 0 a string longer than that many characters is cut to its first
+// maxChars and ends "…(+N more chars)" inside the quotes.
+//
+// The cut is made on the raw text, before the dialect quotes it, so it can never
+// fall between a backslash or a doubled quote and the character it belongs to.
+// The marker holds nothing a dialect escapes.
+func literal(w rowWriter, v any, maxChars int) string {
 	switch x := v.(type) {
 	case nil:
 		return "NULL"
@@ -185,7 +199,25 @@ func literal(w rowWriter, v any) string {
 	case float64:
 		return strconv.FormatFloat(x, 'g', -1, 64)
 	case string:
-		return w.quoteString(x)
+		return w.quoteString(capChars(x, maxChars))
 	}
-	return w.quoteString(fmt.Sprint(v))
+	return w.quoteString(capChars(fmt.Sprint(v), maxChars))
+}
+
+// capChars cuts s to max characters (runes) and appends the count of what was
+// dropped. max <= 0 means no cap.
+func capChars(s string, max int) string {
+	if max <= 0 || len(s) <= max { // bytes >= runes, so this is a cheap early out
+		return s
+	}
+	total := utf8.RuneCountInString(s)
+	if total <= max {
+		return s
+	}
+	cut := 0
+	for n := 0; n < max; n++ {
+		_, size := utf8.DecodeRuneInString(s[cut:])
+		cut += size
+	}
+	return s[:cut] + "…(+" + strconv.Itoa(total-max) + " more chars)"
 }
