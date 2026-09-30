@@ -7,6 +7,7 @@
  * only when connected.
  */
 
+import { countOf } from './edits'
 import type { Candidate } from './fuzzy'
 import { perf } from './perf'
 import { reportText } from './startup'
@@ -302,6 +303,8 @@ export function buildActionCommands(s: Store): Command[] {
     })
   }
 
+  cmds.push(...buildEditCommands(s))
+
   // Only a batch that answered more than once has tabs to move between.
   if (s.sqlResults.length > 1) {
     const next = (s.sqlResultIndex + 1) % s.sqlResults.length
@@ -553,6 +556,71 @@ export function buildActionCommands(s: Store): Command[] {
     run: () => window.location.reload(),
   })
 
+  return cmds
+}
+
+/**
+ * Row editing. Context-aware: the cell commands need an editable table with a
+ * cell selected, and the change-set commands only exist while something is
+ * staged. Accept and Preview are one action — both open the review — and only
+ * the dialog's Run button writes.
+ */
+function buildEditCommands(s: Store): Command[] {
+  const cmds: Command[] = []
+  const add = (
+    id: string,
+    title: string,
+    keywords: string,
+    run: () => void | Promise<void>,
+    shortcut?: string,
+    subtitle?: string,
+  ) =>
+    cmds.push({
+      id: `edit:${id}`,
+      title,
+      subtitle,
+      group: 'Edit',
+      shortcut,
+      candidate: { name: title, keywords: `edit row cell change ${keywords}` },
+      run,
+    })
+
+  const grid = s.view === 'data' && !!s.activeRef && !!s.result
+  const editable = grid && !s.readOnlyReason && s.editKey.length > 0
+  const cellSelected = editable && s.selection?.source === 'browse'
+
+  if (cellSelected) {
+    add(
+      'cell',
+      'Edit cell',
+      'modify type value',
+      () => s.startEdit(),
+      'F2',
+      'Stages the change; nothing is written until you accept',
+    )
+    add('null', 'Set to NULL', 'null clear empty', () => s.setSelectionNull(), 'Ctrl+Backspace')
+    if (s.capabilities?.setToDefault) {
+      add('default', 'Set to default', 'default reset', () => s.setSelectionDefault())
+    }
+  }
+  if (editable) add('insert-row', 'Insert row', 'add new', () => s.insertRow())
+  if (cellSelected) {
+    const rows = rectSize(rectOf(s.selection!)).rows
+    const title = rows === 1 ? 'Delete row' : `Delete ${rows} rows`
+    add('delete-row', title, 'remove', () => s.deleteRows())
+  }
+
+  const staged = countOf(s.staged.edits).total
+  if (staged > 0) {
+    if (s.staged.past.length > 0) {
+      add('undo', 'Undo last staged edit', 'revert back', () => s.undoEdit(), 'Ctrl+Z')
+    }
+    const review = 'Builds the SQL and shows every statement — runs nothing until you press Run'
+    const go = () => s.reviewChanges()
+    add('accept', 'Accept changes', 'save commit apply write', go, 'Ctrl+S', review)
+    add('preview', 'Preview changes', 'sql statements review show', go, undefined, review)
+    add('discard', 'Discard changes', 'drop throw away cancel reset', () => s.discardChanges())
+  }
   return cmds
 }
 

@@ -29,6 +29,16 @@ export function useCellMenu(source: ResultSource): (rowIndex: number, colIndex: 
   return useCallback((rowIndex, colIndex) => {
     const s = useStore.getState()
     const { openCell, copyCell, copyText, copySelection } = s
+    // Only a table read from the database has anything to write back to.
+    const editItems: MenuItem[] =
+      source === 'browse'
+        ? [
+            { label: 'Edit cell', separatorBefore: true, onSelect: () => void s.startEdit() },
+            { label: 'Set to NULL', onSelect: () => s.setSelectionNull() },
+            { label: 'Insert row', onSelect: () => s.insertRow() },
+            { label: 'Delete row', danger: true, onSelect: () => s.deleteRows() },
+          ]
+        : []
     const cell = s.cellTarget(source, rowIndex, colIndex)
     if (!cell) return []
 
@@ -78,6 +88,7 @@ export function useCellMenu(source: ResultSource): (rowIndex: number, colIndex: 
         separatorBefore: true,
         onSelect: () => void copyText(cell.column),
       },
+      ...editItems,
     ]
   }, [source])
 }
