@@ -479,6 +479,20 @@ brief allowed skipping it), editing in the SQL editor's results (no table behind
 and a guard on closing the native Wails window (the webview's `beforeunload` does not
 fire there; it needs `OnBeforeClose` and a dirty flag pushed to Go).
 
+## 2026-09-30 — one change set across several tables
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Shape | `RowChange.Ref` replaces `ChangesRequest.Ref`: `ChangesRequest{ConnectionID, Changes}`. Each change is validated against its own table's key, columns and read-only facts |
+| Reach | Several tables of one connection and **one database**. A ref in another database is refused before anything runs, because the transaction is on one session |
+| Atomicity | Unchanged: one transaction, statements in the order given, exactly 1 row each, all or nothing. `ChangeConflict.Index` is into the flat list; `ChangeConflict.Table` names the table |
+| Grouping | `Statement.Table` (qualified name) so the review can group by table |
+| Activity log | One `write` entry per transaction, text led by `-- N changes across M tables` |
+| Huge values | `Statement.Short`: `Display` with string literals over 160 characters cut to 160 and ended `…(+N more chars)` inside the quotes. Built by the same template, capped when the literal is rendered, before dialect quoting, so an escape is never split. `Display` stays whole |
+| Size of a cell | `Statement.Cells`: column, kind (`value`, `null`, `default`) and character count of the new text |
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
@@ -508,6 +522,8 @@ test — which is the intended speed bump.
 | A view, a keyless table, and a generated or binary column cannot be edited | `internal/driver/edit_test.go`, `changes_test.go` |
 | `PreviewChanges` runs no statement from the change set, and renders what `ApplyChanges` runs | `changes_test.go` |
 | An applied change set is in the activity log as a `write`, failed if it rolled back | `changes_test.go` |
+| A change set spans tables of one connection and one database only, and a failure in any table rolls back every table | `changes_test.go` |
+| `Statement.Short` cuts long string literals on the raw value, before quoting, so an escape is never split; `Display` and bound values stay whole | `internal/driver/write_short_test.go` |
 
 ### Design decisions
 

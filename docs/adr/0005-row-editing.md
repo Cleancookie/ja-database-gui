@@ -54,3 +54,24 @@ assembles from a gesture — so the app has to be the one that refuses to guess.
 - Only SQLite has run the apply path end to end. On SQL Server a trigger that
   touches other rows may inflate the rows-affected count and get a good change
   refused as a conflict; that is unverified against a live server.
+
+## Amendment 2026-09-30: one change set, several tables
+
+- **A change set may span tables.** `ref` moved from `ChangesRequest` onto each
+  `RowChange`. All changes share the request's connection and **one database**:
+  a transaction cannot cross databases, so a change naming another is refused
+  before anything runs.
+- **Still one transaction.** Statements run in the order given across all
+  tables; the one-row rule and the rollback are unchanged. `Conflict.Index` is
+  into the flat `changes` list; `Conflict.Table` names the table for messages.
+- **Validation is per table.** Each change is checked against its own table's
+  key, columns and read-only facts, read once per table per call.
+- **Activity log.** Still one `write` entry per transaction; its text starts
+  with `-- N changes across M tables`.
+- **Short display.** `Statement.Short` is `Display` with every string literal
+  over 160 characters cut to its first 160 and ended `…(+N more chars)` inside
+  the quotes, so a review of an UPDATE setting a 200 KB value can be read.
+  It comes from the same template as `Display`; the cut is made on the raw value
+  before the dialect quotes it, so it cannot split an escape. `Display` and the
+  bound value stay whole. `Statement.Cells` gives each set column's kind and
+  character count.
