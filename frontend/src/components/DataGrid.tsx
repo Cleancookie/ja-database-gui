@@ -388,7 +388,6 @@ function Grid({
   // that a name and the values under it can never come from different windows.
   const cols = colV.getVirtualItems()
 
-
   // Transposing swaps the axes only: the selection, the keyboard, the menu and
   // the cut-cell markers above all address the *source* row and column, so they
   // are unchanged by which way round the data is drawn.
@@ -589,14 +588,17 @@ function Grid({
                         >
                           <CellBody view={view} cut={cut} />
                         </div>
-                        {isFocus && ed.editing?.row === v.index && ed.editing.col === ci && (
-                          <CellEditor
-                            text={ed.editing.text}
-                            left={c.start}
-                            width={c.size}
-                            height={v.size}
-                          />
-                        )}
+                        {isFocus &&
+                          ed.editing?.mode === 'inline' &&
+                          ed.editing.row === v.index &&
+                          ed.editing.col === ci && (
+                            <CellEditor
+                              text={ed.editing.text}
+                              left={c.start}
+                              width={c.size}
+                              height={v.size}
+                            />
+                          )}
                       </Fragment>
                     )
                   })}
@@ -994,14 +996,17 @@ function RecordsGrid({
                           >
                             <CellBody view={view} cut={cut} />
                           </div>
-                          {isFocus && ed.editing?.row === c.index && ed.editing.col === v.index && (
-                            <CellEditor
-                              text={ed.editing.text}
-                              left={c.start - labelWidth}
-                              width={c.size}
-                              height={v.size}
-                            />
-                          )}
+                          {isFocus &&
+                            ed.editing?.mode === 'inline' &&
+                            ed.editing.row === c.index &&
+                            ed.editing.col === v.index && (
+                              <CellEditor
+                                text={ed.editing.text}
+                                left={c.start - labelWidth}
+                                width={c.size}
+                                height={v.size}
+                              />
+                            )}
                         </Fragment>
                       )
                     })}

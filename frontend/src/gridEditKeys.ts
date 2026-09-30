@@ -9,9 +9,10 @@ import type { State } from './store'
 export function handleEditKey(e: KeyboardEvent, s: State): boolean {
   const mod = e.ctrlKey || e.metaKey
 
-  if (e.key === 'F2' && !mod && !e.shiftKey) {
+  // Shift+F2 forces the large editor; plain F2 picks by what the cell holds.
+  if (e.key === 'F2' && !mod) {
     e.preventDefault()
-    void s.startEdit()
+    void s.startEdit(e.shiftKey)
     return true
   }
   // Ctrl+Backspace rather than Delete: Delete is easy to hit and a NULL is not

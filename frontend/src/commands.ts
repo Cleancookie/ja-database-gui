@@ -597,6 +597,14 @@ function buildEditCommands(s: Store): Command[] {
       'F2',
       'Stages the change; nothing is written until you accept',
     )
+    add(
+      'cell-large',
+      'Edit cell in large editor',
+      'big json document modal long text',
+      () => s.startEdit(true),
+      'Shift+F2',
+      'Line numbers, wrapping and JSON tools, for a value too big for the cell',
+    )
     add('null', 'Set to NULL', 'null clear empty', () => s.setSelectionNull(), 'Ctrl+Backspace')
     if (s.capabilities?.setToDefault) {
       add('default', 'Set to default', 'default reset', () => s.setSelectionDefault())

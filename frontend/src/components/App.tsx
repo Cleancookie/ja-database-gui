@@ -6,6 +6,7 @@ import { ActivityPage } from './ActivityPage'
 import { TableDetailsPage } from './TableDetailsPage'
 import { ActivityTray, ConfirmCancelDialog } from './ActivityTray'
 import { CellDialog } from './CellDialog'
+import { LargeEditorHost } from './CellEditDialog'
 import { useCellMenu } from './CellMenu'
 import { CommandPalette } from './CommandPalette'
 import { ConfirmDiscardDialog } from './ConfirmDiscardDialog'
@@ -117,6 +118,7 @@ export function App() {
       {dialog.kind === 'confirmCancel' && (
         <ConfirmCancelDialog queryId={dialog.queryId} sql={dialog.sql} />
       )}
+      <LargeEditorHost />
       <Toasts />
     </div>
   )

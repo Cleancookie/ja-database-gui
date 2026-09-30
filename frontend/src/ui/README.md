@@ -16,6 +16,7 @@ that guarantee is gone.
 | `Dialog.tsx` | `@radix-ui/react-dialog` | Focus trap, focus restore on close, scroll lock, `aria-modal` wiring, Escape and outside-click handling |
 | `Menu.tsx` | `@radix-ui/react-context-menu` | Arrow-key navigation, typeahead, collision-aware positioning, focus return to the trigger |
 | `Editor.tsx` | `@codemirror/*` | A completion popup with its own keyboard handling and positioning, dialect-aware SQL tokenising, undo history, and room for error squiggles later |
+| `CodeEditor.tsx` | `@codemirror/*` | Editing a value of several megabytes: the document stays in CodeMirror's state and is read once on stage, where a controlled `value` would copy it into React per keystroke. Line numbers, wrapping, JSON highlighting |
 
 ### Why CodeMirror and not Monaco
 
