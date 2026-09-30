@@ -436,7 +436,7 @@ function Grid({
   return (
     <div
       ref={scrollRef}
-      className={`h-full overflow-auto font-[var(--font-mono)] ${drag.dragging ? 'select-none' : ''}`}
+      className={`isolate h-full overflow-auto font-[var(--font-mono)] ${drag.dragging ? 'select-none' : ''}`}
     >
       <div style={{ width: totalWidth, minWidth: '100%' }}>
         {/* One menu for the whole strip; each button says which column it is.
@@ -893,7 +893,7 @@ function RecordsGrid({
   return (
     <div
       ref={scrollRef}
-      className={`h-full overflow-auto font-[var(--font-mono)] ${drag.dragging ? 'select-none' : ''}`}
+      className={`isolate h-full overflow-auto font-[var(--font-mono)] ${drag.dragging ? 'select-none' : ''}`}
     >
       <div style={{ width: totalWidth, minWidth: '100%' }}>
         {/* The record numbers. Sticky on both axes, so the number of the record
