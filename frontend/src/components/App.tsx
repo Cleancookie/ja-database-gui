@@ -8,6 +8,7 @@ import { ActivityTray, ConfirmCancelDialog } from './ActivityTray'
 import { CellDialog } from './CellDialog'
 import { useCellMenu } from './CellMenu'
 import { CommandPalette } from './CommandPalette'
+import { ConfirmDiscardDialog } from './ConfirmDiscardDialog'
 import { ConfirmDeleteDialog } from './ConnectionMenu'
 import { ConnectionDialog } from './ConnectionDialog'
 import { DataGrid } from './DataGrid'
@@ -15,6 +16,8 @@ import { FilterBar } from './FilterBar'
 import { NewTableDialog } from './NewTableDialog'
 import { ConfirmDropDialog, ConfirmTruncateDialog } from './ObjectMenu'
 import { Paginator } from './Paginator'
+import { PendingChangesBar } from './PendingChangesBar'
+import { ReviewChangesDialog } from './ReviewChangesDialog'
 import { SettingsDialog } from './SettingsDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { Sidebar } from './Sidebar'
@@ -83,6 +86,7 @@ export function App() {
                   <Placeholder text={busy ? 'Loading…' : 'No rows'} />
                 )}
               </div>
+              <PendingChangesBar />
               <Paginator />
             </>
           ) : (
@@ -108,6 +112,10 @@ export function App() {
         <ConfirmDropDialog target={dialog.ref} type={dialog.type} />
       )}
       {dialog.kind === 'newTable' && <NewTableDialog schema={dialog.schema} />}
+      {dialog.kind === 'reviewChanges' && <ReviewChangesDialog />}
+      {dialog.kind === 'confirmDiscard' && (
+        <ConfirmDiscardDialog count={dialog.count} proceed={dialog.proceed} />
+      )}
       {dialog.kind === 'confirmCancel' && (
         <ConfirmCancelDialog queryId={dialog.queryId} sql={dialog.sql} />
       )}
@@ -243,6 +251,15 @@ function useGlobalHotkeys() {
         // The bar only exists once a table is open; focusing after the render
         // that mounts it is what makes Ctrl+F work on the first press.
         requestAnimationFrame(focusFilter)
+        return
+      }
+
+      // Ctrl+S is Accept changes: it opens the review and runs nothing. Claimed
+      // whenever a table is on screen, so the browser's own save-page never
+      // appears over a grid; with nothing staged it says so.
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 's' && s.view === 'data' && s.activeRef) {
+        e.preventDefault()
+        void s.reviewChanges()
         return
       }
 
