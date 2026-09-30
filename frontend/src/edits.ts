@@ -40,14 +40,41 @@ export interface EditSet {
   nextInsertId: number
 }
 
-/** The current edits and the ones before them, for Ctrl+Z. */
-export interface Staged {
+/** One table's identity within a change set: connection, database, schema, name. */
+export type TableKey = string
+
+/** The connection and database every staged change must share: one transaction. */
+export interface Scope {
+  connectionId: string
+  database: string
+}
+
+export interface StagedTable {
+  ref: ObjectRef
   edits: EditSet
-  past: EditSet[]
+}
+
+/** Everything staged, in the order the tables were first edited. */
+export interface Snapshot {
+  tables: Record<TableKey, StagedTable>
+  order: TableKey[]
+}
+
+/** What is staged across every table, and the snapshots before it, for Ctrl+Z. */
+export interface Staged extends Snapshot {
+  /** Null while nothing is staged; then the first edit decides it. */
+  scope: Scope | null
+  past: Snapshot[]
 }
 
 export const EMPTY_EDITS: EditSet = { updates: {}, deletes: {}, inserts: [], nextInsertId: 1 }
-export const EMPTY_STAGED: Staged = { edits: EMPTY_EDITS, past: [] }
+export const EMPTY_STAGED: Staged = { tables: {}, order: [], scope: null, past: [] }
+
+export function tableKey(connectionId: string, ref: ObjectRef): TableKey {
+  // NUL-separated, as recency.ts does: cheap enough to build for every row of a
+  // sidebar, and an identifier cannot contain one.
+  return [connectionId, ref.database, ref.schema, ref.name].join('\0')
+}
 
 const HISTORY_LIMIT = 100
 
@@ -150,19 +177,72 @@ export function removeInsert(e: EditSet, id: number): EditSet {
   return { ...e, inserts: e.inserts.filter((r) => r.id !== id) }
 }
 
-// ---- Staged: history around an EditSet ---------------------------------------
+// ---- Staged: several tables, with history ------------------------------------
 
-/** Applies a change and remembers what it replaced; a no-op is not an undo step. */
-export function commit(st: Staged, change: (e: EditSet) => EditSet): Staged {
-  const next = change(st.edits)
-  if (next === st.edits) return st
-  return { edits: next, past: [...st.past, st.edits].slice(-HISTORY_LIMIT) }
+/** What one table has staged; nothing when it has no entry. */
+export function editsFor(st: Staged, key: TableKey): EditSet {
+  return st.tables[key]?.edits ?? EMPTY_EDITS
+}
+
+/**
+ * The scope already holding staged changes when `scope` is a different one, else
+ * null. A change set is one transaction, so it cannot span connections or
+ * databases; the caller says so and refuses, rather than this quietly dropping
+ * the edit.
+ */
+export function scopeClash(st: Staged, scope: Scope): Scope | null {
+  const have = st.scope
+  if (!have) return null
+  return have.connectionId === scope.connectionId && have.database === scope.database ? null : have
+}
+
+/**
+ * Applies a change to one table and remembers what it replaced. A no-op is not
+ * an undo step, and a table left with nothing staged is dropped from the set so
+ * the tables listed are exactly the ones with changes.
+ */
+export function commit(
+  st: Staged,
+  scope: Scope,
+  ref: ObjectRef,
+  change: (e: EditSet) => EditSet,
+): Staged {
+  if (scopeClash(st, scope)) return st
+  const key = tableKey(scope.connectionId, ref)
+  const prev = editsFor(st, key)
+  const next = change(prev)
+  if (next === prev) return st
+
+  const tables = { ...st.tables }
+  let order = st.order
+  if (countOf(next).total === 0) {
+    delete tables[key]
+    order = order.filter((k) => k !== key)
+  } else {
+    if (!tables[key]) order = [...order, key]
+    tables[key] = { ref, edits: next }
+  }
+  const past = [...st.past, { tables: st.tables, order: st.order }].slice(-HISTORY_LIMIT)
+  return { tables, order, scope: order.length > 0 ? scope : null, past }
 }
 
 export function undo(st: Staged): Staged {
   const prev = st.past[st.past.length - 1]
   if (!prev) return st
-  return { edits: prev, past: st.past.slice(0, -1) }
+  return {
+    ...prev,
+    scope: prev.order.length > 0 ? st.scope : null,
+    past: st.past.slice(0, -1),
+  }
+}
+
+/** Forgets one table's staged changes without an undo step: it was dropped or emptied. */
+export function removeTable(st: Staged, key: TableKey): Staged {
+  if (!st.tables[key]) return st
+  const tables = { ...st.tables }
+  delete tables[key]
+  const order = st.order.filter((k) => k !== key)
+  return { ...st, tables, order, scope: order.length > 0 ? st.scope : null }
 }
 
 // ---- Reading the edits -------------------------------------------------------
@@ -182,6 +262,19 @@ export function countOf(e: EditSet): Counts {
   return { updates, inserts, deletes, total: updates + inserts + deletes }
 }
 
+/** Every table's counts added up, and how many tables have any. */
+export function totalOf(st: Staged): Counts & { tables: number } {
+  const sum = { updates: 0, inserts: 0, deletes: 0, total: 0, tables: st.order.length }
+  for (const t of Object.values(st.tables)) {
+    const c = countOf(t.edits)
+    sum.updates += c.updates
+    sum.inserts += c.inserts
+    sum.deletes += c.deletes
+    sum.total += c.total
+  }
+  return sum
+}
+
 const plural = (n: number, one: string) => `${n} ${one}${n === 1 ? '' : 's'}`
 
 export function describeCounts(c: Counts): string {
@@ -189,17 +282,25 @@ export function describeCounts(c: Counts): string {
 }
 
 /**
- * The change set, in the order it is applied: deletes, updates, inserts. A
- * delete goes first so a row can be replaced by an insert that reuses its key,
- * and inserts go last so nothing else depends on a row that does not exist yet.
+ * The whole change set as one flat list, tables in the order they were first
+ * edited. Within a table: deletes, then updates, then inserts — a delete goes
+ * first so a row can be replaced by an insert that reuses its key, and inserts
+ * go last so nothing depends on a row that does not exist yet.
+ *
+ * Null when nothing is staged.
  */
-export function toChangesRequest(e: EditSet, connectionId: string, ref: ObjectRef): ChangesRequest {
-  const changes: RowChange[] = [
-    ...Object.values(e.deletes).map<RowChange>((d) => ({ ref, op: 'delete', key: d.values })),
-    ...Object.values(e.updates)
-      .filter((u) => !e.deletes[u.key])
-      .map<RowChange>((u) => ({ ref, op: 'update', key: u.values, set: u.set })),
-    ...e.inserts.map<RowChange>((i) => ({ ref, op: 'insert', set: i.set })),
-  ]
-  return { connectionId, changes }
+export function toChangesRequest(st: Staged): ChangesRequest | null {
+  if (!st.scope) return null
+  const changes: RowChange[] = []
+  for (const key of st.order) {
+    const { ref, edits: e } = st.tables[key]
+    changes.push(
+      ...Object.values(e.deletes).map<RowChange>((d) => ({ ref, op: 'delete', key: d.values })),
+      ...Object.values(e.updates)
+        .filter((u) => !e.deletes[u.key])
+        .map<RowChange>((u) => ({ ref, op: 'update', key: u.values, set: u.set })),
+      ...e.inserts.map<RowChange>((i) => ({ ref, op: 'insert', set: i.set })),
+    )
+  }
+  return { connectionId: st.scope.connectionId, changes }
 }

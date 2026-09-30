@@ -9,6 +9,7 @@ import { startFlushing } from './perf'
 import {
   INITIAL_EDIT_STATE,
   createEditSlice,
+  forgetTable,
   guardUnload,
   type EditActions,
   type EditState,
@@ -345,6 +346,9 @@ export const useStore = create<State>((set, get) => {
       set({
         result: res.result,
         columns: res.columns,
+        // An open editor addresses rows by position, and this page may be a
+        // different set of rows.
+        editing: null,
         editKey: res.editKey ?? [],
         readOnlyReason: res.readOnlyReason,
         // A table opened without a sort gets the server's default — primary
@@ -480,7 +484,6 @@ export const useStore = create<State>((set, get) => {
     },
 
     async connect(id) {
-      if (holdForDiscard(() => get().connect(id))) return
       set({ busy: true })
       try {
         const res = await tracked(() => api.connect(id))
@@ -509,7 +512,10 @@ export const useStore = create<State>((set, get) => {
     },
 
     async disconnect(id) {
-      if (get().activeConnectionId === id && holdForDiscard(() => get().disconnect(id))) return
+      // Edits staged for this connection have nowhere to go once it is closed.
+      if (get().staged.scope?.connectionId === id && holdForDiscard(() => get().disconnect(id))) {
+        return
+      }
       try {
         await api.disconnect(id)
       } catch (e) {
@@ -548,7 +554,6 @@ export const useStore = create<State>((set, get) => {
     },
 
     async openObject(o) {
-      if (holdForDiscard(() => get().openObject(o))) return
       const s = get()
       if (!s.activeConnectionId) return
       // Functions and procedures have no rows to browse. Selecting one in the
@@ -577,7 +582,6 @@ export const useStore = create<State>((set, get) => {
     },
 
     async reload() {
-      if (holdForDiscard(() => get().reload())) return
       await fetchRows()
     },
 
@@ -586,7 +590,6 @@ export const useStore = create<State>((set, get) => {
     },
 
     async applyFilter(filter) {
-      if (holdForDiscard(() => get().applyFilter(filter))) return
       set({ filter, page: 1, totalCount: null })
       await fetchRows()
     },
@@ -594,26 +597,22 @@ export const useStore = create<State>((set, get) => {
     async setPage(p) {
       const page = Math.max(1, p)
       if (page === get().page) return
-      if (holdForDiscard(() => get().setPage(p))) return
       set({ page })
       await fetchRows()
     },
 
     async setPageSize(pageSize) {
-      if (holdForDiscard(() => get().setPageSize(pageSize))) return
       // Jumping to page 1 avoids landing past the end of a smaller result.
       set({ pageSize, page: 1 })
       await fetchRows()
     },
 
     async setPaginationEnabled(on) {
-      if (holdForDiscard(() => get().setPaginationEnabled(on))) return
       set({ paginationEnabled: on, page: 1 })
       await fetchRows()
     },
 
     async toggleSort(column) {
-      if (holdForDiscard(() => get().toggleSort(column))) return
       const current = get().orderBy[0]
       let orderBy: Sort[]
       if (!current || current.column !== column) orderBy = [{ column, desc: false }]
@@ -629,7 +628,6 @@ export const useStore = create<State>((set, get) => {
 
     async clearSort() {
       if (get().orderBy.length === 0 && get().sortChosen) return
-      if (holdForDiscard(() => get().clearSort())) return
       set({ orderBy: [], sortChosen: true, page: 1 })
       await fetchRows()
     },
@@ -668,10 +666,8 @@ export const useStore = create<State>((set, get) => {
       await get().selectDatabase(get().activeDatabase)
       // The rows the staged edits point at are gone. The confirmation that got
       // here already said every row would be deleted.
-      if (sameRef(get().activeRef, ref)) {
-        set({ staged: INITIAL_EDIT_STATE.staged, editing: null })
-        await fetchRows()
-      }
+      set(forgetTable(get(), ref))
+      if (sameRef(get().activeRef, ref)) await fetchRows()
     },
 
     async dropObject(ref, type) {
@@ -704,11 +700,9 @@ export const useStore = create<State>((set, get) => {
           totalCount: null,
           selection: null,
           view: 'data',
-          staged: INITIAL_EDIT_STATE.staged,
-          editing: null,
         })
       }
-      set({ recentObjects: get().recentObjects.filter((k) => k !== refKey(ref.database, ref.schema, ref.name)) })
+      set({ ...forgetTable(get(), ref), recentObjects: get().recentObjects.filter((k) => k !== refKey(ref.database, ref.schema, ref.name)) })
       await get().selectDatabase(get().activeDatabase)
     },
 

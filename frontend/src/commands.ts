@@ -7,7 +7,6 @@
  * only when connected.
  */
 
-import { countOf } from './edits'
 import type { Candidate } from './fuzzy'
 import { perf } from './perf'
 import { reportText } from './startup'
@@ -610,7 +609,7 @@ function buildEditCommands(s: Store): Command[] {
     add('delete-row', title, 'remove', () => s.deleteRows())
   }
 
-  const staged = countOf(s.staged.edits).total
+  const staged = s.stagedSummary.total
   if (staged > 0) {
     if (s.staged.past.length > 0) {
       add('undo', 'Undo last staged edit', 'revert back', () => s.undoEdit(), 'Ctrl+Z')

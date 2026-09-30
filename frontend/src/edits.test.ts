@@ -13,7 +13,13 @@ import {
   removeInsert,
   setCell,
   setInsertCell,
+  editsFor,
+  removeTable,
+  scopeClash,
+  tableKey,
   toChangesRequest,
+  totalOf,
+  type EditSet,
   toggleDelete,
   undo,
   type Keyed,
@@ -130,63 +136,133 @@ describe('inserts', () => {
   })
 })
 
+const scope = { connectionId: 'c1', database: 'd' }
+const tref = (name: string) => ({ database: 'd', schema: '', name })
+const orders = tref('orders')
+const people = tref('people')
+
 describe('history', () => {
   it('undoes one step at a time, and a no-op is not a step', () => {
-    let st = commit(EMPTY_STAGED, (e) => setCell(e, row1, 'a', val('x'), 'o'))
-    st = commit(st, (e) => setCell(e, row1, 'b', val('y'), 'o'))
-    expect(commit(st, (e) => setCell(e, row1, 'b', val('y'), 'o'))).toBe(st)
+    let st = commit(EMPTY_STAGED, scope, ref, (e) => setCell(e, row1, 'a', val('x'), 'o'))
+    st = commit(st, scope, ref, (e) => setCell(e, row1, 'b', val('y'), 'o'))
+    expect(commit(st, scope, ref, (e) => setCell(e, row1, 'b', val('y'), 'o'))).toBe(st)
     st = undo(st)
-    expect(Object.keys(st.edits.updates['[1]'].set)).toEqual(['a'])
+    expect(Object.keys(editsFor(st, tableKey('c1', ref)).updates['[1]'].set)).toEqual(['a'])
     st = undo(st)
-    expect(countOf(st.edits).total).toBe(0)
+    expect(totalOf(st).total).toBe(0)
+    expect(st.scope).toBeNull()
     expect(undo(st)).toBe(st)
   })
 
   it('is bounded', () => {
     let st = EMPTY_STAGED
-    for (let i = 0; i < 150; i++) st = commit(st, (e) => addInsert(e))
+    for (let i = 0; i < 150; i++) st = commit(st, scope, ref, (e) => addInsert(e))
     expect(st.past.length).toBe(100)
   })
 })
 
+describe('several tables', () => {
+  const two = () => {
+    let st = commit(EMPTY_STAGED, scope, orders, (e) => setCell(e, row1, 'a', val('x'), 'o'))
+    st = commit(st, scope, people, (e) => toggleDelete(e, [row2]))
+    return st
+  }
+
+  it('keeps each table apart and in the order they were first edited', () => {
+    let st = two()
+    st = commit(st, scope, orders, (e) => setCell(e, row2, 'a', val('z'), 'o'))
+    expect(st.order.map((k) => st.tables[k].ref.name)).toEqual(['orders', 'people'])
+    expect(totalOf(st)).toEqual({ updates: 2, inserts: 0, deletes: 1, total: 3, tables: 2 })
+  })
+
+  it('does not confuse two tables that share a row key', () => {
+    const st = two()
+    expect(countOf(editsFor(st, tableKey('c1', orders)))).toMatchObject({ updates: 1, deletes: 0 })
+    expect(countOf(editsFor(st, tableKey('c1', people)))).toMatchObject({ updates: 0, deletes: 1 })
+  })
+
+  it('drops a table from the set when its last change is withdrawn', () => {
+    let st = two()
+    st = commit(st, scope, people, (e) => toggleDelete(e, [row2]))
+    expect(st.order.map((k) => st.tables[k].ref.name)).toEqual(['orders'])
+    st = commit(st, scope, orders, (e) => setCell(e, row1, 'a', val('o'), 'o'))
+    expect(st.scope).toBeNull()
+  })
+
+  it('refuses a second connection or database and leaves the set as it was', () => {
+    const st = two()
+    const other = { connectionId: 'c2', database: 'd' }
+    expect(scopeClash(st, other)).toEqual(scope)
+    expect(scopeClash(st, { connectionId: 'c1', database: 'other' })).toEqual(scope)
+    expect(scopeClash(st, scope)).toBeNull()
+    expect(commit(st, other, orders, (e) => addInsert(e))).toBe(st)
+    expect(scopeClash(EMPTY_STAGED, other)).toBeNull()
+  })
+
+  it('removes one table without touching the rest or the history', () => {
+    const st = two()
+    const gone = removeTable(st, tableKey('c1', orders))
+    expect(gone.order).toHaveLength(1)
+    expect(gone.scope).toEqual(scope)
+    expect(removeTable(gone, tableKey('c1', people)).scope).toBeNull()
+    expect(gone.past).toBe(st.past)
+  })
+
+  it('undoes across tables', () => {
+    const st = undo(two())
+    expect(st.order).toHaveLength(1)
+  })
+
+  it('builds one flat change list, tables in edit order, each change carrying its table', () => {
+    const st = commit(two(), scope, orders, (e) => addInsert(e))
+    const req = toChangesRequest(st)!
+    expect(req.connectionId).toBe('c1')
+    expect(req.changes.map((c) => `${c.ref.name}:${c.op}`)).toEqual([
+      'orders:update',
+      'orders:insert',
+      'people:delete',
+    ])
+  })
+})
+
 describe('toChangesRequest', () => {
+  const stage = (f: (e: EditSet) => EditSet) => commit(EMPTY_STAGED, scope, ref, f)
+
+  it('is null with nothing staged', () => {
+    expect(toChangesRequest(EMPTY_STAGED)).toBeNull()
+  })
+
   it('sends original key values and only the changed columns', () => {
-    let e = setCell(EMPTY_EDITS, { key: '[7]', values: { id: 7 } }, 'id', val('70'), 7)
-    e = setCell(e, { key: '[7]', values: { id: 7 } }, 'name', NULL, 'x')
-    const req = toChangesRequest(e, 'c1', ref)
-    expect(req).toEqual({
+    const st = stage((e) => {
+      e = setCell(e, { key: '[7]', values: { id: 7 } }, 'id', val('70'), 7)
+      return setCell(e, { key: '[7]', values: { id: 7 } }, 'name', NULL, 'x')
+    })
+    expect(toChangesRequest(st)).toEqual({
       connectionId: 'c1',
       changes: [{ ref, op: 'update', key: { id: 7 }, set: { id: val('70'), name: NULL } }],
     })
   })
 
   it('orders deletes, then updates, then inserts', () => {
-    let e = addInsert(EMPTY_EDITS)
-    e = setCell(e, row1, 'a', val('x'), 'o')
-    e = toggleDelete(e, [row2])
-    const ops = toChangesRequest(e, 'c', ref).changes.map((c) => c.op)
-    expect(ops).toEqual(['delete', 'update', 'insert'])
+    const st = stage((e) => toggleDelete(setCell(addInsert(e), row1, 'a', val('x'), 'o'), [row2]))
+    expect(toChangesRequest(st)!.changes.map((c) => c.op)).toEqual(['delete', 'update', 'insert'])
   })
 
   it('leaves out the edits of a row that is being deleted', () => {
-    let e = setCell(EMPTY_EDITS, row1, 'a', val('x'), 'o')
-    e = toggleDelete(e, [row1])
-    expect(toChangesRequest(e, 'c', ref).changes).toEqual([{ ref, op: 'delete', key: { id: 1 } }])
+    const st = stage((e) => toggleDelete(setCell(e, row1, 'a', val('x'), 'o'), [row1]))
+    expect(toChangesRequest(st)!.changes).toEqual([{ ref, op: 'delete', key: { id: 1 } }])
   })
 
   it('gives an insert no key, and only the columns that were filled in', () => {
-    let e = addInsert(EMPTY_EDITS)
-    e = setInsertCell(e, 1, 'name', val('n'))
-    expect(toChangesRequest(e, 'c', ref).changes).toEqual([
-      { ref, op: 'insert', set: { name: val('n') } },
-    ])
+    const st = stage((e) => setInsertCell(addInsert(e), 1, 'name', val('n')))
+    expect(toChangesRequest(st)!.changes).toEqual([{ ref, op: 'insert', set: { name: val('n') } }])
   })
 
   it('has one change per counted change', () => {
-    let e = addInsert(addInsert(EMPTY_EDITS))
-    e = setCell(e, row1, 'a', val('x'), 'o')
-    e = toggleDelete(e, [row2])
-    expect(toChangesRequest(e, 'c', ref).changes).toHaveLength(countOf(e).total)
+    const st = stage((e) =>
+      toggleDelete(setCell(addInsert(addInsert(e)), row1, 'a', val('x'), 'o'), [row2]),
+    )
+    expect(toChangesRequest(st)!.changes).toHaveLength(totalOf(st).total)
   })
 })
 

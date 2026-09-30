@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { EMPTY_EDITS, keyIndexes, keyedRow } from './edits'
 import { useStore, type ResultSource } from './store'
-import type { Editing } from './storeEdits'
+import { activeEdits, type Editing } from './storeEdits'
 import type { Cell, ResultSet } from './types'
 
 /** How the grid should draw one cell. */
@@ -35,7 +35,7 @@ export interface GridEdits {
  */
 export function useGridEdits(source: ResultSource, result: ResultSet): GridEdits {
   const browse = source === 'browse'
-  const edits = useStore((s) => (browse ? s.staged.edits : EMPTY_EDITS))
+  const edits = useStore((s) => (browse ? activeEdits(s) : EMPTY_EDITS))
   const editing = useStore((s) => (browse ? s.editing : null))
   const editKey = useStore((s) => s.editKey)
 

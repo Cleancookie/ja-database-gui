@@ -16,7 +16,6 @@ import { FilterBar } from './FilterBar'
 import { NewTableDialog } from './NewTableDialog'
 import { ConfirmDropDialog, ConfirmTruncateDialog } from './ObjectMenu'
 import { Paginator } from './Paginator'
-import { PendingChangesBar } from './PendingChangesBar'
 import { ReviewChangesDialog } from './ReviewChangesDialog'
 import { SettingsDialog } from './SettingsDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
@@ -86,7 +85,6 @@ export function App() {
                   <Placeholder text={busy ? 'Loading…' : 'No rows'} />
                 )}
               </div>
-              <PendingChangesBar />
               <Paginator />
             </>
           ) : (
@@ -255,9 +253,15 @@ function useGlobalHotkeys() {
       }
 
       // Ctrl+S is Accept changes: it opens the review and runs nothing. Claimed
-      // whenever a table is on screen, so the browser's own save-page never
-      // appears over a grid; with nothing staged it says so.
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 's' && s.view === 'data' && s.activeRef) {
+      // from any view while something is staged — edits outlive the table they
+      // were made in — and over a grid otherwise, so the browser's own save-page
+      // never appears there; with nothing staged it says so.
+      if (
+        mod &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === 's' &&
+        (s.stagedSummary.total > 0 || (s.view === 'data' && s.activeRef))
+      ) {
         e.preventDefault()
         void s.reviewChanges()
         return

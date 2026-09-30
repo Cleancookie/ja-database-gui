@@ -4,6 +4,7 @@ import { LIMITS, Resizer, useResizable } from './Resizer'
 import { elapsedFor, isRunning, trayStatus } from '../activity'
 import { formatCount, formatDuration } from '../commands'
 import { useStore } from '../store'
+import { ChangesStatus } from './ChangesStatus'
 import { Dialog, dialogButton } from '../ui'
 import type { QueryInfo, QueryKind, QueryPhase, QuerySqlResult } from '../types'
 
@@ -151,12 +152,14 @@ export function ActivityTray() {
         </div>
       )}
 
-      {/* The strip is one button so the whole width is a hit target. */}
+      {/* The strip is one button so the whole width is a hit target, with the
+          staged-changes status beside it: a button cannot hold buttons. */}
+      <div className="flex h-6 items-stretch">
       <button
         onClick={() => setTrayOpen(!open)}
         aria-expanded={open}
         title="Query activity (Ctrl+`)"
-        className="flex h-6 w-full items-center gap-2 px-3 hover:bg-[var(--color-elevated)]"
+        className="flex min-w-0 flex-1 items-center gap-2 px-3 hover:bg-[var(--color-elevated)]"
       >
         <span className="text-[var(--color-faint)]">{open ? '▾' : '▸'}</span>
         <span className="font-semibold tracking-wider text-[var(--color-faint)] uppercase">
@@ -181,6 +184,8 @@ export function ActivityTray() {
           Ctrl+`
         </span>
       </button>
+        <ChangesStatus />
+      </div>
     </div>
   )
 }
