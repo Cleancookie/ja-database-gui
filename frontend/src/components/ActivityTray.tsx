@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { transportName } from '../api'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import { elapsedFor, isRunning, trayStatus } from '../activity'
@@ -11,6 +11,8 @@ import type { QueryInfo, QueryKind, QueryPhase } from '../types'
 const POLL_MS = 700
 /** How often the on-screen timers advance. Local arithmetic, no request. */
 const TICK_MS = 100
+/** Rows drawn before "Show older"; the log keeps far more than anyone reads. */
+const VISIBLE_ROWS = 100
 
 const KIND_LABEL: Record<QueryKind, string> = {
   browse: 'browse',
@@ -60,6 +62,8 @@ export function ActivityTray() {
   const setTrayOpen = useStore((s) => s.setTrayOpen)
   const refresh = useStore((s) => s.refreshActivity)
   const clearHistory = useStore((s) => s.clearQueryHistory)
+  const connections = useStore((s) => s.connections)
+  const [showAll, setShowAll] = useState(false)
 
   const resize = useResizable('trayHeightPx', LIMITS.tray)
 
@@ -71,6 +75,9 @@ export function ActivityTray() {
   usePolling(inFlight > 0, refresh)
   const now = useTicker(queries.some(isRunning))
   const status = trayStatus(queries, polledAt, now)
+  // Looked up once here so a row does not subscribe to the whole connection list.
+  const names = useMemo(() => new Map(connections.map((c) => [c.id, c.name])), [connections])
+  const shown = showAll ? queries : queries.slice(0, VISIBLE_ROWS)
 
   const label =
     status.running === 0
@@ -116,10 +123,29 @@ export function ActivityTray() {
               <p className="px-3 py-4 text-center text-[var(--color-faint)]">No queries yet</p>
             ) : (
               <ul className="flex flex-col">
-                {queries.map((q) => (
-                  <QueryRow key={q.id} query={q} polledAt={polledAt} now={now} />
-                ))}
+                {shown.map((q) => {
+                  // Only a running row's timer moves. Handing the clock to
+                  // finished rows would re-render all of them every tick.
+                  const running = isRunning(q)
+                  return (
+                    <QueryRow
+                      key={q.id}
+                      query={q}
+                      name={names.get(q.connectionId) ?? q.connectionId}
+                      polledAt={running ? polledAt : 0}
+                      now={running ? now : 0}
+                    />
+                  )
+                })}
               </ul>
+            )}
+            {shown.length < queries.length && (
+              <button
+                onClick={() => setShowAll(true)}
+                className="w-full border-t border-[var(--color-border)] py-1.5 text-center text-[var(--color-faint)] hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)]"
+              >
+                Show {queries.length - shown.length} older
+              </button>
             )}
           </div>
         </div>
@@ -159,23 +185,28 @@ export function ActivityTray() {
   )
 }
 
-function QueryRow({
+/**
+ * Memoised: the list can hold hundreds of rows and the clock ticks ten times a
+ * second while anything runs. Every prop is a primitive or an object the store
+ * keeps stable for a finished query, so only the running rows re-render.
+ */
+const QueryRow = memo(function QueryRow({
   query,
+  name,
   polledAt,
   now,
 }: {
   query: QueryInfo
+  name: string
   polledAt: number
   now: number
 }) {
   const cancelQuery = useStore((s) => s.cancelQuery)
   const setDialog = useStore((s) => s.setDialog)
   const confirmDestructive = useStore((s) => s.settings.confirmDestructive)
-  const connections = useStore((s) => s.connections)
   const copyText = useStore((s) => s.copyText)
   const pushToast = useStore((s) => s.pushToast)
 
-  const name = connections.find((c) => c.id === query.connectionId)?.name ?? query.connectionId
   const running = isRunning(query)
   const elapsed = elapsedFor(query, polledAt, now)
 
@@ -262,7 +293,7 @@ function QueryRow({
       </button>
     </li>
   )
-}
+})
 
 /**
  * Confirmation for cancelling. Cancelling a half-written statement is not
