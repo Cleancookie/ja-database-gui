@@ -1,11 +1,14 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { memo, Profiler, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, Profiler, useEffect, useMemo, useRef, useState } from 'react'
 import { isTypingTarget } from '../dom'
+import { handleEditKey } from '../gridEditKeys'
 import { onCommit } from '../perf'
 import { inRect, rectOf, type CellPos, type Rect } from '../selection'
 import { measuredSpan, offsetToShow, scrollTo, uniformSpan } from '../scroll'
 import { useStore, type ResultSource } from '../store'
+import { editCellClass, useGridEdits, type CellView, type GridEdits } from '../useGridEdits'
 import { ContextMenu, type MenuItem } from '../ui'
+import { CellEditor } from './CellEditor'
 import type { Cell, Column, ResultColumn, ResultSet, Sort } from '../types'
 
 const WIDTH_SAMPLE_ROWS = 120
@@ -117,6 +120,7 @@ function Grid({
   const focus = selection?.focus ?? null
   const rect = useMemo(() => (selection ? rectOf(selection) : null), [selection])
   const drag = useCellDrag(source)
+  const ed = useGridEdits(source, result)
 
   /** A click (or a shift-click, which extends instead of starting over). */
   const pick = (row: number, col: number, extend: boolean) => {
@@ -200,7 +204,7 @@ function Grid({
   const totalWidth = widths.reduce((a, b) => a + b, 0) + gm.gutter
 
   const virtualizer = useVirtualizer({
-    count: result.rows.length,
+    count: ed.rowCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => gm.rowHeight,
     overscan: 12,
@@ -292,6 +296,8 @@ function Grid({
         return
       }
 
+      if (source === 'browse' && handleEditKey(e, s)) return
+
       if (!sel) return
       const cur = sel.focus
 
@@ -306,7 +312,7 @@ function Grid({
       if (step) {
         const d = transposed ? { row: step.col, col: step.row } : step
         const pos = {
-          row: clamp(cur.row + d.row, 0, result.rows.length - 1),
+          row: clamp(cur.row + d.row, 0, ed.rowCount - 1),
           col: clamp(cur.col + d.col, 0, result.columns.length - 1),
         }
         e.preventDefault()
@@ -346,7 +352,7 @@ function Grid({
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [source, transposed, result, onOpenCell, cellMenu])
+  }, [source, transposed, result, ed.rowCount, onOpenCell, cellMenu])
 
   if (result.columns.length === 0) {
     return (
@@ -400,6 +406,7 @@ function Grid({
         repeatRef={repeatRef}
         menuItems={menuItems}
         menuHeading={menuHeading}
+        ed={ed}
       />
     )
   }
@@ -524,7 +531,6 @@ function Grid({
         <CellContextMenu items={menuItems} heading={menuHeading}>
           <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((v) => {
-              const row = result.rows[v.index]
               return (
                 <div
                   key={v.key}
@@ -543,42 +549,51 @@ function Grid({
                     className="chrome absolute top-0 left-0 flex items-center justify-end border-r border-[var(--color-border)] pr-2 text-[var(--color-faint)] select-none"
                     style={{ width: gm.gutter, height: v.size }}
                   >
-                    {rowOffset + v.index + 1}
+                    {ed.isNewRow(v.index) ? '+' : rowOffset + v.index + 1}
                   </div>
                   {cols.map((c) => {
                     const ci = c.index
                     const m = meta[ci]
                     const isFocus = focus?.row === v.index && focus.col === ci
                     const inRange = rect ? inRect(rect, v.index, ci) : false
-                    const value = row[ci]
-                    const cut = cutCells.has(`${v.index}:${ci}`)
+                    const view = ed.cell(v.index, ci)
+                    const cut = view.state !== 'dirty' && cutCells.has(`${v.index}:${ci}`)
                     return (
-                      <div
-                        key={ci}
-                        ref={isFocus ? selectedRef : undefined}
-                        onMouseDown={(e) => {
-                          pick(v.index, ci, e.shiftKey)
-                          drag.start(e, v.index, ci)
-                        }}
-                        onMouseEnter={() => drag.over(v.index, ci)}
-                        // mousedown already fires for the right button, but a
-                        // ctrl-click on macOS arrives as a contextmenu without
-                        // one. The menu must always act on the cell that was
-                        // actually clicked, never on a stale selection.
-                        onContextMenu={() => pick(v.index, ci, false)}
-                        className={`absolute top-0 truncate border-r border-[var(--color-border)] px-2 ${
-                          m.numeric ? 'text-right' : ''
-                        } ${cellSelectionClass(isFocus, inRange)}`}
-                        style={{
-                          left: c.start,
-                          width: c.size,
-                          height: v.size,
-                          lineHeight: `${gm.rowHeight}px`,
-                        }}
-                        title={cellTitle(value, cut, result.textCap)}
-                      >
-                        <CellBody value={value} cut={cut} />
-                      </div>
+                      <Fragment key={ci}>
+                        <div
+                          ref={isFocus ? selectedRef : undefined}
+                          onMouseDown={(e) => {
+                            pick(v.index, ci, e.shiftKey)
+                            drag.start(e, v.index, ci)
+                          }}
+                          onMouseEnter={() => drag.over(v.index, ci)}
+                          // mousedown already fires for the right button, but a
+                          // ctrl-click on macOS arrives as a contextmenu without
+                          // one. The menu must always act on the cell that was
+                          // actually clicked, never on a stale selection.
+                          onContextMenu={() => pick(v.index, ci, false)}
+                          className={`absolute top-0 truncate border-r border-[var(--color-border)] px-2 ${
+                            m.numeric ? 'text-right' : ''
+                          } ${cellSelectionClass(isFocus, inRange)} ${editCellClass(view.state, isFocus || inRange)}`}
+                          style={{
+                            left: c.start,
+                            width: c.size,
+                            height: v.size,
+                            lineHeight: `${gm.rowHeight}px`,
+                          }}
+                          title={cellTitle(view, cut, result.textCap)}
+                        >
+                          <CellBody view={view} cut={cut} />
+                        </div>
+                        {isFocus && ed.editing?.row === v.index && ed.editing.col === ci && (
+                          <CellEditor
+                            text={ed.editing.text}
+                            left={c.start}
+                            width={c.size}
+                            height={v.size}
+                          />
+                        )}
+                      </Fragment>
                     )
                   })}
                 </div>
@@ -780,6 +795,7 @@ interface RecordsProps {
   repeatRef: React.MutableRefObject<boolean>
   menuItems: MenuItem[] | null
   menuHeading?: string
+  ed: GridEdits
 }
 
 /**
@@ -812,6 +828,7 @@ function RecordsGrid({
   repeatRef,
   menuItems,
   menuHeading,
+  ed,
 }: RecordsProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -829,7 +846,7 @@ function RecordsGrid({
 
   const colV = useVirtualizer({
     horizontal: true,
-    count: result.rows.length,
+    count: ed.rowCount,
     getScrollElement: () => scrollRef.current,
     estimateSize: () => cellWidth,
     overscan: 4,
@@ -903,7 +920,7 @@ function RecordsGrid({
                   lineHeight: `${gm.headerHeight}px`,
                 }}
               >
-                {rowOffset + c.index + 1}
+                {ed.isNewRow(c.index) ? '+' : rowOffset + c.index + 1}
               </div>
             ))}
           </div>
@@ -946,34 +963,42 @@ function RecordsGrid({
                   </div>
                   <div className="relative" style={{ width: colV.getTotalSize() }}>
                     {cols.map((c) => {
-                      const value = result.rows[c.index]?.[v.index]
-                      if (value === undefined) return null
+                      const view = ed.cell(c.index, v.index)
                       const isFocus = focus?.row === c.index && focus.col === v.index
                       const inRange = rect ? inRect(rect, c.index, v.index) : false
-                      const cut = cutCells.has(`${c.index}:${v.index}`)
+                      const cut = view.state !== 'dirty' && cutCells.has(`${c.index}:${v.index}`)
                       return (
-                        <div
-                          key={c.key}
-                          ref={isFocus ? selectedRef : undefined}
-                          onMouseDown={(e) => {
-                            pick(c.index, v.index, e.shiftKey)
-                            drag.start(e, c.index, v.index)
-                          }}
-                          onMouseEnter={() => drag.over(c.index, v.index)}
-                          onContextMenu={() => pick(c.index, v.index, false)}
-                          className={`absolute top-0 truncate border-r border-b border-[var(--color-border)] px-2 hover:bg-[var(--color-accent-dim)]/25 ${
-                            m.numeric ? 'text-right' : ''
-                          } ${cellSelectionClass(isFocus, inRange)}`}
-                          style={{
-                            left: c.start - labelWidth,
-                            width: c.size,
-                            height: v.size,
-                            lineHeight: `${gm.rowHeight}px`,
-                          }}
-                          title={cellTitle(value, cut, result.textCap)}
-                        >
-                          <CellBody value={value} cut={cut} />
-                        </div>
+                        <Fragment key={c.key}>
+                          <div
+                            ref={isFocus ? selectedRef : undefined}
+                            onMouseDown={(e) => {
+                              pick(c.index, v.index, e.shiftKey)
+                              drag.start(e, c.index, v.index)
+                            }}
+                            onMouseEnter={() => drag.over(c.index, v.index)}
+                            onContextMenu={() => pick(c.index, v.index, false)}
+                            className={`absolute top-0 truncate border-r border-b border-[var(--color-border)] px-2 hover:bg-[var(--color-accent-dim)]/25 ${
+                              m.numeric ? 'text-right' : ''
+                            } ${cellSelectionClass(isFocus, inRange)} ${editCellClass(view.state, isFocus || inRange)}`}
+                            style={{
+                              left: c.start - labelWidth,
+                              width: c.size,
+                              height: v.size,
+                              lineHeight: `${gm.rowHeight}px`,
+                            }}
+                            title={cellTitle(view, cut, result.textCap)}
+                          >
+                            <CellBody view={view} cut={cut} />
+                          </div>
+                          {isFocus && ed.editing?.row === c.index && ed.editing.col === v.index && (
+                            <CellEditor
+                              text={ed.editing.text}
+                              left={c.start - labelWidth}
+                              width={c.size}
+                              height={v.size}
+                            />
+                          )}
+                        </Fragment>
                       )
                     })}
                   </div>
@@ -1020,7 +1045,9 @@ function CellContextMenu({
  * would be the first thing scrolled out of sight, since capped values always
  * overflow.
  */
-function CellBody({ value, cut }: { value: Cell; cut: boolean }) {
+function CellBody({ view, cut }: { view: CellView; cut: boolean }) {
+  const value = view.value
+  if (view.isDefault) return <span className="text-[var(--color-faint)] italic">DEFAULT</span>
   if (value === null) return <span className="text-[var(--color-faint)] italic">NULL</span>
   if (value === '') return <span className="text-[var(--color-faint)] italic">empty</span>
   if (typeof value === 'boolean')
@@ -1039,7 +1066,15 @@ function CellBody({ value, cut }: { value: Cell; cut: boolean }) {
 }
 
 /** The tooltip for one cell, shared by both orientations. */
-function cellTitle(value: Cell, cut: boolean, textCap: number): string {
+function cellTitle(view: CellView, cut: boolean, textCap: number): string {
+  const value = view.value
+  if (view.isDefault) return 'DEFAULT'
+  if (view.state === 'dirty') {
+    return `${value === null ? 'NULL' : String(value)}\n\n(edited, not saved — was ${
+      view.was === null || view.was === undefined ? 'NULL' : String(view.was)
+    })`
+  }
+  if (view.state === 'deleted') return 'Staged for deletion'
   if (value === null) return 'NULL'
   if (cut) return `${String(value)}\n\n(cut to ${textCap} characters — Enter for the whole value)`
   return String(value)

@@ -193,11 +193,7 @@ export function describeCounts(c: Counts): string {
  * delete goes first so a row can be replaced by an insert that reuses its key,
  * and inserts go last so nothing else depends on a row that does not exist yet.
  */
-export function toChangesRequest(
-  e: EditSet,
-  connectionId: string,
-  ref: ObjectRef,
-): ChangesRequest {
+export function toChangesRequest(e: EditSet, connectionId: string, ref: ObjectRef): ChangesRequest {
   const changes: RowChange[] = [
     ...Object.values(e.deletes).map<RowChange>((d) => ({ op: 'delete', key: d.values })),
     ...Object.values(e.updates)

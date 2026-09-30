@@ -141,11 +141,21 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
       return { input: s.staged.edits.inserts[row - rs.rows.length]?.set[name], original: null }
     }
     const k = keyedAt(s, row)
-    return { input: k ? s.staged.edits.updates[k.key]?.set[name] : undefined, original: rs.rows[row][col] }
+    return {
+      input: k ? s.staged.edits.updates[k.key]?.set[name] : undefined,
+      original: rs.rows[row][col],
+    }
   }
 
   /** Puts `input` on one cell of the current page or of an insert row. */
-  function stageOne(s: State, e: Staged['edits'], row: number, col: number, input: CellInput, original: Cell) {
+  function stageOne(
+    s: State,
+    e: Staged['edits'],
+    row: number,
+    col: number,
+    input: CellInput,
+    original: Cell,
+  ) {
     const rs = s.result!
     const name = rs.columns[col].name
     if (row >= rs.rows.length) {
@@ -215,11 +225,13 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
         const column = columnAt(s, col)
         const block = blockReason(s, column)
         if (block) skipped ||= `${column?.name ?? 'column'} is read-only: ${block}`
-        else if (kind === 'null' && column?.nullable === false) skipped ||= `${column.name} is NOT NULL`
+        else if (kind === 'null' && column?.nullable === false)
+          skipped ||= `${column.name} is NOT NULL`
         else cells.push({ row, col })
       }
     }
-    if (cells.length === 0) return skipped ? toast('info', `Nothing to set — ${skipped}`) : undefined
+    if (cells.length === 0)
+      return skipped ? toast('info', `Nothing to set — ${skipped}`) : undefined
     const input: CellInput = { kind }
     set({
       staged: commit(s.staged, (e) =>
@@ -241,7 +253,8 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
       const { row, col } = sel.focus
       const column = columnAt(s, col)
       const why = blockReason(s, column)
-      if (why) return toast('info', `${rs.columns[col]?.name ?? 'This cell'} cannot be edited: ${why}`)
+      if (why)
+        return toast('info', `${rs.columns[col]?.name ?? 'This cell'} cannot be edited: ${why}`)
 
       const isInsert = row >= rs.rows.length
       if (!isInsert) {
@@ -363,7 +376,11 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
       const s = get()
       if (s.staged.past.length === 0) return
       const staged = undo(s.staged)
-      set({ staged, editing: null, ...clampedSelection(s, (s.result?.rows.length ?? 0) + staged.edits.inserts.length) })
+      set({
+        staged,
+        editing: null,
+        ...clampedSelection(s, (s.result?.rows.length ?? 0) + staged.edits.inserts.length),
+      })
     },
 
     discardChanges() {
