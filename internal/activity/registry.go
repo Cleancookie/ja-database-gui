@@ -77,7 +77,7 @@ func (p Phase) Terminal() bool {
 // ring.
 const historySize = 500
 
-// historySQLLimit caps the SQL kept per history entry. A ring of 200 editor
+// historySQLLimit caps the SQL kept per history entry. A ring of 500
 // statements is the one place in this app where retained strings could add up,
 // and the pane only ever shows one line of it anyway.
 const historySQLLimit = 2000

@@ -282,6 +282,16 @@ The frontend never assembles DDL. `PreviewCreateTable` asks the driver to render
 the statement without running it, so the SQL shown in the dialog is produced by
 the same code that will execute it.
 
+## Row edits
+
+Edits are a staged change set, previewed and then applied in one transaction:
+`Service.PreviewChanges` and `ApplyChanges`, both built by `planChanges` →
+`Driver.BuildChange` (`internal/driver/write.go`), so the SQL shown is the SQL
+run. `ReadRows` reports `EditKey` and per-column `Editable` from
+`Driver.EditFacts`, cached beside the column list. Each change is addressed by
+that key alone and must affect exactly one row. Values are bound, never spliced
+in. Reasoning: `docs/adr/0005-row-editing.md`.
+
 ## Row browsing and the filter box
 
 `Ctrl+F` is a raw SQL fragment appended after `WHERE`. It is **not** escaped or
@@ -352,12 +362,12 @@ its own `*sql.Conn`; see `docs/WISHLIST.md`.
 ### History
 
 Finished queries stay in the pane, so the tray doubles as a log of what the
-session has run. `Registry.history` is a fixed ring of `historySize` (200)
-entries; retained SQL is capped at `historySQLLimit` (2000 chars) and error text
-at 500, because a ring of editor statements is the one place here where retained
-strings could add up. Catalogue reads (`KindIntrospect`) are visible while they
-run but are not retained — they fire on every table open and would push out the
-queries the user actually ran. `ClearQueryHistory` empties the ring.
+session has run. `Registry.history` is a fixed ring of `historySize` (500)
+entries holding every kind, catalogue reads included — see "The activity log
+keeps everything" above. Retained SQL is capped at `historySQLLimit` (2000
+chars) and error text at 500, because a ring of editor statements is the one
+place here where retained strings could add up. `ClearQueryHistory` empties the
+ring.
 
 Four things about the tray are deliberate:
 

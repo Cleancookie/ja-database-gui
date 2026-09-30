@@ -188,12 +188,15 @@ Answers given by the user when asked:
 
 Delivered: a query id column (`q001`, zero-padded so the column does not
 change width), a status column from real instrumentation, a bounded history
-ring of 200 entries, `Clear log`, and a confirmation on Cancel that honours the
+ring (200 entries then, 500 now), `Clear log`, and a confirmation on Cancel that honours the
 existing "confirm destructive actions" setting.
 
-Catalogue reads are shown while they run but are not retained in the history:
-they fire on every table open and would push the user's own queries out of the
-ring within a minute.
+Catalogue reads were shown while they ran but not retained in the history: they
+fire on every table open and would push the user's own queries out of the ring
+within a minute. *Superseded:* every kind is retained now, in a ring of 500, and
+the tray hides catalogue reads from the view instead — see `ARCHITECTURE.md`,
+"The activity log keeps everything", and `historySize` in
+`internal/activity/registry.go`.
 
 ---
 
@@ -424,6 +427,28 @@ Not built: keyboard equivalents on the tree rows, and palette entries. Both woul
 need a focus model the tree does not have — it is a set of toggle buttons, not a
 grid with a cursor.
 
+## 2026-09-30 — editing rows in the grid (backend)
+
+### Brief
+
+Edit rows in the data grid. This entry is the Go side only; the grid UI follows.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| How edits reach the database | As a staged *change set* — `RowChange`s of `update`, `insert` or `delete` — sent to `PreviewChanges` (shows the SQL, runs nothing) and then `ApplyChanges`. Nothing is written as the user types |
+| Which columns address a row | `ReadRowsResult.EditKey`: the primary key, else the first unique index that is complete and all NOT NULL, else the table is read-only with a `ReadOnlyReason`. The WHERE is the key alone, with the *original* values |
+| What is read-only | Views; tables with no usable key; per column, generated, binary (the wire value is a lossy hex preview) and — SQL Server — identity and rowversion. Reported per column as `GridColumn.Editable` |
+| Stale rows | Every update and delete must affect exactly 1 row. 0 means the row changed or went away since it was loaded; more than 1 means the key was not unique. Either rolls the whole change set back and is returned as `ApplyResult.Conflict` |
+| Atomicity | One transaction per `ApplyChanges`; all or nothing |
+| Values | Bound parameters, coerced by the column's declared type; `CellValue.Kind` keeps `value`, `null` and `default` apart so NULL is never `''` |
+| `SET col = DEFAULT` on SQLite | Refused for an update (no such keyword); left out of an insert, which means the same. `Capabilities.SetToDefault` tells the UI |
+| Preview vs apply | One builder, `planChanges` → `Driver.BuildChange`. `Statement.Display` is the same statement with literals written in and is never executed |
+| Activity log | New `write` kind. The logged SQL is the parameterised text; the values are not logged |
+
+Not done here: the UI, and editing columns that are read-only above.
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
@@ -447,6 +472,12 @@ test — which is the intended speed bump.
 | A capped cell is reported as capped — truncation is never silent | `service_test.go` |
 | A batch runs as one round trip on one connection, and every result set it produces comes back — `use db; select …` must not lose the rows | `internal/api/service_test.go` |
 | The full value of one cell is always reachable, on views and keyless tables too | `service_test.go` |
+| Rows are written only through `ApplyChanges`, in one transaction, and a change set that does not fit the table is rejected before anything runs | `internal/api/changes_test.go` |
+| Every change is applied by the table's key alone — exactly `EditKey`, original values — and must affect exactly one row, or the whole set rolls back | `changes_test.go` |
+| Edited values are bound parameters, never part of the executed SQL; `Statement.Display` is for reading and is never run | `internal/driver/write_test.go` |
+| A view, a keyless table, and a generated or binary column cannot be edited | `internal/driver/edit_test.go`, `changes_test.go` |
+| `PreviewChanges` runs no statement from the change set, and renders what `ApplyChanges` runs | `changes_test.go` |
+| An applied change set is in the activity log as a `write`, failed if it rolled back | `changes_test.go` |
 
 ### Design decisions
 
@@ -478,6 +509,6 @@ test — which is the intended speed bump.
 
 - **Passwords are plaintext on disk.** `docs/adr/0003`. Must not ship to anyone else's machine as-is.
 - **The filter is a SQL injection sink by construction.** Safe only while the input comes from the keyboard of whoever already holds the credentials.
-- **No read-only mode.** A user can type a destructive statement into the filter or the editor and mean it. Enforcing otherwise belongs at the session level, not in string parsing. Truncate and drop being two clicks away in the object menu raises the stakes on this: the only guard is `confirmDestructive`, which the user can turn off.
+- **No read-only mode.** A user can type a destructive statement into the filter or the editor and mean it. Row edits are the one write path with guards of their own (`ApplyChanges`: key-only, one row, one transaction); a connection-level read-only switch would still have to refuse those too. Enforcing otherwise belongs at the session level, not in string parsing. Truncate and drop being two clicks away in the object menu raises the stakes on this: the only guard is `confirmDestructive`, which the user can turn off.
 - **No `ALTER`.** Columns can be added to a new table but not to an existing one, and nothing can be renamed or retyped. The SQL editor is the route for now — see the wishlist.
 - **Wails v2 cannot cross-compile to macOS or Linux.** Windows works only because every driver is pure Go. Keep it that way — a cgo driver would end Windows cross-compilation from WSL.
