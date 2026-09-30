@@ -27,9 +27,11 @@ export interface ContextMenuProps {
   children: React.ReactNode
   /** Applied to the trigger wrapper. */
   className?: string
+  /** Called as the menu closes; `preventDefault` stops focus going back to the trigger. */
+  onCloseAutoFocus?: (e: Event) => void
 }
 
-export function ContextMenu({ items, heading, children, className }: ContextMenuProps) {
+export function ContextMenu({ items, heading, children, className, onCloseAutoFocus }: ContextMenuProps) {
   return (
     <RadixContextMenu.Root>
       <RadixContextMenu.Trigger className={className} asChild>
@@ -40,6 +42,7 @@ export function ContextMenu({ items, heading, children, className }: ContextMenu
         <RadixContextMenu.Content
           className="chrome animate-pop-in z-50 min-w-48 origin-top-left overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-elevated)] p-1.5 shadow-xl"
           collisionPadding={8}
+          onCloseAutoFocus={onCloseAutoFocus}
         >
           {heading && (
             <RadixContextMenu.Label className="mb-1 truncate border-b border-[var(--color-border)] px-3 pt-1 pb-2 font-semibold text-[var(--color-faint)]">

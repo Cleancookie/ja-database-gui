@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { refLabel, useStore } from '../store'
 import { ContextMenu, Dialog, dialogButton, type MenuItem } from '../ui'
 import { qualifiedName } from '../commands'
@@ -77,21 +77,33 @@ export function objectKey(o: SchemaObject): string {
  */
 export function ObjectListMenu({ children }: { children: React.ReactNode }) {
   const [object, setObject] = useState<SchemaObject | null>(null)
+  const row = useRef<HTMLElement | null>(null)
 
   const onContextMenuCapture = useCallback((e: React.MouseEvent) => {
-    const key = (e.target as Element).closest<HTMLElement>('[data-object]')?.dataset.object
+    const el = (e.target as Element).closest<HTMLElement>('[data-object]')
+    const key = el?.dataset.object
     const hit = key ? useStore.getState().objects.find((o) => objectKey(o) === key) : undefined
     if (hit && (hit.type === 'table' || hit.type === 'view')) {
+      row.current = el
       setObject(hit)
       return
     }
     e.stopPropagation()
   }, [])
 
+  // The trigger is the wrapper, which cannot take focus, so Radix would drop it
+  // on the body. Put it back on the row that was hit — unless an item opened a
+  // dialog, which owns focus now.
+  const onCloseAutoFocus = useCallback((e: Event) => {
+    e.preventDefault()
+    if (!document.querySelector('[role="dialog"]')) row.current?.focus()
+  }, [])
+
   return (
     <ContextMenu
       items={object ? objectMenuItems(object) : []}
       heading={object ? qualifiedName(object) : undefined}
+      onCloseAutoFocus={onCloseAutoFocus}
     >
       <div onContextMenuCapture={onContextMenuCapture}>{children}</div>
     </ContextMenu>
