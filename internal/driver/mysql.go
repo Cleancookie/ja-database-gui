@@ -14,7 +14,7 @@ func init() { register(mysqlDriver{}) }
 
 // mysqlDriver serves both MySQL and MariaDB. The information_schema queries
 // used here are common to both.
-type mysqlDriver struct{}
+type mysqlDriver struct{ qmarkWriter }
 
 func (mysqlDriver) Kind() Kind { return KindMySQL }
 
@@ -27,6 +27,7 @@ func (mysqlDriver) Caps() Capabilities {
 		HasSchemas:            false,
 		DatabasePerConnection: false,
 		SupportsFunctions:     true,
+		SetToDefault:          true,
 		DefaultPort:           3306,
 		CommonTypes: []string{
 			"bigint AUTO_INCREMENT", "int", "bigint", "tinyint(1)",
@@ -221,6 +222,18 @@ func (d mysqlDriver) BuildTruncate(ref ObjectRef) (string, error) {
 func (d mysqlDriver) BuildDrop(ref ObjectRef, typ ObjectType) (string, error) {
 	return buildDrop(d.target(ref), typ)
 }
+
+func (d mysqlDriver) BuildChange(ref ObjectRef, ch Change) (Stmt, error) {
+	return buildChange(d, d.target(ref), ch)
+}
+
+// quoteString doubles backslashes as well as quotes: MySQL treats a backslash in
+// a string as an escape unless NO_BACKSLASH_ESCAPES is set.
+func (mysqlDriver) quoteString(s string) string {
+	return "'" + strings.NewReplacer(`\`, `\\`, "'", "''").Replace(s) + "'"
+}
+
+func (mysqlDriver) emptyInsert() string { return " () VALUES ()" }
 
 func (d mysqlDriver) BuildCreateTable(spec CreateTableSpec) (string, error) {
 	return buildCreateTable(d, d.target(spec.Ref), spec)

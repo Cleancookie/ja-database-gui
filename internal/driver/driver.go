@@ -66,6 +66,9 @@ type Capabilities struct {
 	// dialect's usual spellings, identity column included. It is a starting
 	// point, not a whitelist — the field takes any type the engine accepts.
 	CommonTypes []string `json:"commonTypes"`
+	// SetToDefault is false for SQLite, which has no DEFAULT keyword to put in an
+	// UPDATE. A grid offering "reset to default" hides it where this is false.
+	SetToDefault bool `json:"setToDefault"`
 }
 
 type Database struct {
@@ -326,6 +329,10 @@ type Driver interface {
 	// BuildDrop drops a table or view. Any other object type is refused.
 	BuildDrop(ref ObjectRef, typ ObjectType) (string, error)
 	BuildCreateTable(spec CreateTableSpec) (string, error)
+
+	// BuildChange renders one row insert, update or delete. The SQL it returns
+	// is parameterised; the values travel in Args. See write.go.
+	BuildChange(ref ObjectRef, ch Change) (Stmt, error)
 }
 
 // textCapper is how a dialect says "the first n characters of this

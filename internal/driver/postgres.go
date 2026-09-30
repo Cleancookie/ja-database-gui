@@ -14,7 +14,7 @@ import (
 
 func init() { register(postgresDriver{}) }
 
-type postgresDriver struct{}
+type postgresDriver struct{ stdWriter }
 
 func (postgresDriver) Kind() Kind { return KindPostgres }
 
@@ -28,6 +28,7 @@ func (postgresDriver) Caps() Capabilities {
 		// pool is keyed on (connection, database).
 		DatabasePerConnection: true,
 		SupportsFunctions:     true,
+		SetToDefault:          true,
 		DefaultPort:           5432,
 		CommonTypes: []string{
 			"bigserial", "serial", "integer", "bigint", "boolean",
@@ -250,6 +251,19 @@ func (d postgresDriver) BuildTruncate(ref ObjectRef) (string, error) {
 // table blocks the drop, which is information rather than an obstacle.
 func (d postgresDriver) BuildDrop(ref ObjectRef, typ ObjectType) (string, error) {
 	return buildDrop(d.target(ref), typ)
+}
+
+func (d postgresDriver) BuildChange(ref ObjectRef, ch Change) (Stmt, error) {
+	return buildChange(d, d.target(ref), ch)
+}
+
+func (postgresDriver) placeholder(n int) string { return "$" + strconv.Itoa(n) }
+
+func (postgresDriver) boolLiteral(b bool) string {
+	if b {
+		return "TRUE"
+	}
+	return "FALSE"
 }
 
 func (d postgresDriver) BuildCreateTable(spec CreateTableSpec) (string, error) {

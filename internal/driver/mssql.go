@@ -14,7 +14,7 @@ import (
 
 func init() { register(mssqlDriver{}) }
 
-type mssqlDriver struct{}
+type mssqlDriver struct{ stdWriter }
 
 func (mssqlDriver) Kind() Kind { return KindMSSQL }
 
@@ -27,6 +27,7 @@ func (mssqlDriver) Caps() Capabilities {
 		// connection read any database on the server.
 		DatabasePerConnection: false,
 		SupportsFunctions:     true,
+		SetToDefault:          true,
 		DefaultPort:           1433,
 		CommonTypes: []string{
 			"bigint IDENTITY(1,1)", "int", "bigint", "bit",
@@ -294,6 +295,18 @@ func (d mssqlDriver) BuildTruncate(ref ObjectRef) (string, error) {
 
 func (d mssqlDriver) BuildDrop(ref ObjectRef, typ ObjectType) (string, error) {
 	return buildDrop(d.target(ref), typ)
+}
+
+func (d mssqlDriver) BuildChange(ref ObjectRef, ch Change) (Stmt, error) {
+	return buildChange(d, d.target(ref), ch)
+}
+
+func (mssqlDriver) placeholder(n int) string { return "@p" + strconv.Itoa(n) }
+
+// quoteString marks the literal as Unicode, which is how an nvarchar value is
+// typed in T-SQL.
+func (mssqlDriver) quoteString(s string) string {
+	return "N'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // BuildCreateTable cannot use the three-part name the rest of this driver relies

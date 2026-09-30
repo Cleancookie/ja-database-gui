@@ -12,7 +12,7 @@ import (
 
 func init() { register(sqliteDriver{}) }
 
-type sqliteDriver struct{}
+type sqliteDriver struct{ qmarkWriter }
 
 func (sqliteDriver) Kind() Kind { return KindSQLite }
 
@@ -153,6 +153,10 @@ func (d sqliteDriver) BuildTruncate(ref ObjectRef) (string, error) {
 
 func (d sqliteDriver) BuildDrop(ref ObjectRef, typ ObjectType) (string, error) {
 	return buildDrop(d.target(ref), typ)
+}
+
+func (d sqliteDriver) BuildChange(ref ObjectRef, ch Change) (Stmt, error) {
+	return buildChange(d, d.target(ref), ch)
 }
 
 func (d sqliteDriver) BuildCreateTable(spec CreateTableSpec) (string, error) {
