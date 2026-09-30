@@ -354,21 +354,6 @@ function Grid({
     return () => window.removeEventListener('keydown', onKey)
   }, [source, transposed, result, ed.rowCount, onOpenCell, cellMenu])
 
-  if (result.columns.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center text-[var(--color-faint)]">
-        {result.rowsAffected != null
-          ? `${result.rowsAffected} row(s) affected`
-          : 'Statement completed with no result set'}
-      </div>
-    )
-  }
-
-  const sort = orderBy?.[0]
-  // The visible columns, shared by the header strip and every rendered row so
-  // that a name and the values under it can never come from different windows.
-  const cols = colV.getVirtualItems()
-
   // Built for the selected cell, which right-clicking has just set through
   // mousedown. Whether there is a menu at all is decided by the prop and never
   // by the selection: mounting the trigger conditionally would rebuild the row
@@ -384,6 +369,25 @@ function Grid({
     return cellMenu(focus.row, focus.col)
   }, [cellMenu, focus, result])
   const menuHeading = focus ? meta[focus.col]?.name : undefined
+
+  // Every hook is above this line. A statement with no result set reuses this
+  // instance for the next result, and a hook skipped on one render and run on
+  // the next is React error 300.
+  if (result.columns.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center text-[var(--color-faint)]">
+        {result.rowsAffected != null
+          ? `${result.rowsAffected} row(s) affected`
+          : 'Statement completed with no result set'}
+      </div>
+    )
+  }
+
+  const sort = orderBy?.[0]
+  // The visible columns, shared by the header strip and every rendered row so
+  // that a name and the values under it can never come from different windows.
+  const cols = colV.getVirtualItems()
+
 
   // Transposing swaps the axes only: the selection, the keyboard, the menu and
   // the cut-cell markers above all address the *source* row and column, so they
