@@ -126,6 +126,12 @@ type Index struct {
 	// Method is the access method where the dialect names one — btree, hash,
 	// CLUSTERED, NONCLUSTERED. Empty where the dialect has only one kind.
 	Method string `json:"method,omitempty"`
+
+	// partial is set when the index does not guarantee uniqueness of whole rows by
+	// the columns listed: it is filtered (WHERE), or has an expression among its
+	// parts that Columns cannot name. Such an index is shown but is no row key.
+	// Unexported, so it never reaches the UI.
+	partial bool
 }
 
 // ForeignKey is one outbound reference. Columns and ReferencedColumns are
@@ -300,6 +306,9 @@ type Driver interface {
 	// count is not a failure to describe the table. An error means the object
 	// could not be read at all.
 	DescribeObject(ctx context.Context, db *sql.DB, ref ObjectRef) (*ObjectDetail, error)
+	// EditFacts answers whether rows of ref can be edited and by which key. See
+	// EditFacts for why it is not folded into ListColumns.
+	EditFacts(ctx context.Context, db *sql.DB, ref ObjectRef) (EditFacts, error)
 
 	// QuoteIdent quotes a single identifier for this dialect.
 	QuoteIdent(ident string) string

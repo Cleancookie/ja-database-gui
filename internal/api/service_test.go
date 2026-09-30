@@ -991,7 +991,8 @@ func countKind(svc *Service, kind activity.Kind) int {
 
 // ReadRows needs the column list before it can build a SELECT, and used to
 // re-read it every time — a second serial round trip in front of every page
-// change, sort and filter. Only the first browse should introspect.
+// change, sort and filter. Only the first browse should introspect: once for the
+// columns and once for the edit facts, neither of which is read again.
 func TestReadRowsIntrospectsColumnsOnce(t *testing.T) {
 	svc, id := newTestService(t)
 	seed(t, svc, id, 5)
@@ -1012,8 +1013,8 @@ func TestReadRowsIntrospectsColumnsOnce(t *testing.T) {
 		}
 	}
 
-	if got := countKind(svc, activity.KindIntrospect) - before; got != 1 {
-		t.Errorf("three browses ran %d introspects, want 1", got)
+	if got := countKind(svc, activity.KindIntrospect) - before; got != 2 {
+		t.Errorf("three browses ran %d introspects, want 2 (columns, edit facts)", got)
 	}
 	if got := countKind(svc, activity.KindBrowse) - before; got != 3 {
 		t.Errorf("three browses ran %d browse queries, want 3", got)

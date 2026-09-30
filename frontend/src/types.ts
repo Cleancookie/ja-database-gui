@@ -193,9 +193,27 @@ export interface Pagination {
   pageSize: number
 }
 
+/**
+ * A column as the grid receives it from readRows: the catalogue's description
+ * plus whether a cell in it can be written. Flattened from Go's GridColumn.
+ */
+export interface GridColumn extends Column {
+  /** False for every column of a read-only table, and for generated, binary,
+   *  identity and rowversion columns of an editable one. */
+  editable: boolean
+  /** Why, for a tooltip. Absent when editable. */
+  readOnlyReason?: string
+}
+
 export interface ReadRowsResult {
   result: ResultSet
-  columns: Column[]
+  columns: GridColumn[]
+  /** Columns that identify one row, in key order: what a row change sends as
+   *  its key. Empty when the table is read-only. */
+  editKey: string[]
+  /** Why the whole table cannot be edited (a view, no usable key …); empty
+   *  when it can. An editable table may still have read-only columns. */
+  readOnlyReason: string
   page: number
   /** The sort the page was read with — the default one when none was asked for. */
   orderBy: Sort[] | null

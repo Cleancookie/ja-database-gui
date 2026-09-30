@@ -351,6 +351,23 @@ func (d mysqlDriver) describeChecks(ctx context.Context, db *sql.DB, ref ObjectR
 	}
 }
 
+func (d mysqlDriver) EditFacts(ctx context.Context, db *sql.DB, ref ObjectRef) (EditFacts, error) {
+	f, _, err := gatherEditFacts(
+		func() ([]Column, error) { return d.describeColumns(ctx, db, ref) },
+		func() ([]Index, error) { return d.describeIndexes(ctx, db, ref) },
+		func() (bool, error) {
+			var tableType string
+			err := db.QueryRowContext(ctx, `
+				SELECT table_type FROM information_schema.tables
+				WHERE table_schema = ? AND table_name = ?`, ref.Database, ref.Name).Scan(&tableType)
+			if err == sql.ErrNoRows {
+				return false, nil
+			}
+			return strings.EqualFold(tableType, "VIEW"), err
+		})
+	return f, err
+}
+
 func (d mysqlDriver) describeColumns(ctx context.Context, db *sql.DB, ref ObjectRef) ([]Column, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT column_name, column_type, is_nullable, column_default,

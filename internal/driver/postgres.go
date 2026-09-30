@@ -367,6 +367,21 @@ func (d postgresDriver) describeRelation(ctx context.Context, db *sql.DB, target
 	return nil
 }
 
+func (d postgresDriver) EditFacts(ctx context.Context, db *sql.DB, ref ObjectRef) (EditFacts, error) {
+	target := d.target(ref)
+	f, _, err := gatherEditFacts(
+		func() ([]Column, error) { return d.describeColumns(ctx, db, target) },
+		func() ([]Index, error) { return d.describeIndexes(ctx, db, target) },
+		func() (bool, error) {
+			var relkind string
+			err := db.QueryRowContext(ctx,
+				`SELECT relkind FROM pg_class WHERE oid = $1::regclass`, target).Scan(&relkind)
+			// v is a view, m a materialised view: neither takes INSERT or UPDATE.
+			return relkind == "v" || relkind == "m", err
+		})
+	return f, err
+}
+
 func (d postgresDriver) describeColumns(ctx context.Context, db *sql.DB, target string) ([]Column, error) {
 	// attidentity and attgenerated are single characters, empty when the column
 	// is neither. A serial column is not an identity column but behaves like
@@ -437,7 +452,8 @@ func (d postgresDriver) describeIndexes(ctx context.Context, db *sql.DB, target 
 	// rather than a column, so the join to pg_attribute is left outer and that
 	// position simply contributes no name.
 	rows, err := db.QueryContext(ctx, `
-		SELECT ic.relname, ix.indisunique, ix.indisprimary, am.amname, a.attname, k.ord
+		SELECT ic.relname, ix.indisunique, ix.indisprimary, am.amname, a.attname, k.ord,
+		       ix.indpred IS NOT NULL
 		FROM pg_index ix
 		JOIN pg_class ic ON ic.oid = ix.indexrelid
 		LEFT JOIN pg_am am ON am.oid = ic.relam
@@ -455,13 +471,17 @@ func (d postgresDriver) describeIndexes(ctx context.Context, db *sql.DB, target 
 		var (
 			idxName         string
 			uniq, primary   bool
+			filtered        bool
 			method, colName sql.NullString
 			ord             int
 		)
-		if err := rows.Scan(&idxName, &uniq, &primary, &method, &colName, &ord); err != nil {
+		if err := rows.Scan(&idxName, &uniq, &primary, &method, &colName, &ord, &filtered); err != nil {
 			return nil, err
 		}
 		acc.add(idxName, colName.String, uniq, primary, method.String)
+		if filtered {
+			acc.markPartial(idxName)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

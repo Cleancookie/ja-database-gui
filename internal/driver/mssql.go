@@ -199,9 +199,7 @@ func (d mssqlDriver) ListColumns(ctx context.Context, db *sql.DB, ref ObjectRef)
 
 	pk, err := d.primaryKeyColumns(ctx, db, dbq, schema, ref.Name)
 	if err != nil {
-		// A missing PK is not worth failing the column list over — the grid
-		// just loses its row-identity hint.
-		return out, nil
+		return nil, fmt.Errorf("reading primary key: %w", err)
 	}
 	for i := range out {
 		if pk[out[i].Name] {
@@ -431,6 +429,38 @@ func (d mssqlDriver) describeObjectFacts(ctx context.Context, db *sql.DB, dbq, o
 	return nil
 }
 
+func (d mssqlDriver) EditFacts(ctx context.Context, db *sql.DB, ref ObjectRef) (EditFacts, error) {
+	dbq := d.QuoteIdent(ref.Database)
+	obj := d.target(ref)
+	f, cols, err := gatherEditFacts(
+		func() ([]Column, error) { return d.describeColumns(ctx, db, dbq, obj) },
+		func() ([]Index, error) { return d.describeIndexes(ctx, db, dbq, obj) },
+		func() (bool, error) {
+			var typeDesc string
+			err := db.QueryRowContext(ctx, fmt.Sprintf(
+				`SELECT type_desc FROM %s.sys.objects WHERE object_id = OBJECT_ID(@p1)`, dbq), obj,
+			).Scan(&typeDesc)
+			if err == sql.ErrNoRows {
+				return false, nil
+			}
+			return strings.HasPrefix(typeDesc, "VIEW"), err
+		})
+	if err != nil {
+		return f, err
+	}
+	// SQL Server refuses to write either of these, so a grid that offered the
+	// edit would only ever show an error.
+	for _, c := range cols {
+		switch {
+		case c.AutoIncrement:
+			f.markReadOnly(c.Name, "identity column")
+		case strings.EqualFold(c.DataType, "timestamp"), strings.EqualFold(c.DataType, "rowversion"):
+			f.markReadOnly(c.Name, "rowversion column")
+		}
+	}
+	return f, nil
+}
+
 func (d mssqlDriver) describeColumns(ctx context.Context, db *sql.DB, dbq, obj string) ([]Column, error) {
 	// The type name is assembled here rather than in the UI so it reads the way
 	// it was declared: nvarchar(50), decimal(10,2), varchar(max). max_length is
@@ -527,7 +557,7 @@ func (d mssqlDriver) describeIndexes(ctx context.Context, db *sql.DB, dbq, obj s
 	// the ordering that matters.
 	rows, err := db.QueryContext(ctx, fmt.Sprintf(`
 		SELECT i.name, i.is_unique, i.is_primary_key, i.type_desc,
-		       c.name, ic.key_ordinal
+		       c.name, ic.key_ordinal, i.has_filter
 		FROM %s.sys.indexes i
 		JOIN %s.sys.index_columns ic
 		  ON ic.object_id = i.object_id AND ic.index_id = i.index_id
@@ -545,13 +575,16 @@ func (d mssqlDriver) describeIndexes(ctx context.Context, db *sql.DB, dbq, obj s
 	for rows.Next() {
 		var (
 			idxName, method, colName string
-			uniq, primary            bool
+			uniq, primary, filtered  bool
 			ord                      int
 		)
-		if err := rows.Scan(&idxName, &uniq, &primary, &method, &colName, &ord); err != nil {
+		if err := rows.Scan(&idxName, &uniq, &primary, &method, &colName, &ord, &filtered); err != nil {
 			return nil, err
 		}
 		acc.add(idxName, colName, uniq, primary, method)
+		if filtered {
+			acc.markPartial(idxName)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

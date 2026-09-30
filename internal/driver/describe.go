@@ -31,6 +31,16 @@ func (a *indexAccum) add(name, column string, unique, primary bool, method strin
 	}
 	if column != "" {
 		ix.Columns = append(ix.Columns, column)
+	} else {
+		// A position with no column name is an expression.
+		ix.partial = true
+	}
+}
+
+// markPartial flags an index whose uniqueness is over a subset of rows.
+func (a *indexAccum) markPartial(name string) {
+	if ix, ok := a.byName[name]; ok {
+		ix.partial = true
 	}
 }
 

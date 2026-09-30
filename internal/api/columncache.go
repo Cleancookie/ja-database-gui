@@ -33,6 +33,12 @@ type columnKey struct {
 type columnEntry struct {
 	cols []driver.Column
 	at   time.Time
+
+	// facts is the edit metadata for the same table, kept beside the columns so
+	// that one invalidate — DDL, RunSQL, disconnect — drops both. It ages on its
+	// own clock because the two are read and stored independently.
+	facts   *driver.EditFacts
+	factsAt time.Time
 }
 
 // columnCache is a short-lived memo of column metadata.
@@ -86,10 +92,39 @@ func (c *columnCache) put(connID string, ref driver.ObjectRef, cols []driver.Col
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.entries[columnKey{connID, ref}] = columnEntry{
-		cols: append([]driver.Column(nil), cols...),
-		at:   c.now(),
+	k := columnKey{connID, ref}
+	e := c.entries[k]
+	e.cols, e.at = append([]driver.Column(nil), cols...), c.now()
+	c.entries[k] = e
+}
+
+// getFacts returns a copy of the cached edit facts, or false if there is no live
+// entry. It does not count toward the hit rate, which describes column reads.
+func (c *columnCache) getFacts(connID string, ref driver.ObjectRef) (driver.EditFacts, bool) {
+	if c.ttl <= 0 {
+		return driver.EditFacts{}, false
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	e, ok := c.entries[columnKey{connID, ref}]
+	if !ok || e.facts == nil || c.now().Sub(e.factsAt) >= c.ttl {
+		return driver.EditFacts{}, false
+	}
+	return e.facts.Clone(), true
+}
+
+func (c *columnCache) putFacts(connID string, ref driver.ObjectRef, f driver.EditFacts) {
+	if c.ttl <= 0 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	k := columnKey{connID, ref}
+	e := c.entries[k]
+	clone := f.Clone()
+	e.facts, e.factsAt = &clone, c.now()
+	c.entries[k] = e
 }
 
 // invalidate drops one table, for a change we know the target of.

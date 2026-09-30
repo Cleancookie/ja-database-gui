@@ -211,6 +211,25 @@ func (d sqliteDriver) DescribeObject(ctx context.Context, db *sql.DB, ref Object
 	return det, nil
 }
 
+func (d sqliteDriver) EditFacts(ctx context.Context, db *sql.DB, ref ObjectRef) (EditFacts, error) {
+	f, _, err := gatherEditFacts(
+		func() ([]Column, error) { return d.describeColumns(ctx, db, ref) },
+		func() ([]Index, error) { return d.describeIndexes(ctx, db, ref) },
+		func() (bool, error) {
+			var kind string
+			err := db.QueryRowContext(ctx,
+				`SELECT type FROM sqlite_master WHERE name = ? AND type IN ('table','view')`,
+				ref.Name).Scan(&kind)
+			// No row is a temp table or an attached schema: not a view as far as
+			// we can tell, and describeColumns decides whether it exists at all.
+			if err == sql.ErrNoRows {
+				return false, nil
+			}
+			return kind == "view", err
+		})
+	return f, err
+}
+
 func (d sqliteDriver) describeColumns(ctx context.Context, db *sql.DB, ref ObjectRef) ([]Column, error) {
 	// table_xinfo rather than table_info: it adds the hidden column, which is
 	// how a generated column is reported (2 = virtual, 3 = stored).
@@ -273,7 +292,7 @@ func (d sqliteDriver) describeIndexes(ctx context.Context, db *sql.DB, ref Objec
 	// key has no index here at all, which is why primaryKeyOf also consults
 	// the column flags.
 	rows, err := db.QueryContext(ctx, `
-		SELECT l.name, l."unique", l.origin, i.name, i.seqno
+		SELECT l.name, l."unique", l.origin, l.partial, i.name, i.seqno
 		FROM pragma_index_list(?) l
 		JOIN pragma_index_info(l.name) i
 		ORDER BY l.seq, i.seqno`, ref.Name)
@@ -285,16 +304,19 @@ func (d sqliteDriver) describeIndexes(ctx context.Context, db *sql.DB, ref Objec
 	acc := newIndexAccum()
 	for rows.Next() {
 		var (
-			idxName, origin string
-			colName         sql.NullString
-			uniq, seqno     int
+			idxName, origin      string
+			colName              sql.NullString
+			uniq, partial, seqno int
 		)
-		if err := rows.Scan(&idxName, &uniq, &origin, &colName, &seqno); err != nil {
+		if err := rows.Scan(&idxName, &uniq, &origin, &partial, &colName, &seqno); err != nil {
 			return nil, err
 		}
 		// A NULL column name is an expression index; the index is still worth
 		// listing, just without that position.
 		acc.add(idxName, colName.String, uniq == 1, origin == "pk", "")
+		if partial == 1 {
+			acc.markPartial(idxName)
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

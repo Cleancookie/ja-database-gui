@@ -156,3 +156,36 @@ func TestColumnCacheZeroTTLDisables(t *testing.T) {
 		t.Fatal("a zero TTL cached something")
 	}
 }
+
+func TestEditFactsShareTheColumnEntryInvalidation(t *testing.T) {
+	cache, clk := newTestCache(5 * time.Second)
+	cache.put("c1", testRef, someCols())
+	cache.putFacts("c1", testRef, driver.EditFacts{EditKey: []string{"id"}})
+
+	got, ok := cache.getFacts("c1", testRef)
+	if !ok || len(got.EditKey) != 1 {
+		t.Fatalf("stored facts did not come back: %+v, %v", got, ok)
+	}
+	// What a caller does to a copy must not reach the cache.
+	got.EditKey[0] = "changed"
+	if again, _ := cache.getFacts("c1", testRef); again.EditKey[0] != "id" {
+		t.Error("the cached facts were altered through a returned copy")
+	}
+
+	// Storing columns again must not drop the facts.
+	cache.put("c1", testRef, someCols())
+	if _, ok := cache.getFacts("c1", testRef); !ok {
+		t.Error("put of columns discarded the facts")
+	}
+
+	cache.invalidate("c1", testRef)
+	if _, ok := cache.getFacts("c1", testRef); ok {
+		t.Error("invalidate left the facts behind")
+	}
+
+	cache.putFacts("c1", testRef, driver.EditFacts{})
+	clk.advance(6 * time.Second)
+	if _, ok := cache.getFacts("c1", testRef); ok {
+		t.Error("facts outlived the TTL")
+	}
+}

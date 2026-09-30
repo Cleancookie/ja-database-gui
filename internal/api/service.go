@@ -417,9 +417,16 @@ type ReadRowsRequest struct {
 }
 
 type ReadRowsResult struct {
-	Result  *driver.ResultSet `json:"result"`
-	Columns []driver.Column   `json:"columns"`
-	Page    int               `json:"page"`
+	Result *driver.ResultSet `json:"result"`
+	// Columns carries per-column editability beside the catalogue's description.
+	Columns []GridColumn `json:"columns"`
+	// EditKey is the columns that identify one row, in key order: what a change
+	// must send as its Key. Empty when the table is read-only.
+	EditKey []string `json:"editKey"`
+	// ReadOnlyReason is why the whole table cannot be edited, or empty when it
+	// can. A table that can be edited may still have read-only columns.
+	ReadOnlyReason string `json:"readOnlyReason"`
+	Page           int    `json:"page"`
 	// OrderBy is the sort the page was actually read with, which is the one the
 	// request asked for or, when it asked for none, the default from
 	// driver.DefaultOrderBy. The UI needs the effective sort to mark the header
@@ -538,7 +545,11 @@ func (s *Service) ReadRows(ctx context.Context, req ReadRowsRequest) (*ReadRowsR
 		return nil, err
 	}
 
-	out := &ReadRowsResult{Result: rs, Columns: cols, Page: page, OrderBy: orderBy}
+	facts := s.editFacts(ctx, sess, req.ConnectionID, req.Ref, cols)
+	out := &ReadRowsResult{
+		Result: rs, Columns: gridColumns(cols, facts), Page: page, OrderBy: orderBy,
+		EditKey: facts.EditKey, ReadOnlyReason: facts.ReadOnlyReason,
+	}
 	if req.Pagination.Enabled {
 		size := opts.Limit - 1
 		if len(rs.Rows) > size {
