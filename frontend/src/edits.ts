@@ -195,11 +195,11 @@ export function describeCounts(c: Counts): string {
  */
 export function toChangesRequest(e: EditSet, connectionId: string, ref: ObjectRef): ChangesRequest {
   const changes: RowChange[] = [
-    ...Object.values(e.deletes).map<RowChange>((d) => ({ op: 'delete', key: d.values })),
+    ...Object.values(e.deletes).map<RowChange>((d) => ({ ref, op: 'delete', key: d.values })),
     ...Object.values(e.updates)
       .filter((u) => !e.deletes[u.key])
-      .map<RowChange>((u) => ({ op: 'update', key: u.values, set: u.set })),
-    ...e.inserts.map<RowChange>((i) => ({ op: 'insert', set: i.set })),
+      .map<RowChange>((u) => ({ ref, op: 'update', key: u.values, set: u.set })),
+    ...e.inserts.map<RowChange>((i) => ({ ref, op: 'insert', set: i.set })),
   ]
-  return { connectionId, ref, changes }
+  return { connectionId, changes }
 }

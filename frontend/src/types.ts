@@ -236,6 +236,9 @@ export interface CellInput {
 }
 
 export interface RowChange {
+  /** The table this change is for. One change set may span several tables of one
+   *  connection and ONE database (a different database is rejected). */
+  ref: ObjectRef
   op: 'update' | 'insert' | 'delete'
   /** ORIGINAL values of the key columns, exactly readRows' editKey, as readRows
    *  sent them (bigints and decimals stay strings). Update and delete only. */
@@ -246,9 +249,16 @@ export interface RowChange {
 
 export interface ChangesRequest {
   connectionId: string
-  ref: ObjectRef
-  /** Applied in this order. */
+  /** Applied in this order, in one transaction. */
   changes: RowChange[]
+}
+
+/** What one column of a statement is set to. Go: api.StatementCell. */
+export interface StatementCell {
+  column: string
+  kind: 'value' | 'null' | 'default'
+  /** Characters of the new text; 0 unless kind is 'value'. */
+  chars: number
 }
 
 export interface Statement {
@@ -256,6 +266,13 @@ export interface Statement {
   sql: string
   /** The same statement with values written in, for a person to read. Never run. */
   display: string
+  /** display with every string literal over 160 characters cut and ending
+   *  "…(+N more chars)". Equals display when nothing was long. */
+  short: string
+  /** Qualified name of the table touched ("schema.name", or "name"). */
+  table: string
+  /** Set columns in column order; empty for a delete. */
+  cells: StatementCell[]
 }
 
 export interface ChangesPreview {
@@ -266,6 +283,8 @@ export interface ChangesPreview {
 export interface ChangeConflict {
   /** Into ChangesRequest.changes, from 0. */
   index: number
+  /** Qualified name of the table that change was for. */
+  table: string
   message: string
 }
 

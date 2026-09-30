@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/Cleancookie/ja-db/internal/activity"
 	"github.com/Cleancookie/ja-db/internal/driver"
@@ -33,6 +34,9 @@ type CellValue struct {
 
 // RowChange is one row's edit.
 type RowChange struct {
+	// Ref is the table this change is for. A change set may span several tables,
+	// but all in one database of the request's connection.
+	Ref driver.ObjectRef `json:"ref"`
 	// Op is "update", "insert" or "delete".
 	Op string `json:"op"`
 	// Key holds the ORIGINAL values of the table's key columns, as ReadRows sent
@@ -43,20 +47,36 @@ type RowChange struct {
 	Set map[string]CellValue `json:"set,omitempty"`
 }
 
-// ChangesRequest addresses a table the way ReadRows does, then lists the edits.
-// Changes are applied in order.
+// ChangesRequest lists the edits, each addressing its own table. Changes are
+// applied in order, in one transaction, so they all share one connection and one
+// database.
 type ChangesRequest struct {
-	ConnectionID string           `json:"connectionId"`
-	Ref          driver.ObjectRef `json:"ref"`
-	Changes      []RowChange      `json:"changes"`
+	ConnectionID string      `json:"connectionId"`
+	Changes      []RowChange `json:"changes"`
+}
+
+// StatementCell says what one column of a statement is set to, so the UI can
+// show "data: 48,211 chars" without reading the SQL.
+type StatementCell struct {
+	Column string `json:"column"`
+	// Kind is "value", "null" or "default".
+	Kind string `json:"kind"`
+	// Chars is the length in characters of the new text, for kind "value".
+	Chars int `json:"chars"`
 }
 
 // Statement is one change as SQL. SQL is what runs, with parameter markers.
 // Display is the same statement with the values written in, for a person to
-// read; it is never executed.
+// read; it is never executed. Short is Display with every string literal over
+// driver.ShortLiteralChars cut and ending "…(+N more chars)".
 type Statement struct {
 	SQL     string `json:"sql"`
 	Display string `json:"display"`
+	Short   string `json:"short"`
+	// Table is the qualified name of the table the statement touches.
+	Table string `json:"table"`
+	// Cells lists the set columns in column order. Empty for a delete.
+	Cells []StatementCell `json:"cells"`
 }
 
 // ChangesPreview has one Statement per change, in order.
@@ -67,7 +87,9 @@ type ChangesPreview struct {
 // ChangeConflict says which change stopped the apply, and why.
 type ChangeConflict struct {
 	// Index is into ChangesRequest.Changes, from 0.
-	Index   int    `json:"index"`
+	Index int `json:"index"`
+	// Table is the qualified name of the table that change was for.
+	Table   string `json:"table"`
 	Message string `json:"message"`
 }
 
@@ -81,13 +103,13 @@ type ApplyResult struct {
 // PreviewChanges renders the statements ApplyChanges would run. It runs none of
 // them: the only queries it issues are the catalogue reads that validation needs.
 func (s *Service) PreviewChanges(ctx context.Context, req ChangesRequest) (ChangesPreview, error) {
-	_, stmts, err := s.planChanges(ctx, req)
+	plan, err := s.planChanges(ctx, req)
 	if err != nil {
 		return ChangesPreview{}, err
 	}
-	out := ChangesPreview{Statements: make([]Statement, 0, len(stmts))}
-	for _, st := range stmts {
-		out.Statements = append(out.Statements, Statement{SQL: st.SQL, Display: st.Display})
+	out := ChangesPreview{Statements: make([]Statement, 0, len(plan.stmts))}
+	for _, st := range plan.stmts {
+		out.Statements = append(out.Statements, st.info)
 	}
 	return out, nil
 }
@@ -107,25 +129,27 @@ func (e *errConflict) Error() string {
 // reports which change it was. A conflict is a result, not an error: the caller
 // has something to show.
 func (s *Service) ApplyChanges(ctx context.Context, req ChangesRequest) (ApplyResult, error) {
-	sess, stmts, err := s.planChanges(ctx, req)
+	plan, err := s.planChanges(ctx, req)
 	if err != nil {
 		return ApplyResult{}, err
 	}
+	stmts := plan.stmts
 
-	// The log gets the parameterised text, which is what was sent. The values are
-	// in Args and deliberately not logged.
+	// The log gets the parameterised text, which is what was sent, under a
+	// comment saying how wide the transaction is. The values are in Args and
+	// deliberately not logged.
 	logged := make([]string, len(stmts))
 	for i, st := range stmts {
-		logged[i] = st.SQL
+		logged[i] = st.built.SQL
 	}
 
 	err = s.runner.Do(ctx, query.Op{
 		ConnectionID: req.ConnectionID,
-		Database:     req.Ref.Database,
+		Database:     plan.database,
 		Kind:         activity.KindWrite,
-		SQL:          strings.Join(logged, ";\n"),
+		SQL:          plan.label() + "\n" + strings.Join(logged, ";\n"),
 	}, func(qctx context.Context) error {
-		tx, err := sess.DB.BeginTx(qctx, nil)
+		tx, err := plan.sess.DB.BeginTx(qctx, nil)
 		if err != nil {
 			return err
 		}
@@ -133,19 +157,19 @@ func (s *Service) ApplyChanges(ctx context.Context, req ChangesRequest) (ApplyRe
 		defer tx.Rollback()
 
 		for i, st := range stmts {
-			res, err := tx.ExecContext(qctx, st.SQL, st.Args...)
+			res, err := tx.ExecContext(qctx, st.built.SQL, st.built.Args...)
 			if err != nil {
 				if qctx.Err() != nil {
 					return qctx.Err() // cancelled from the tray, not a conflict
 				}
-				return &errConflict{ChangeConflict{Index: i, Message: err.Error()}}
+				return &errConflict{ChangeConflict{Index: i, Table: st.info.Table, Message: err.Error()}}
 			}
 			n, err := res.RowsAffected()
 			if err != nil {
-				return &errConflict{ChangeConflict{Index: i, Message: "could not confirm how many rows changed: " + err.Error()}}
+				return &errConflict{ChangeConflict{Index: i, Table: st.info.Table, Message: "could not confirm how many rows changed: " + err.Error()}}
 			}
 			if n != 1 {
-				return &errConflict{ChangeConflict{Index: i, Message: rowCountMessage(req.Changes[i].Op, n)}}
+				return &errConflict{ChangeConflict{Index: i, Table: st.info.Table, Message: rowCountMessage(req.Changes[i].Op, n)}}
 			}
 		}
 		return tx.Commit()
@@ -172,38 +196,105 @@ func rowCountMessage(op string, n int64) string {
 	}
 }
 
-// planChanges validates a change set against the table's live editing facts and
+// plannedStmt is a built statement with what the UI is told about it.
+type plannedStmt struct {
+	built driver.Stmt // what runs
+	info  Statement   // what the UI is told
+}
+
+// changePlan is a validated change set, ready to preview or run.
+type changePlan struct {
+	sess     *engine.Session
+	database string
+	tables   int
+	stmts    []plannedStmt
+}
+
+// label is the leading line of the activity entry.
+func (p changePlan) label() string {
+	return fmt.Sprintf("-- %s across %s", plural(len(p.stmts), "change"), plural(p.tables, "table"))
+}
+
+func plural(n int, noun string) string {
+	if n == 1 {
+		return "1 " + noun
+	}
+	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+// tableFacts is what validating a change needs to know about one table.
+type tableFacts struct {
+	cols  []driver.Column
+	facts driver.EditFacts
+}
+
+// planChanges validates a change set against each table's live editing facts and
 // builds one statement per change. It is the only place statements are made.
-func (s *Service) planChanges(ctx context.Context, req ChangesRequest) (*engine.Session, []driver.Stmt, error) {
+//
+// The connection is the request's and the database is the first change's: a
+// transaction cannot span databases, so a change naming another is refused.
+func (s *Service) planChanges(ctx context.Context, req ChangesRequest) (changePlan, error) {
 	if len(req.Changes) == 0 {
-		return nil, nil, fmt.Errorf("no changes to apply")
+		return changePlan{}, fmt.Errorf("no changes to apply")
 	}
-	sess, err := s.session(ctx, req.ConnectionID, req.Ref.Database)
+	database := req.Changes[0].Ref.Database
+	sess, err := s.session(ctx, req.ConnectionID, database)
 	if err != nil {
-		return nil, nil, err
-	}
-	cols, err := s.ListColumns(ctx, req.ConnectionID, req.Ref)
-	if err != nil {
-		return nil, nil, fmt.Errorf("reading columns of %s: %w", qualify(req.Ref), err)
-	}
-	facts := s.editFacts(ctx, sess, req.ConnectionID, req.Ref, cols)
-	if facts.ReadOnlyReason != "" {
-		return nil, nil, fmt.Errorf("%s cannot be edited: %s", qualify(req.Ref), facts.ReadOnlyReason)
+		return changePlan{}, err
 	}
 
-	stmts := make([]driver.Stmt, 0, len(req.Changes))
+	byTable := map[driver.ObjectRef]tableFacts{}
+	plan := changePlan{sess: sess, database: database, stmts: make([]plannedStmt, 0, len(req.Changes))}
 	for i, rc := range req.Changes {
-		ch, err := toDriverChange(cols, facts, rc)
-		if err != nil {
-			return nil, nil, fmt.Errorf("change %d: %w", i+1, err)
+		if rc.Ref.Name == "" {
+			return changePlan{}, fmt.Errorf("change %d: no table given", i+1)
 		}
-		st, err := sess.Driver.BuildChange(req.Ref, ch)
-		if err != nil {
-			return nil, nil, fmt.Errorf("change %d: %w", i+1, err)
+		if rc.Ref.Database != database {
+			return changePlan{}, fmt.Errorf("change %d: %s is in database %q but the change set is on %q; one change set stays in one database",
+				i+1, qualify(rc.Ref), rc.Ref.Database, database)
 		}
-		stmts = append(stmts, st)
+		tf, ok := byTable[rc.Ref]
+		if !ok {
+			cols, err := s.ListColumns(ctx, req.ConnectionID, rc.Ref)
+			if err != nil {
+				return changePlan{}, fmt.Errorf("change %d: reading columns of %s: %w", i+1, qualify(rc.Ref), err)
+			}
+			tf = tableFacts{cols: cols, facts: s.editFacts(ctx, sess, req.ConnectionID, rc.Ref, cols)}
+			byTable[rc.Ref] = tf
+		}
+		if tf.facts.ReadOnlyReason != "" {
+			return changePlan{}, fmt.Errorf("change %d: %s cannot be edited: %s", i+1, qualify(rc.Ref), tf.facts.ReadOnlyReason)
+		}
+
+		ch, err := toDriverChange(tf.cols, tf.facts, rc)
+		if err != nil {
+			return changePlan{}, fmt.Errorf("change %d: %w", i+1, err)
+		}
+		st, err := sess.Driver.BuildChange(rc.Ref, ch)
+		if err != nil {
+			return changePlan{}, fmt.Errorf("change %d: %w", i+1, err)
+		}
+		plan.stmts = append(plan.stmts, plannedStmt{built: st, info: Statement{
+			SQL: st.SQL, Display: st.Display, Short: st.Short,
+			Table: qualify(rc.Ref), Cells: statementCells(ch, rc),
+		}})
 	}
-	return sess, stmts, nil
+	plan.tables = len(byTable)
+	return plan, nil
+}
+
+// statementCells describes the set columns in the order the statement has them.
+func statementCells(ch driver.Change, rc RowChange) []StatementCell {
+	cells := make([]StatementCell, 0, len(ch.Set))
+	for _, a := range ch.Set {
+		cv := rc.Set[a.Column]
+		cell := StatementCell{Column: a.Column, Kind: cv.Kind}
+		if cv.Kind == "value" {
+			cell.Chars = utf8.RuneCountInString(cv.Value)
+		}
+		cells = append(cells, cell)
+	}
+	return cells
 }
 
 // toDriverChange checks one RowChange against the table and coerces its values.

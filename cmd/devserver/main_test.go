@@ -150,9 +150,10 @@ func TestChangesOverHTTP(t *testing.T) {
 	if rec := post(h, "RunSQL", `{"connectionId":"`+conn.ID+`","sql":"create table t(id integer primary key, n text); insert into t values (1,'a')"}`); rec.Code != http.StatusOK {
 		t.Fatalf("RunSQL: %d %s", rec.Code, rec.Body)
 	}
-	target := `"connectionId":"` + conn.ID + `","ref":{"database":"main","schema":"","name":"t"}`
+	target := `"connectionId":"` + conn.ID + `"`
+	ref := `"ref":{"database":"main","schema":"","name":"t"},`
 
-	rec := post(h, "PreviewChanges", `{`+target+`,"changes":[{"op":"update","key":{"id":1},"set":{"n":{"kind":"value","value":"b"}}}]}`)
+	rec := post(h, "PreviewChanges", `{`+target+`,"changes":[{`+ref+`"op":"update","key":{"id":1},"set":{"n":{"kind":"value","value":"b"}}}]}`)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("PreviewChanges: %d %s", rec.Code, rec.Body)
 	}
@@ -161,7 +162,7 @@ func TestChangesOverHTTP(t *testing.T) {
 		t.Fatalf("preview = %s (%v)", rec.Body, err)
 	}
 
-	rec = post(h, "ApplyChanges", `{`+target+`,"changes":[{"op":"update","key":{"id":99},"set":{"n":{"kind":"null"}}}]}`)
+	rec = post(h, "ApplyChanges", `{`+target+`,"changes":[{`+ref+`"op":"update","key":{"id":99},"set":{"n":{"kind":"null"}}}]}`)
 	var res api.ApplyResult
 	if err := json.Unmarshal(rec.Body.Bytes(), &res); err != nil || rec.Code != http.StatusOK {
 		t.Fatalf("ApplyChanges: %d %s", rec.Code, rec.Body)
@@ -170,7 +171,7 @@ func TestChangesOverHTTP(t *testing.T) {
 		t.Errorf("result = %+v, want a conflict", res)
 	}
 
-	rec = post(h, "ApplyChanges", `{`+target+`,"changes":[{"op":"update","key":{"nope":1},"set":{"n":{"kind":"null"}}}]}`)
+	rec = post(h, "ApplyChanges", `{`+target+`,"changes":[{`+ref+`"op":"update","key":{"nope":1},"set":{"n":{"kind":"null"}}}]}`)
 	if rec.Code != http.StatusInternalServerError || !strings.Contains(rec.Body.String(), "not part of the key") {
 		t.Errorf("a mismatched key: %d %s, want a 500 saying why", rec.Code, rec.Body)
 	}

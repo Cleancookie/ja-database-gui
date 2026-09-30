@@ -19,8 +19,14 @@ var (
 	dflt = CellValue{Kind: "default"}
 )
 
+// changes addresses every change that names no table of its own to ref.
 func changes(id string, ref driver.ObjectRef, cs ...RowChange) ChangesRequest {
-	return ChangesRequest{ConnectionID: id, Ref: ref, Changes: cs}
+	for i := range cs {
+		if cs[i].Ref == (driver.ObjectRef{}) {
+			cs[i].Ref = ref
+		}
+	}
+	return ChangesRequest{ConnectionID: id, Changes: cs}
 }
 
 func update(key float64, set map[string]CellValue) RowChange {
@@ -262,9 +268,13 @@ func TestPreviewRunsNothingAndMatchesWhatApplyRuns(t *testing.T) {
 	}
 
 	want := []Statement{
-		{`UPDATE "orders" SET "customer" = ?, "note" = ? WHERE "id" = ?`,
-			`UPDATE "orders" SET "customer" = 'it''s', "note" = NULL WHERE "id" = 1`},
-		{`DELETE FROM "orders" WHERE "id" = ?`, `DELETE FROM "orders" WHERE "id" = 2`},
+		{SQL: `UPDATE "orders" SET "customer" = ?, "note" = ? WHERE "id" = ?`,
+			Display: `UPDATE "orders" SET "customer" = 'it''s', "note" = NULL WHERE "id" = 1`,
+			Short:   `UPDATE "orders" SET "customer" = 'it''s', "note" = NULL WHERE "id" = 1`,
+			Table:   "orders",
+			Cells:   []StatementCell{{"customer", "value", 4}, {"note", "null", 0}}},
+		{SQL: `DELETE FROM "orders" WHERE "id" = ?`, Display: `DELETE FROM "orders" WHERE "id" = 2`,
+			Short: `DELETE FROM "orders" WHERE "id" = 2`, Table: "orders", Cells: []StatementCell{}},
 	}
 	if fmt.Sprint(prev.Statements) != fmt.Sprint(want) {
 		t.Errorf("statements\n got %v\nwant %v", prev.Statements, want)
@@ -338,5 +348,119 @@ func TestCompositeKeyIsWholeKeyOrNothing(t *testing.T) {
 	apply(t, svc, changes(id, ref, full))
 	if got := scalar(t, svc, id, `SELECT group_concat(qty) FROM (SELECT qty FROM lines ORDER BY n)`); got != "5,9" {
 		t.Errorf("quantities = %s, want 5,9", got)
+	}
+}
+
+// --- a change set across tables ------------------------------------------------------
+
+var notesRef = driver.ObjectRef{Database: "main", Name: "notes"}
+
+func twoTables(t *testing.T) (*Service, string) {
+	t.Helper()
+	svc, id := newTestService(t)
+	seed(t, svc, id, 2)
+	mustRun(t, svc, id, `CREATE TABLE notes (id INTEGER PRIMARY KEY, body TEXT NOT NULL)`)
+	mustRun(t, svc, id, `INSERT INTO notes VALUES (1, 'one')`)
+	return svc, id
+}
+
+func TestApplyChangesAcrossTwoTables(t *testing.T) {
+	svc, id := twoTables(t)
+	req := ChangesRequest{ConnectionID: id, Changes: []RowChange{
+		{Ref: ordersRef, Op: "update", Key: map[string]any{"id": 1.0}, Set: map[string]CellValue{"customer": val("zed")}},
+		{Ref: notesRef, Op: "update", Key: map[string]any{"id": 1.0}, Set: map[string]CellValue{"body": val("héllo")}},
+		{Ref: ordersRef, Op: "delete", Key: map[string]any{"id": 2.0}},
+	}}
+
+	prev, err := svc.PreviewChanges(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tables []string
+	for _, st := range prev.Statements {
+		tables = append(tables, st.Table)
+	}
+	if fmt.Sprint(tables) != "[orders notes orders]" {
+		t.Errorf("statement tables = %v", tables)
+	}
+	if c := prev.Statements[1].Cells; len(c) != 1 || c[0].Column != "body" || c[0].Chars != 5 {
+		t.Errorf("cells = %+v, want body with 5 chars", c)
+	}
+
+	svc.ClearQueryHistory()
+	if res := apply(t, svc, req); res.Conflict != nil || res.Applied != 3 {
+		t.Fatalf("result = %+v", res)
+	}
+	if got := scalar(t, svc, id, `SELECT customer FROM orders WHERE id = 1`); got != "zed" {
+		t.Errorf("orders not updated: %s", got)
+	}
+	if got := scalar(t, svc, id, `SELECT body FROM notes WHERE id = 1`); got != "héllo" {
+		t.Errorf("notes not updated: %s", got)
+	}
+
+	var writes []activity.Info
+	for _, q := range svc.Activity().Queries {
+		if q.Kind == activity.KindWrite {
+			writes = append(writes, q)
+		}
+	}
+	if len(writes) != 1 || !strings.Contains(writes[0].SQL, "3 changes across 2 tables") {
+		t.Errorf("activity = %+v, want one write entry naming 3 changes across 2 tables", writes)
+	}
+}
+
+func TestSecondTableFailingRollsBackTheFirst(t *testing.T) {
+	svc, id := twoTables(t)
+	res := apply(t, svc, ChangesRequest{ConnectionID: id, Changes: []RowChange{
+		{Ref: ordersRef, Op: "update", Key: map[string]any{"id": 1.0}, Set: map[string]CellValue{"customer": val("zed")}},
+		{Ref: notesRef, Op: "update", Key: map[string]any{"id": 404.0}, Set: map[string]CellValue{"body": val("x")}},
+	}})
+	if res.Applied != 0 || res.Conflict == nil {
+		t.Fatalf("result = %+v, want a conflict", res)
+	}
+	if res.Conflict.Index != 1 || res.Conflict.Table != "notes" {
+		t.Errorf("conflict = %+v, want index 1 on notes", res.Conflict)
+	}
+	if got := scalar(t, svc, id, `SELECT customer FROM orders WHERE id = 1`); got != "cust-1" {
+		t.Errorf("the first table's change survived the rollback: %s", got)
+	}
+}
+
+func TestChangeSetOnTwoDatabasesIsRefused(t *testing.T) {
+	svc, id := twoTables(t)
+	other := driver.ObjectRef{Database: "other", Name: "notes"}
+	_, err := svc.PreviewChanges(context.Background(), ChangesRequest{ConnectionID: id, Changes: []RowChange{
+		{Ref: ordersRef, Op: "delete", Key: map[string]any{"id": 1.0}},
+		{Ref: other, Op: "delete", Key: map[string]any{"id": 1.0}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "one database") || !strings.Contains(err.Error(), "change 2") {
+		t.Errorf("err = %v, want change 2 refused for another database", err)
+	}
+	if got := scalar(t, svc, id, `SELECT count(*) FROM orders`); got != "2" {
+		t.Errorf("a refused change set wrote anyway: %s rows", got)
+	}
+}
+
+func TestEachTableIsValidatedAgainstItsOwnKey(t *testing.T) {
+	svc, id := twoTables(t)
+	mustRun(t, svc, id, `CREATE TABLE pairs (a INTEGER NOT NULL, b INTEGER NOT NULL, v TEXT, PRIMARY KEY (a, b))`)
+	pairs := driver.ObjectRef{Database: "main", Name: "pairs"}
+	// orders is keyed by id, pairs by (a, b): the id-only key is fine on the first and wrong on the second.
+	_, err := svc.PreviewChanges(context.Background(), ChangesRequest{ConnectionID: id, Changes: []RowChange{
+		{Ref: ordersRef, Op: "delete", Key: map[string]any{"id": 1.0}},
+		{Ref: pairs, Op: "delete", Key: map[string]any{"id": 1.0}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "change 2") || !strings.Contains(err.Error(), "not part of the key") {
+		t.Errorf("err = %v, want change 2 rejected against pairs' own key", err)
+	}
+}
+
+func TestChangeWithNoTableIsRefused(t *testing.T) {
+	svc, id := twoTables(t)
+	_, err := svc.PreviewChanges(context.Background(), ChangesRequest{ConnectionID: id, Changes: []RowChange{
+		{Op: "delete", Key: map[string]any{"id": 1.0}},
+	}})
+	if err == nil || !strings.Contains(err.Error(), "no table") {
+		t.Errorf("err = %v", err)
 	}
 }

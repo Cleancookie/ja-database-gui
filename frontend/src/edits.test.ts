@@ -156,8 +156,7 @@ describe('toChangesRequest', () => {
     const req = toChangesRequest(e, 'c1', ref)
     expect(req).toEqual({
       connectionId: 'c1',
-      ref,
-      changes: [{ op: 'update', key: { id: 7 }, set: { id: val('70'), name: NULL } }],
+      changes: [{ ref, op: 'update', key: { id: 7 }, set: { id: val('70'), name: NULL } }],
     })
   })
 
@@ -172,14 +171,14 @@ describe('toChangesRequest', () => {
   it('leaves out the edits of a row that is being deleted', () => {
     let e = setCell(EMPTY_EDITS, row1, 'a', val('x'), 'o')
     e = toggleDelete(e, [row1])
-    expect(toChangesRequest(e, 'c', ref).changes).toEqual([{ op: 'delete', key: { id: 1 } }])
+    expect(toChangesRequest(e, 'c', ref).changes).toEqual([{ ref, op: 'delete', key: { id: 1 } }])
   })
 
   it('gives an insert no key, and only the columns that were filled in', () => {
     let e = addInsert(EMPTY_EDITS)
     e = setInsertCell(e, 1, 'name', val('n'))
     expect(toChangesRequest(e, 'c', ref).changes).toEqual([
-      { op: 'insert', set: { name: val('n') } },
+      { ref, op: 'insert', set: { name: val('n') } },
     ])
   })
 
