@@ -29,6 +29,7 @@ const (
 	KindQuery      Kind = "query"      // the SQL editor
 	KindIntrospect Kind = "introspect" // catalogue reads for the tree
 	KindDDL        Kind = "ddl"        // create, truncate, drop from the object menu
+	KindWrite      Kind = "write"      // row edits applied from the grid
 )
 
 // Phase is where a query has got to. These are the app's own lifecycle states,

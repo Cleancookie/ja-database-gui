@@ -269,7 +269,7 @@ export interface CreateTableSpec {
   columns: NewColumn[]
 }
 
-export type QueryKind = 'browse' | 'count' | 'query' | 'introspect' | 'ddl'
+export type QueryKind = 'browse' | 'count' | 'query' | 'introspect' | 'ddl' | 'write'
 
 /**
  * The app's own lifecycle states, instrumented in internal/activity,

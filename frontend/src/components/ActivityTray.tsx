@@ -18,6 +18,7 @@ const KIND_LABEL: Record<QueryKind, string> = {
   query: 'editor',
   introspect: 'catalogue',
   ddl: 'schema',
+  write: 'rows',
 }
 
 /**
