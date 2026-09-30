@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { elapsedFor, isRunning, trayStatus } from './activity'
+import { elapsedFor, isRunning, reuseUnchanged, trayStatus } from './activity'
 import type { QueryInfo } from './types'
 
 function query(over: Partial<QueryInfo> = {}): QueryInfo {
@@ -81,5 +81,32 @@ describe('trayStatus', () => {
       1500,
     )
     expect(s).toEqual({ running: 1, cancelling: 0, longestMs: 600, finished: 1 })
+  })
+})
+
+describe('reuseUnchanged', () => {
+  it('hands back the existing object for an entry that has not changed', () => {
+    const old = query({ id: 'q001', phase: 'done' })
+    const out = reuseUnchanged([old], [{ ...old }])
+    expect(out[0]).toBe(old)
+  })
+
+  it('returns the previous array when nothing differs', () => {
+    const prev = [query({ phase: 'done' })]
+    expect(reuseUnchanged(prev, prev.map((q) => ({ ...q })))).toBe(prev)
+  })
+
+  it('takes the new object for an entry that moved on, and keeps the rest', () => {
+    const done = query({ id: 'q001', phase: 'done' })
+    const running = query({ id: 'q002', elapsedMs: 10 })
+    const next = [{ ...running, elapsedMs: 710 }, { ...done }]
+    const out = reuseUnchanged([running, done], next)
+    expect(out[0]).toBe(next[0])
+    expect(out[1]).toBe(done)
+  })
+
+  it('passes a new entry through', () => {
+    const out = reuseUnchanged([], [query()])
+    expect(out).toHaveLength(1)
   })
 })

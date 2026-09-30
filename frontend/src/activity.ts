@@ -29,6 +29,30 @@ export function elapsedFor(q: QueryInfo, polledAt: number, now: number): number 
   return q.elapsedMs + Math.max(0, now - polledAt)
 }
 
+/**
+ * The freshly polled list, with every entry that has not changed since the last
+ * poll swapped for the object the tray already holds. A poll answers with new
+ * objects for all 500 entries every 700ms; giving the memoised rows back the
+ * references they had is what lets a finished row skip rendering. Returns
+ * `prev` itself when nothing at all differs.
+ */
+export function reuseUnchanged(prev: QueryInfo[], next: QueryInfo[]): QueryInfo[] {
+  const before = new Map(prev.map((q) => [q.id, q]))
+  let same = prev.length === next.length
+  const out = next.map((q, i) => {
+    const old = before.get(q.id)
+    const keep = old && shallowEqual(old, q) ? old : q
+    if (keep !== prev[i]) same = false
+    return keep
+  })
+  return same ? prev : out
+}
+
+function shallowEqual(a: QueryInfo, b: QueryInfo): boolean {
+  const ak = Object.keys(a) as (keyof QueryInfo)[]
+  return ak.length === Object.keys(b).length && ak.every((k) => a[k] === b[k])
+}
+
 /*
  * There is deliberately no filter here. Catalogue reads were first dropped,
  * then kept but hidden from the view by default; both left a log that could not

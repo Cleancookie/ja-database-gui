@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { reuseUnchanged } from './activity'
 import { api, errorMessage } from './api'
 import { absoluteRowOffset, cellText, isCellTruncated } from './cells'
 import { RECENT_LIMIT, refKey } from './recency'
@@ -846,7 +847,11 @@ export const useStore = create<State>((set, get) => {
 
     async refreshActivity() {
       try {
-        const activity = await api.activity()
+        const fresh = await api.activity()
+        const activity = {
+          ...fresh,
+          queries: reuseUnchanged(get().activity.queries, fresh.queries),
+        }
         // The stamp is taken after the response lands, because it is what the
         // tray's tick counts forward from.
         set({ activity, activityPolledAt: Date.now() })
