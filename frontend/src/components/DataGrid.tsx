@@ -9,6 +9,7 @@ import { useStore, type ResultSource } from '../store'
 import { editCellClass, useGridEdits, type CellView, type GridEdits } from '../useGridEdits'
 import { ContextMenu, type MenuItem } from '../ui'
 import { CellEditor } from './CellEditor'
+import { RowMark } from './RowMark'
 import type { Cell, Column, ResultColumn, ResultSet, Sort } from '../types'
 
 const WIDTH_SAMPLE_ROWS = 120
@@ -552,6 +553,7 @@ function Grid({
                     className="chrome absolute top-0 left-0 flex items-center justify-end border-r border-[var(--color-border)] pr-2 text-[var(--color-faint)] select-none"
                     style={{ width: gm.gutter, height: v.size }}
                   >
+                    <RowMark mark={ed.rowMark(v.index)} />
                     {ed.isNewRow(v.index) ? '+' : rowOffset + v.index + 1}
                   </div>
                   {cols.map((c) => {
@@ -926,6 +928,7 @@ function RecordsGrid({
                   lineHeight: `${gm.headerHeight}px`,
                 }}
               >
+                <RowMark mark={ed.rowMark(c.index)} />
                 {ed.isNewRow(c.index) ? '+' : rowOffset + c.index + 1}
               </div>
             ))}

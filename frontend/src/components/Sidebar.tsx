@@ -3,9 +3,11 @@ import { describeConnection, formatCount, objectCandidate, OBJECT_ICON, qualifie
 import { rankCandidates } from '../fuzzy'
 import { useStore, type SectionKey } from '../store'
 import { ConnectionMenu } from './ConnectionMenu'
+import { tableKey } from '../edits'
 import { Highlight } from './Highlight'
 import { ObjectListMenu, objectKey } from './ObjectMenu'
 import { LIMITS, Resizer, useResizable } from './Resizer'
+import { TableMark } from './TableMark'
 import type { ObjectType, SchemaObject } from '../types'
 
 const GROUP_ORDER: ObjectType[] = ['table', 'view', 'function', 'procedure']
@@ -233,6 +235,15 @@ export const Sidebar = memo(function Sidebar() {
                           {OBJECT_ICON[o.type]}
                         </span>
                         <span className="min-w-0 flex-1 truncate">{qualified}</span>
+                        {o.type === 'table' && (
+                          <TableMark
+                            tableKey={tableKey(activeConnectionId, {
+                              database: activeDatabase,
+                              schema: o.schema,
+                              name: o.name,
+                            })}
+                          />
+                        )}
                         {o.rowEstimate != null && (
                           <span
                             className="shrink-0 text-[var(--color-faint)]"

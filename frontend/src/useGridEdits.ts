@@ -16,12 +16,16 @@ export interface CellView {
   was?: Cell
 }
 
+/** What a row carries, for the dot in its gutter. */
+export type RowMark = 'update' | 'delete' | 'insert' | null
+
 export interface GridEdits {
   /** Rows to draw: the page, then the rows staged for insert. */
   rowCount: number
   isNewRow: (row: number) => boolean
   editing: Editing | null
   cell: (row: number, col: number) => CellView
+  rowMark: (row: number) => RowMark
 }
 
 /**
@@ -70,7 +74,15 @@ export function useGridEdits(source: ResultSource, result: ResultSet): GridEdits
       }
     }
 
+    const rowMark = (row: number): RowMark => {
+      if (row >= base) return 'insert'
+      if (!idx || !touched) return null
+      const key = keyOf(row)
+      return edits.deletes[key] ? 'delete' : edits.updates[key] ? 'update' : null
+    }
+
     return {
+      rowMark,
       rowCount: base + edits.inserts.length,
       isNewRow: (row: number) => row >= base,
       editing,
