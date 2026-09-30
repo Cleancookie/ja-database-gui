@@ -293,7 +293,8 @@ that key alone and must affect exactly one row. Values are bound, never spliced
 in. Reasoning: `docs/adr/0005-row-editing.md`.
 
 The grid's half mirrors it. `frontend/src/edits.ts` is the pure staging model,
-`storeEdits.ts` puts it in the store beside the open cell editor and the review,
+`storeEdits.ts` puts it in the store beside the open cell editor and the review (staged
+edits are per table, all within one connection and database),
 and `ReviewChangesDialog` is the one place `applyChanges` is called from — see
 the invariants in `docs/REQUIREMENTS.md`.
 
