@@ -624,6 +624,14 @@ function buildEditCommands(s: Store): Command[] {
     }
     const review = 'Builds the SQL and shows every statement — runs nothing until you press Run'
     const go = () => s.reviewChanges()
+    add(
+      'next-table',
+      'Go to next changed table',
+      'staged pending dirty jump',
+      () => s.goToChangedTable(),
+      undefined,
+      `${s.stagedSummary.tables} table${s.stagedSummary.tables === 1 ? ' has' : 's have'} staged changes`,
+    )
     add('accept', 'Accept changes', 'save commit apply write', go, 'Ctrl+S', review)
     add('preview', 'Preview changes', 'sql statements review show', go, undefined, review)
     add('discard', 'Discard changes', 'drop throw away cancel reset', () => s.discardChanges())

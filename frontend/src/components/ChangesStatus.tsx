@@ -17,6 +17,7 @@ export function ChangesStatus() {
   const summary = useStore((s) => s.stagedSummary)
   const reviewChanges = useStore((s) => s.reviewChanges)
   const discardChanges = useStore((s) => s.discardChanges)
+  const goToChangedTable = useStore((s) => s.goToChangedTable)
   if (summary.total === 0) return null
 
   const n = summary.total
@@ -28,13 +29,15 @@ export function ChangesStatus() {
       className="flex h-full shrink-0 items-center gap-2 border-l border-[var(--color-warn)] bg-[var(--color-warn-dim)] px-3"
     >
       <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--color-warn)]" aria-hidden />
-      <span
-        className="font-semibold text-[var(--color-warn)]"
-        title={describeCounts(summary)}
+      <button
+        type="button"
+        onClick={() => void goToChangedTable()}
+        title={`${describeCounts(summary)} — click to open the next changed table`}
         aria-live="polite"
+        className="rounded-full font-semibold text-[var(--color-warn)] hover:underline"
       >
         {n} staged change{n === 1 ? '' : 's'} in {t} table{t === 1 ? '' : 's'}
-      </span>
+      </button>
       <button type="button" onClick={() => void reviewChanges()} className={linkButton}>
         Accept <span className="font-[var(--font-mono)] opacity-70">Ctrl+S</span>
       </button>

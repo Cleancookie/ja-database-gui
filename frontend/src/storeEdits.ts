@@ -112,6 +112,8 @@ export interface EditActions {
   insertRow: () => void
   deleteRows: () => void
   undoEdit: () => void
+  /** Opens the next table with staged changes after the one on screen, wrapping round. */
+  goToChangedTable: () => Promise<void>
   /** Drops every staged edit, asking first when there are many. */
   discardChanges: () => void
   /**
@@ -524,6 +526,18 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
         editing: null,
         ...clampedSelection(s, (s.result?.rows.length ?? 0) + inserts),
       })
+    },
+
+    async goToChangedTable() {
+      const s = get()
+      const { order, tables, scope } = s.staged
+      if (!scope || order.length === 0) return toast('info', 'No table has staged changes')
+      const at = order.indexOf(activeTableKey(s) ?? '')
+      const { ref } = tables[order[(at + 1) % order.length]]
+      // The set is one connection and database, but the screen may be elsewhere.
+      if (s.activeConnectionId !== scope.connectionId) await get().connect(scope.connectionId)
+      if (get().activeDatabase !== ref.database) await get().selectDatabase(ref.database)
+      await get().openObject({ schema: ref.schema, name: ref.name, type: 'table' })
     },
 
     discardChanges() {
