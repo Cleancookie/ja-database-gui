@@ -12,6 +12,7 @@ import { perf } from './perf'
 import { reportText } from './startup'
 import { objectBias, orderByRecency, refKey } from './recency'
 import { rectOf, rectSize } from './selection'
+import { runSqlFromEditor } from './sqlEditorRun'
 import { PAGE_SIZES, type useStore } from './store'
 import { THEMES } from './themes'
 import type { ObjectType, SchemaObject } from './types'
@@ -195,6 +196,23 @@ export function buildActionCommands(s: Store): Command[] {
     candidate: { name: 'SQL editor', keywords: 'query write execute run' },
     run: () => s.setView(s.view === 'sql' ? 'data' : 'sql'),
   })
+
+  // Only offered in the editor: elsewhere there is nothing to run. The title
+  // follows the selection so the palette says what Enter will do.
+  if (s.view === 'sql') {
+    cmds.push({
+      id: 'sql:run',
+      title: s.sqlHasSelection ? 'Run selection' : 'Run',
+      subtitle: s.sqlHasSelection ? 'Only the selected text' : 'The whole editor',
+      group: 'Query',
+      shortcut: 'Ctrl+Enter',
+      candidate: {
+        name: s.sqlHasSelection ? 'Run selection' : 'Run query',
+        keywords: 'execute query sql',
+      },
+      run: () => void runSqlFromEditor(),
+    })
+  }
 
   // The dropdown is in the editor's header, so the command has to open the
   // editor before it can focus it — after the render that mounts it, the way

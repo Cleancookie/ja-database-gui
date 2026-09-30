@@ -156,6 +156,12 @@ export interface State extends EditState, EditActions {
   // sql editor
   sqlText: string
   /**
+   * Whether the editor holds a runnable selection. A boolean on purpose: the
+   * selection itself is read from the editor when Run fires, so typing and
+   * caret moves never touch the store — only this flag's rare flips do.
+   */
+  sqlHasSelection: boolean
+  /**
    * Every result set the last run produced, in order. A batch is one round
    * trip that can answer several times over — `use other_db; select …` — and
    * the editor puts a tab on each. Empty until something has been run.
@@ -270,7 +276,9 @@ export interface State extends EditState, EditActions {
   clearQueryHistory: () => Promise<void>
   setTrayOpen: (open: boolean) => void
   setSqlText: (t: string) => void
-  runSql: () => Promise<void>
+  setSqlHasSelection: (has: boolean) => void
+  /** Runs `text` when given — the trimmed selection — else the whole buffer. */
+  runSql: (text?: string) => Promise<void>
   /** Switches result tabs. The selection goes with the old one. */
   selectSqlResult: (index: number) => void
   saveConnection: (c: Connection, password: string | null) => Promise<void>
@@ -420,6 +428,7 @@ export const useStore = create<State>((set, get) => {
     hasMore: false,
     totalCount: null,
     sqlText: '',
+    sqlHasSelection: false,
     sqlResults: [],
     sqlResultIndex: 0,
     moreSqlResults: false,
@@ -889,13 +898,18 @@ export const useStore = create<State>((set, get) => {
       set({ sqlText })
     },
 
-    async runSql() {
+    setSqlHasSelection(sqlHasSelection) {
+      if (get().sqlHasSelection !== sqlHasSelection) set({ sqlHasSelection })
+    },
+
+    async runSql(text) {
       const s = get()
       if (!s.activeConnectionId) {
         s.pushToast('error', 'Connect to a database first')
         return
       }
-      if (!s.sqlText.trim()) return
+      const sql = text ?? s.sqlText
+      if (!sql.trim()) return
       const connectionId = s.activeConnectionId
       set({ busy: true })
       try {
@@ -903,7 +917,7 @@ export const useStore = create<State>((set, get) => {
           api.runSql({
             connectionId,
             database: s.activeDatabase,
-            sql: s.sqlText,
+            sql,
             maxRows: 0,
           }),
         )

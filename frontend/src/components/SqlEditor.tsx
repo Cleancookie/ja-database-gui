@@ -1,5 +1,6 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 import { editorCandidates, tokenAt } from '../completion'
+import { runSqlFromEditor, sqlEditorHandle } from '../sqlEditorRun'
 import { activeSqlResult, useActiveKind, useHasSchemas, useStore } from '../store'
 import { DatabasePicker } from './DatabasePicker'
 import { Highlight } from './Highlight'
@@ -18,7 +19,8 @@ import { DataGrid } from './DataGrid'
 export function SqlEditor() {
   const sqlText = useStore((s) => s.sqlText)
   const setSqlText = useStore((s) => s.setSqlText)
-  const runSql = useStore((s) => s.runSql)
+  const hasSelection = useStore((s) => s.sqlHasSelection)
+  const setHasSelection = useStore((s) => s.setSqlHasSelection)
   const sqlResults = useStore((s) => s.sqlResults)
   const sqlResultIndex = useStore((s) => s.sqlResultIndex)
   const moreSqlResults = useStore((s) => s.moreSqlResults)
@@ -38,6 +40,9 @@ export function SqlEditor() {
   // inline arrow would hand the memoised grid a new prop each time and repaint
   // the whole result while the user types.
   const onOpenCell = useCallback((row: number, col: number) => openCell('sql', row, col), [openCell])
+
+  // The editor is gone with this view, and its selection with it.
+  useEffect(() => () => setHasSelection(false), [setHasSelection])
 
   const completion = useMemo(
     () => ({
@@ -59,11 +64,13 @@ export function SqlEditor() {
             the case where the user needed it most. */}
         <DatabasePicker />
         <button
-          onClick={() => void runSql()}
+          onClick={() => void runSqlFromEditor()}
           disabled={busy || !sqlText.trim()}
+          title={hasSelection ? 'Run only the selected text' : 'Run the whole editor'}
           className="rounded-full border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-3 py-0.5 font-semibold shadow-xs disabled:opacity-40 enabled:hover:border-[var(--color-accent)] enabled:hover:bg-[var(--color-accent-dim)]/30"
         >
-          Run <span className="text-[var(--color-faint)]">Ctrl+Enter</span>
+          {hasSelection ? 'Run selection' : 'Run'}{' '}
+          <span className="text-[var(--color-faint)]">Ctrl+Enter</span>
         </button>
         <button
           onClick={() => setView('data')}
@@ -81,7 +88,9 @@ export function SqlEditor() {
           autoFocus
           value={sqlText}
           onChange={setSqlText}
-          onSubmit={() => void runSql()}
+          onSubmit={() => void runSqlFromEditor()}
+          onHasSelectionChange={setHasSelection}
+          handleRef={sqlEditorHandle}
           dialect={kind}
           completion={completion}
           placeholder="select * from …"

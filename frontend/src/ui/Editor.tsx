@@ -14,6 +14,7 @@ import { syntaxHighlighting, HighlightStyle } from '@codemirror/language'
 import { tags } from '@lezer/highlight'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view'
+import { selectionToRun } from '../sqlRun'
 
 /**
  * A SQL text editor.
@@ -47,6 +48,11 @@ export interface EditorHandle {
   /** Selects everything, matching what focusing an input used to do. */
   focusAndSelectAll: () => void
   blur: () => void
+  /**
+   * The text Run should send when something is selected, else null. Read from
+   * the view at call time so the selection never has to live in React state.
+   */
+  selectedSql: () => string | null
 }
 
 export interface EditorProps {
@@ -60,6 +66,11 @@ export interface EditorProps {
   onSubmit?: () => void
   /** Escape, only when the popup is closed. */
   onCancel?: () => void
+  /**
+   * Fires only when "is there a runnable selection" flips, not per keystroke
+   * or caret move. Lets a button label follow the selection cheaply.
+   */
+  onHasSelectionChange?: (has: boolean) => void
   /**
    * Single-line mode: newlines are rejected, so the editor behaves like an
    * input. Used by the filter box, whose value is one SQL fragment.
@@ -148,6 +159,7 @@ export function Editor({
   onChange,
   onSubmit,
   onCancel,
+  onHasSelectionChange,
   singleLine = false,
   placeholder,
   dialect,
@@ -164,8 +176,9 @@ export function Editor({
   // Callbacks and candidates are read through a ref so that changing them —
   // which happens on every keystroke, since onChange closes over fresh state —
   // does not tear down and rebuild the editor.
-  const live = useRef({ onChange, onSubmit, onCancel, completion })
-  live.current = { onChange, onSubmit, onCancel, completion }
+  const live = useRef({ onChange, onSubmit, onCancel, onHasSelectionChange, completion })
+  live.current = { onChange, onSubmit, onCancel, onHasSelectionChange, completion }
+  const hadSelection = useRef(false)
 
   const language = useRef(new Compartment())
 
@@ -178,6 +191,12 @@ export function Editor({
       v.dispatch({ selection: { anchor: 0, head: v.state.doc.length } })
     },
     blur: () => view.current?.contentDOM.blur(),
+    selectedSql: () => {
+      const v = view.current
+      if (!v) return null
+      const { ranges, mainIndex } = v.state.selection
+      return selectionToRun(v.state.doc.toString(), ranges, mainIndex)
+    },
   }))
 
   useEffect(() => {
@@ -228,6 +247,19 @@ export function Editor({
       }),
       EditorView.updateListener.of((u) => {
         if (u.docChanged) live.current.onChange(u.state.doc.toString())
+        if (u.selectionSet || u.docChanged) {
+          const { ranges, mainIndex } = u.state.selection
+          const main = ranges[mainIndex]
+          // Cheap test first: a caret, which is nearly every update, needs no
+          // slice of the document.
+          const has =
+            main.from !== main.to &&
+            selectionToRun(u.state.doc.toString(), ranges, mainIndex) !== null
+          if (has !== hadSelection.current) {
+            hadSelection.current = has
+            live.current.onHasSelectionChange?.(has)
+          }
+        }
       }),
       EditorState.transactionFilter.of((tr) =>
         // Single-line mode is enforced on the transaction rather than by

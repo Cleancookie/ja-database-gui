@@ -8,7 +8,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+F  /  /', 'Focus the WHERE filter'],
   ['Enter', 'Apply the filter'],
   ['Ctrl+E', 'Toggle the SQL editor'],
-  ['Ctrl+Enter', 'Run the query (in the editor)'],
+  ['Ctrl+Enter', 'Run the query, or only the selected text (in the editor)'],
   ['Ctrl+R', 'Refresh the current rows'],
   ['Ctrl+Shift+R', 'Reload the app — the escape hatch if the UI wedges'],
   ['Ctrl+←  /  Ctrl+→', 'Previous / next page'],
