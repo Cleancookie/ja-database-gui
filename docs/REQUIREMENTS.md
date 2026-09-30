@@ -449,6 +449,36 @@ Edit rows in the data grid. This entry is the Go side only; the grid UI follows.
 
 Not done here: the UI, and editing columns that are read-only above.
 
+## 2026-09-30 — editing rows in the grid (frontend)
+
+### Brief
+
+The grid UI for the change-set API above. Hard requirements as given: edits are
+staged and visibly dirty; nothing runs until the user asks; Accept, Preview and
+`Ctrl+S` all open one review listing every statement; only its Run button
+writes; a refusal keeps the dialog open; staged edits are never dropped silently.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Where the rules live | `frontend/src/edits.ts`, pure and unit-tested: staged state keyed by the JSON of the row's *original* key values, never by row index, plus `toChangesRequest`. `storeEdits.ts` is the store half; `useGridEdits.ts` draws edits over the loaded result without altering it |
+| Who may write | `applyStaged`, called from `ReviewChangesDialog`'s Run button and nowhere else. `reviewChanges` (Accept, Preview, `Ctrl+S`) builds and shows the SQL and runs nothing. `invariants.test.ts` reads the source and fails on a second caller |
+| Applying what was shown | Run sends the `ChangesRequest` that was previewed, held in `review.request`, not a fresh build from whatever is staged now |
+| After a refusal | Dialog stays open, the message is shown, the failing statement is marked and Run is disabled. Nothing was written, so the way out is Cancel, fix, review again |
+| Losing work | Every action that replaces the rows on screen — page, page size, pagination, sort, filter, refresh, another table, connect, disconnect — starts with `holdForDiscard`: a "Discard N staged changes?" confirmation whose default button is Keep editing. A browser reload or close asks through `beforeunload` |
+| Discard | Immediate below 5 staged changes (`Ctrl+Z` covers them), a confirmation from 5 up |
+| Editing a capped cell | `F2` fetches the whole value with `readCell` first and opens the editor only when it arrives. Saving the 1024-character preview over the real value is the failure this prevents. Over 8 MiB it refuses |
+| NULL vs `''` | The editor starts empty for both and only a typed change stages anything, so `F2` then `Enter` on a NULL cell changes nothing. `Ctrl+Backspace` stages NULL; the grid draws NULL, `empty` and `DEFAULT` differently |
+| Key cells | Editable. The change's key always holds the original values |
+| Order of statements | Deletes, then updates, then inserts, so a row can be replaced by an insert that reuses its key |
+| Insert rows | Drawn after the page, marked `+`, unset cells shown as `DEFAULT` |
+
+Not built: **Duplicate row** (YAGNI — a copied key is a conflict waiting to happen and the
+brief allowed skipping it), editing in the SQL editor's results (no table behind them),
+and a guard on closing the native Wails window (the webview's `beforeunload` does not
+fire there; it needs `OnBeforeClose` and a dirty flag pushed to Go).
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
@@ -500,6 +530,10 @@ test — which is the intended speed bump.
 | `frontend/dist/.gitkeep` stays tracked, and builds must not delete it | `main.go` embeds `frontend/dist`; without it a fresh clone will not compile |
 | No component that renders the app shell subscribes to the grid selection | A click moves a one-cell highlight. If `App` re-renders, so does the unvirtualised sidebar and its menu root per table, and the click takes seconds. `useCellMenu` reads state with `getState` for exactly this reason |
 | `DataGrid` is memoised and every prop it is given is stable | Its parents subscribe to state that changes constantly — `busy`, `dialog`, and `sqlText` on every keystroke. One inline arrow at a call site voids the memo silently, and the grid is the most expensive thing on screen |
+| `applyChanges` has exactly one caller, behind the review dialog | `frontend/src/invariants.test.ts`. Preview, Accept and `Ctrl+S` end at `reviewChanges`, which runs nothing. A second call site is a write the user never saw |
+| Staged edits are keyed by the row's original key values, never by row index | `frontend/src/edits.test.ts`. A page turn, sort or reload moves rows; an edit must stay on the row it was made on |
+| Anything that replaces the rows on screen goes through `holdForDiscard` | The grid's own result-change effect clears only the *selection*; staged edits live in the store and survive it, so a new caller that skips the hold drops work silently |
+| No app-shell component subscribes to the staged edits | Same reason as the selection rule above: `DataGrid`, `PendingChangesBar` and `ReviewChangesDialog` subscribe; `App` does not |
 | A context-menu item fires a store action the palette also exposes | The palette is the primary surface. A menu that calls the API directly is a second code path where the confirmation and the refresh afterwards can drift |
 | Truncate and drop are decided in the store action, never at the call site | `runTruncate` / `runDrop` skip the confirmation by design; anything but a confirmation dialog calling them is a destructive statement with no prompt |
 | No DDL builder emits `CASCADE` | The engine refusing is the useful answer. `CASCADE` would act on objects the user never named |

@@ -68,7 +68,6 @@ export function ReviewChangesDialog() {
             <strong>Statement {review.failedIndex + 1}: </strong>
           )}
           {review.error}
-          {review.statements.length > 0 && <> Nothing was changed.</>}
         </p>
       )}
 
@@ -92,7 +91,7 @@ export function ReviewChangesDialog() {
                 <span className="w-8 shrink-0 text-right text-[var(--color-faint)] select-none">
                   {i + 1}
                 </span>
-                <pre className="min-w-0 flex-1 break-words whitespace-pre-wrap">{st.display}</pre>
+                <pre className="max-h-48 min-w-0 flex-1 overflow-auto break-words whitespace-pre-wrap">{st.display}</pre>
               </li>
             )
           })}

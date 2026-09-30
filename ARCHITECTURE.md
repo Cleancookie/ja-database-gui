@@ -292,6 +292,11 @@ run. `ReadRows` reports `EditKey` and per-column `Editable` from
 that key alone and must affect exactly one row. Values are bound, never spliced
 in. Reasoning: `docs/adr/0005-row-editing.md`.
 
+The grid's half mirrors it. `frontend/src/edits.ts` is the pure staging model,
+`storeEdits.ts` puts it in the store beside the open cell editor and the review,
+and `ReviewChangesDialog` is the one place `applyChanges` is called from — see
+the invariants in `docs/REQUIREMENTS.md`.
+
 ## Row browsing and the filter box
 
 `Ctrl+F` is a raw SQL fragment appended after `WHERE`. It is **not** escaped or
