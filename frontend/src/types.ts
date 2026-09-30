@@ -322,6 +322,7 @@ export interface Settings {
   confirmDestructive: boolean
   sidebarWidthPx: number
   trayHeightPx: number
+  sqlEditorHeightPx: number
 }
 
 /**

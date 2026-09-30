@@ -51,6 +51,9 @@ type Settings struct {
 	// TrayHeightPx is the expanded activity tray's height, dragged the same way
 	// and in pixels for the same reason.
 	TrayHeightPx int `json:"trayHeightPx"`
+	// SqlEditorHeightPx is the SQL editor pane's height above the results,
+	// dragged on the divider between them.
+	SqlEditorHeightPx int `json:"sqlEditorHeightPx"`
 }
 
 // DefaultSettings is also the fallback for any field missing from disk.
@@ -69,6 +72,7 @@ func DefaultSettings() Settings {
 		ConfirmDestructive: true,
 		SidebarWidthPx:     256,
 		TrayHeightPx:       260,
+		SqlEditorHeightPx:  160,
 	}
 }
 
@@ -96,6 +100,9 @@ func (s Settings) clamp() Settings {
 	}
 	if s.TrayHeightPx < 96 || s.TrayHeightPx > 720 {
 		s.TrayHeightPx = d.TrayHeightPx
+	}
+	if s.SqlEditorHeightPx < 64 || s.SqlEditorHeightPx > 720 {
+		s.SqlEditorHeightPx = d.SqlEditorHeightPx
 	}
 	// 0 is meaningful here — it means "do not cap" — so only a negative or
 	// absurd value falls back.

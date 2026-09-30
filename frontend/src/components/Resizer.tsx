@@ -19,6 +19,7 @@ const KEY_STEP = 16
 export const LIMITS = {
   sidebar: { min: 180, max: 560, default: 256 },
   tray: { min: 96, max: 720, default: 260 },
+  sqlEditor: { min: 64, max: 720, default: 160 },
 } as const
 
 export type Axis = 'x' | 'y'
@@ -42,7 +43,7 @@ export interface Resizable {
  * round trip per pixel of travel.
  */
 export function useResizable(
-  field: 'sidebarWidthPx' | 'trayHeightPx',
+  field: 'sidebarWidthPx' | 'trayHeightPx' | 'sqlEditorHeightPx',
   limits: { min: number; max: number; default: number },
 ): Resizable {
   const saved = useStore((s) => s.settings[field])
@@ -122,8 +123,22 @@ export function Resizer({
     return startSize.current + (invert ? -delta : delta)
   }
 
-  const grow = axis === 'x' ? 'ArrowRight' : 'ArrowUp'
-  const shrink = axis === 'x' ? 'ArrowLeft' : 'ArrowDown'
+  // The arrow that moves the handle the way a drag that grows the panel does.
+  const [forward, backward] = axis === 'x' ? ['ArrowRight', 'ArrowLeft'] : ['ArrowDown', 'ArrowUp']
+  const grow = invert ? backward : forward
+  const shrink = invert ? forward : backward
+
+  // Pointer capture keeps the gesture, not the text selection: without this a
+  // drag over the editor or grid paints a selection across it.
+  useEffect(() => {
+    if (!dragging) return
+    const body = document.body
+    const prev = body.style.userSelect
+    body.style.userSelect = 'none'
+    return () => {
+      body.style.userSelect = prev
+    }
+  }, [dragging])
 
   return (
     <div

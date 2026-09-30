@@ -102,6 +102,7 @@ export const DEFAULT_SETTINGS: Settings = {
   confirmDestructive: true,
   sidebarWidthPx: 256,
   trayHeightPx: 260,
+  sqlEditorHeightPx: 160,
 }
 
 export interface State extends EditState, EditActions {
