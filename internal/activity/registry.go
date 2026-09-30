@@ -18,7 +18,6 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
-	"unicode/utf8"
 )
 
 type Kind string
@@ -77,21 +76,26 @@ func (p Phase) Terminal() bool {
 // ring.
 const historySize = 500
 
-// historySQLLimit caps the SQL kept per history entry. A ring of 500
-// statements is the one place in this app where retained strings could add up,
-// and the pane only ever shows one line of it anyway.
+// historySQLLimit caps the SQL kept in memory per history entry when the full
+// text cannot be spilled to disk (see spill.go). Normally only sqlPreviewRunes
+// are kept. A ring of 500 statements is the one place in this app where
+// retained strings could add up.
 const historySQLLimit = 2000
 
-// historyErrorLimit caps the retained error text, for the same reason.
+// historyErrorLimit caps the retained error text, in runes, for the same
+// reason. The full message is spilled alongside the SQL.
 const historyErrorLimit = 500
 
 // Info is one query, running or finished, as shown in the activity tray.
 type Info struct {
-	ID           string    `json:"id"`
-	ConnectionID string    `json:"connectionId"`
-	Database     string    `json:"database"`
-	Kind         Kind      `json:"kind"`
+	ID           string `json:"id"`
+	ConnectionID string `json:"connectionId"`
+	Database     string `json:"database"`
+	Kind         Kind   `json:"kind"`
+	// SQL is a preview of at most sqlPreviewRunes runes. The whole statement is
+	// Registry.Full, while it is still kept.
 	SQL          string    `json:"sql"`
+	SQLTruncated bool      `json:"sqlTruncated,omitempty"`
 	StartedAt    time.Time `json:"startedAt"`
 	// ElapsedMS is measured when this snapshot is taken, and frozen once the
 	// phase is terminal.
@@ -99,7 +103,8 @@ type Info struct {
 	Phase     Phase `json:"phase"`
 	RowsRead  int64 `json:"rowsRead"`
 	// Error is set on PhaseFailed, so the history row can say why.
-	Error string `json:"error,omitempty"`
+	Error          string `json:"error,omitempty"`
+	ErrorTruncated bool   `json:"errorTruncated,omitempty"`
 }
 
 // tracker holds the parts of an Info that a running query updates from its own
@@ -159,6 +164,7 @@ func IDOf(ctx context.Context) string {
 
 type entry struct {
 	info    Info
+	fullSQL string // what was run; info.SQL is only the preview
 	track   *tracker
 	cancel  context.CancelFunc
 	stopped bool // the user asked for this one to stop
@@ -171,16 +177,23 @@ type Registry struct {
 	seq     atomic.Uint64
 	running map[string]*entry
 
-	// history is a fixed ring, oldest overwritten once full.
-	history []Info
-	histAt  int
-	histLen int
+	// history is a fixed ring, oldest overwritten once full. histFile is
+	// parallel to it: the spill file holding an entry's full text, or "".
+	history  []Info
+	histFile []string
+	histAt   int
+	histLen  int
+
+	dirOnce sync.Once
+	dir     string // "" when spilling is unavailable
 }
 
 func New() *Registry {
+	sweepStaleOnce()
 	return &Registry{
-		running: map[string]*entry{},
-		history: make([]Info, historySize),
+		running:  map[string]*entry{},
+		history:  make([]Info, historySize),
+		histFile: make([]string, historySize),
 	}
 }
 
@@ -198,14 +211,17 @@ func (r *Registry) Begin(parent context.Context, connID, database string, kind K
 	ctx = context.WithValue(ctx, trackerKey{}, track)
 	ctx = context.WithValue(ctx, idKey{}, id)
 
+	shown, cut := preview(sql, sqlPreviewRunes)
 	r.mu.Lock()
 	r.running[id] = &entry{
+		fullSQL: sql,
 		info: Info{
 			ID:           id,
 			ConnectionID: connID,
 			Database:     database,
 			Kind:         kind,
-			SQL:          sql,
+			SQL:          shown,
+			SQLTruncated: cut,
 			StartedAt:    time.Now().UTC(),
 		},
 		track:  track,
@@ -222,37 +238,64 @@ func (r *Registry) Begin(parent context.Context, connID, database string, kind K
 }
 
 // finish moves a query out of the running set and into the history ring.
+//
+// The spill file is written before the entry leaves the running set, and with
+// the lock released, so Full never finds an entry whose text is not yet
+// readable and the poll never waits on the disk.
 func (r *Registry) finish(id string, err error) {
 	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	e, ok := r.running[id]
 	if !ok {
+		r.mu.Unlock()
 		return
 	}
-	delete(r.running, id)
+	stopped := e.stopped
+	r.mu.Unlock()
 
 	info := e.info
 	_, info.RowsRead = e.track.load()
 	info.ElapsedMS = time.Since(info.StartedAt).Milliseconds()
+	var errText string
 	switch {
-	case e.stopped:
+	case stopped:
 		// The driver's error here is whatever cancellation surfaced as; the
 		// fact the user asked is the more useful thing to record.
 		info.Phase = PhaseCancelled
 	case err != nil:
 		info.Phase = PhaseFailed
-		info.Error = truncate(err.Error(), historyErrorLimit)
+		errText = err.Error()
+		info.Error, info.ErrorTruncated = preview(errText, historyErrorLimit)
 	default:
 		info.Phase = PhaseDone
 	}
 
-	info.SQL = truncate(info.SQL, historySQLLimit)
+	var file string
+	if info.SQLTruncated || info.ErrorTruncated {
+		file = r.spill(id, e.fullSQL, errText)
+		if file == "" {
+			// Nowhere to put it, so keep what fits in memory, as before spilling
+			// existed.
+			info.SQL, info.SQLTruncated = preview(e.fullSQL, historySQLLimit)
+		}
+	}
+
+	r.mu.Lock()
+	if _, still := r.running[id]; !still {
+		r.mu.Unlock()
+		r.removeSpills([]string{file})
+		return
+	}
+	delete(r.running, id)
+	evicted := r.histFile[r.histAt]
 	r.history[r.histAt] = info
+	r.histFile[r.histAt] = file
 	r.histAt = (r.histAt + 1) % historySize
 	if r.histLen < historySize {
 		r.histLen++
 	}
+	r.mu.Unlock()
+
+	r.removeSpills([]string{evicted})
 }
 
 // List returns running queries newest-first, followed by the history
@@ -283,11 +326,50 @@ func (r *Registry) List() []Info {
 // ClearHistory drops the finished entries, leaving anything still running.
 func (r *Registry) ClearHistory() {
 	r.mu.Lock()
-	defer r.mu.Unlock()
+	files := r.histFile
 	r.histAt = 0
 	r.histLen = 0
 	// Release the retained SQL rather than just forgetting the length.
 	r.history = make([]Info, historySize)
+	r.histFile = make([]string, historySize)
+	r.mu.Unlock()
+
+	r.removeSpills(files)
+}
+
+// Full returns the whole statement and error of one query, running or
+// finished. ok is false when the text is no longer kept — the entry has left
+// the ring, or its file is gone — in which case sql and err hold whatever
+// preview survives, and both are empty if the entry itself is unknown.
+func (r *Registry) Full(id string) (sql, err string, ok bool) {
+	r.mu.Lock()
+	if e, found := r.running[id]; found {
+		sql = e.fullSQL
+		r.mu.Unlock()
+		return sql, "", true
+	}
+	var info Info
+	var file string
+	found := false
+	for i := 0; i < r.histLen; i++ {
+		idx := (r.histAt - 1 - i + historySize) % historySize
+		if r.history[idx].ID == id {
+			info, file, found = r.history[idx], r.histFile[idx], true
+			break
+		}
+	}
+	r.mu.Unlock()
+
+	switch {
+	case !found:
+		return "", "", false
+	case !info.SQLTruncated && !info.ErrorTruncated:
+		return info.SQL, info.Error, true
+	}
+	if f, read := r.readSpill(file); read {
+		return f.SQL, f.Error, true
+	}
+	return info.SQL, info.Error, false
 }
 
 // Cancel stops a running query. It is not an error to cancel one that has
@@ -324,17 +406,4 @@ func (r *Registry) CancelConnection(connID string) {
 	for _, c := range cancels {
 		c()
 	}
-}
-
-// truncate cuts on a rune boundary, so a multi-byte character at the limit is
-// not left half-written into the JSON.
-func truncate(s string, limit int) string {
-	if len(s) <= limit {
-		return s
-	}
-	cut := limit
-	for cut > 0 && !utf8.RuneStart(s[cut]) {
-		cut--
-	}
-	return s[:cut] + "…"
 }
