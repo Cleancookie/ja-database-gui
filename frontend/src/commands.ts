@@ -14,6 +14,7 @@ import { objectBias, orderByRecency, refKey } from './recency'
 import { rectOf, rectSize } from './selection'
 import { runSqlFromEditor } from './sqlEditorRun'
 import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
+import { tabTitle } from './tabs'
 import { THEMES } from './themes'
 import type { ObjectType, SchemaObject } from './types'
 
@@ -84,7 +85,8 @@ export function buildNavigationCommands(s: Store): Command[] {
   //
   // Recently opened ones lead within that, and are grouped separately so the
   // few tables being worked on right now are visually distinct from the whole
-  // catalogue. This is what stands in for tabs, which this app does not have.
+  // catalogue. Open tabs are offered further down; this list is what opens a
+  // table in the *current* tab.
   if (s.activeConnectionId) {
     const recent = new Map(s.recentObjects.map((k, i) => [k, i]))
     // The object currently on screen is excluded from Recent: offering to
@@ -112,6 +114,24 @@ export function buildNavigationCommands(s: Store): Command[] {
         run: () => s.openObject(o),
       })
     }
+  }
+
+  // Jump to a tab that is already open, rather than retargeting this one.
+  const names = new Map(s.connections.map((c) => [c.id, c.name]))
+  for (const t of s.tabs) {
+    if (t.id === s.activeTabId || !t.saved) continue
+    const title = tabTitle(t.saved)
+    const where = [names.get(t.saved.activeConnectionId ?? ''), t.saved.activeDatabase]
+      .filter(Boolean)
+      .join(' · ')
+    cmds.push({
+      id: `tab:${t.id}`,
+      title: `Tab: ${title}`,
+      subtitle: where || undefined,
+      group: 'Tabs',
+      candidate: { name: title, keywords: `tab switch open ${where}`, bias: -0.1 },
+      run: () => s.switchTab(t.id),
+    })
   }
 
   if (s.capabilities?.serverHostsDatabases) {
@@ -155,6 +175,62 @@ export function buildNavigationCommands(s: Store): Command[] {
  */
 export function buildActionCommands(s: Store): Command[] {
   const cmds: Command[] = []
+
+  const here = s.tabs.find((t) => t.id === s.activeTabId)
+  cmds.push({
+    id: 'tab:new',
+    title: 'New tab',
+    group: 'Tabs',
+    shortcut: 'Ctrl+T',
+    candidate: { name: 'New tab', keywords: 'open picker' },
+    run: () => s.newTab(),
+  })
+  cmds.push({
+    id: 'tab:close',
+    title: 'Close tab',
+    group: 'Tabs',
+    shortcut: 'Ctrl+W',
+    candidate: { name: 'Close tab', keywords: 'remove' },
+    run: () => s.closeTab(),
+  })
+  if (s.tabs.length > 1) {
+    cmds.push({
+      id: 'tab:next',
+      title: 'Next tab',
+      group: 'Tabs',
+      shortcut: 'Ctrl+Tab',
+      candidate: { name: 'Next tab', keywords: 'switch right down' },
+      run: () => s.cycleTab(1),
+    })
+    cmds.push({
+      id: 'tab:previous',
+      title: 'Previous tab',
+      group: 'Tabs',
+      shortcut: 'Ctrl+Shift+Tab',
+      candidate: { name: 'Previous tab', keywords: 'switch left up' },
+      run: () => s.cycleTab(-1),
+    })
+  }
+  if (here && here.at > 0) {
+    cmds.push({
+      id: 'tab:back',
+      title: 'Back to the previous table in this tab',
+      group: 'Tabs',
+      shortcut: 'Mouse back',
+      candidate: { name: 'Back', keywords: 'previous history table undo navigation' },
+      run: () => s.stepHistory(-1),
+    })
+  }
+  if (here && here.at < here.history.length - 1) {
+    cmds.push({
+      id: 'tab:forward',
+      title: 'Forward to the next table in this tab',
+      group: 'Tabs',
+      shortcut: 'Mouse forward',
+      candidate: { name: 'Forward', keywords: 'next history table redo navigation' },
+      run: () => s.stepHistory(1),
+    })
+  }
 
   cmds.push({
     id: 'connection:new',

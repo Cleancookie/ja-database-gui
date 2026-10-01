@@ -2,9 +2,12 @@ import { useStore } from '../store'
 import { Dialog, dialogButton } from '../ui'
 
 const SHORTCUTS: [string, string][] = [
-  ['Ctrl+P', 'Go to a connection, database or table'],
+  ['Ctrl+P', 'Go to a connection, database or table — in the current tab'],
   ['Ctrl+Shift+P', 'Run a command — settings, editor, activity'],
   ['Ctrl+,', 'Settings'],
+  ['Ctrl+T  /  Ctrl+W', 'New tab (the picker) / close the tab'],
+  ['Ctrl+Tab  /  Ctrl+Shift+Tab', 'Next / previous tab — Ctrl+PageDown / PageUp work too'],
+  ['Mouse back / forward', 'Previous / next table shown in this tab — hold Shift to change tab instead'],
   ['Ctrl+=  /  Ctrl+-  /  Ctrl+0', 'Increase / decrease / reset the font size'],
   ['Ctrl+F  /  /', 'Focus the WHERE filter'],
   ['Enter', 'Apply the filter'],
