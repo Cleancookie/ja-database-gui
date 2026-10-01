@@ -238,6 +238,14 @@ type ReadOptions struct {
 	// still applies a hard row cap so this cannot exhaust memory.
 	Limit  int `json:"limit"`
 	Offset int `json:"offset"`
+	// After, with OrderBy, reads the rows following one already seen instead of
+	// counting an Offset. One coerced value per OrderBy entry; see keyset.go and
+	// BuildRead, which is what honours it.
+	After []any `json:"after"`
+	// Key reads the one row with these key values, in place of Filter, which is
+	// ignored: a row found by its key is the same row whatever has been written
+	// to the table since the grid was drawn. Honoured by BuildRead.
+	Key []KeyCond `json:"-"`
 	// TextCap cuts long text-shaped columns to this many characters in the
 	// emitted SQL, so a table of megabyte JSON documents does not put
 	// megabytes on the wire. 0 disables it. The cap needs cols to know which

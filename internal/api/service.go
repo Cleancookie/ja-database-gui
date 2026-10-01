@@ -433,6 +433,11 @@ type ReadRowsRequest struct {
 	// rows in whatever order the engine gives them.
 	ApplyDefaultSort bool       `json:"applyDefaultSort"`
 	Pagination       Pagination `json:"pagination"`
+	// After asks for the rows following a position a previous read returned as
+	// Next, in place of counting Pagination.Page rows from the top. Rows added or
+	// removed above the window then cannot repeat or skip one. The sort must be
+	// the one the position came from.
+	After *driver.Cursor `json:"after"`
 }
 
 type ReadRowsResult struct {
@@ -445,7 +450,11 @@ type ReadRowsResult struct {
 	// ReadOnlyReason is why the whole table cannot be edited, or empty when it
 	// can. A table that can be edited may still have read-only columns.
 	ReadOnlyReason string `json:"readOnlyReason"`
-	Page           int    `json:"page"`
+	// Next is the position of the last row returned, to send back as After for
+	// the page below it. Absent when there is no page below, or when this sort
+	// cannot be paged by position (see driver.StableOrder) and Page must be used.
+	Next *driver.Cursor `json:"next"`
+	Page int            `json:"page"`
 	// OrderBy is the sort the page was actually read with, which is the one the
 	// request asked for or, when it asked for none, the default from
 	// driver.DefaultOrderBy. The UI needs the effective sort to mark the header
@@ -526,9 +535,18 @@ func (s *Service) ReadRows(ctx context.Context, req ReadRowsRequest) (*ReadRowsR
 	if len(orderBy) == 0 && req.ApplyDefaultSort {
 		orderBy = driver.DefaultOrderBy(cols)
 	}
+
+	facts := s.editFacts(ctx, sess, req.ConnectionID, req.Ref, cols)
+
+	// What the query sorts by is the requested order plus whatever key columns it
+	// lacks, so rows that tie on the chosen sort do not swap places between
+	// pages. The UI is told the requested order, not this one: it is what the
+	// header shows, and the tiebreaker is not the user's doing.
+	queryOrder, byPosition := driver.StableOrder(orderBy, cols, facts.EditKey)
+
 	opts := driver.ReadOptions{
 		Filter:  req.Filter,
-		OrderBy: orderBy,
+		OrderBy: queryOrder,
 		TextCap: settings.TextCapChars,
 	}
 	if req.Pagination.Enabled {
@@ -540,9 +558,19 @@ func (s *Service) ReadRows(ctx context.Context, req ReadRowsRequest) (*ReadRowsR
 		opts.Limit = size + 1
 		opts.Offset = (page - 1) * size
 	}
+	if req.After != nil {
+		if !req.Pagination.Enabled || !byPosition {
+			return nil, fmt.Errorf("this sort cannot be read from a position; reload it")
+		}
+		after, err := cursorValues(req.After, queryOrder, cols)
+		if err != nil {
+			return nil, err
+		}
+		opts.After = after
+		opts.Offset = 0
+	}
 
-	// Named stmt, not query: `query` is the package that runs it.
-	stmt, err := sess.Driver.BuildSelect(req.Ref, opts, cols)
+	stmt, err := driver.BuildRead(sess.Driver, req.Ref, opts, cols)
 	if err != nil {
 		return nil, err
 	}
@@ -552,19 +580,20 @@ func (s *Service) ReadRows(ctx context.Context, req ReadRowsRequest) (*ReadRowsR
 		ConnectionID: req.ConnectionID,
 		Database:     req.Ref.Database,
 		Kind:         activity.KindBrowse,
-		SQL:          stmt,
+		SQL:          stmt.Display,
 	}, func(qctx context.Context) error {
 		var err error
-		rs, err = driver.RunQuery(qctx, sess.DB, stmt, driver.QueryOptions{
+		rs, err = driver.RunQuery(qctx, sess.DB, stmt.SQL, driver.QueryOptions{
 			RowCap:  settings.RowCap,
 			TextCap: settings.TextCapChars,
-		})
+		}, stmt.Args...)
 		return err
 	}); err != nil {
 		return nil, err
 	}
+	// The statement with its values written in is the one worth showing.
+	rs.Query = stmt.Display
 
-	facts := s.editFacts(ctx, sess, req.ConnectionID, req.Ref, cols)
 	out := &ReadRowsResult{
 		Result: rs, Columns: gridColumns(cols, facts), Page: page, OrderBy: orderBy,
 		EditKey: facts.EditKey, ReadOnlyReason: facts.ReadOnlyReason,
@@ -575,8 +604,68 @@ func (s *Service) ReadRows(ctx context.Context, req ReadRowsRequest) (*ReadRowsR
 			out.HasMore = true
 			rs.Rows = rs.Rows[:size]
 		}
+		if out.HasMore && byPosition {
+			out.Next = cursorAfter(rs, queryOrder)
+		}
 	}
 	return out, nil
+}
+
+// cursorValues turns a position the UI sent back into values a database will
+// bind. It must be for the order being read, or the comparison means nothing.
+func cursorValues(c *driver.Cursor, order []driver.Sort, cols []driver.Column) ([]any, error) {
+	if len(c.Columns) != len(order) || len(c.Values) != len(order) {
+		return nil, fmt.Errorf("the position does not match this sort; reload it")
+	}
+	byName := make(map[string]driver.Column, len(cols))
+	for _, col := range cols {
+		byName[col.Name] = col
+	}
+	out := make([]any, len(order))
+	for i, s := range order {
+		if c.Columns[i] != s.Column {
+			return nil, fmt.Errorf("the position does not match this sort; reload it")
+		}
+		v, err := driver.CoerceKey(byName[s.Column], c.Values[i])
+		if err != nil {
+			return nil, err
+		}
+		out[i] = v
+	}
+	return out, nil
+}
+
+// cursorAfter is the position of the last row of rs in order: its values in the
+// wire form the grid holds, which is what cursorValues takes back. Nil when a
+// sort column is not among the result's, in which case the UI pages by offset.
+func cursorAfter(rs *driver.ResultSet, order []driver.Sort) *driver.Cursor {
+	if len(rs.Rows) == 0 {
+		return nil
+	}
+	index := make(map[string]int, len(rs.Columns))
+	for i, c := range rs.Columns {
+		index[c.Name] = i
+	}
+	lastRow := len(rs.Rows) - 1
+	last := rs.Rows[lastRow]
+	cut := make(map[int]bool)
+	for _, c := range rs.TruncatedCells {
+		if c.Row == lastRow {
+			cut[c.Col] = true
+		}
+	}
+	cur := &driver.Cursor{Columns: make([]string, len(order)), Values: make([]any, len(order))}
+	for i, s := range order {
+		j, ok := index[s.Column]
+		// A value the text cap shortened is not the stored one, so a comparison
+		// against it would land in the wrong place.
+		if !ok || j >= len(last) || cut[j] {
+			return nil
+		}
+		cur.Columns[i] = s.Column
+		cur.Values[i] = last[j]
+	}
+	return cur
 }
 
 // ReadCellRequest asks for one cell in full — the escape hatch from the text
@@ -602,6 +691,13 @@ type ReadCellRequest struct {
 	ApplyDefaultSort bool `json:"applyDefaultSort"`
 	// RowOffset is 0-based and absolute, not relative to the page.
 	RowOffset int `json:"rowOffset"`
+	// Key, when present, addresses the row by its key values (the original
+	// ones, as ReadRows sent them) instead of by position, and the filter, sort
+	// and offset are ignored. It is exact however the table has been written to
+	// since the page was read, which an offset is not; it needs the table to
+	// have a key (ReadRowsResult.EditKey), so the offset remains for those that
+	// do not.
+	Key map[string]any `json:"key,omitempty"`
 }
 
 func (s *Service) ReadCell(ctx context.Context, req ReadCellRequest) (*driver.Cell, error) {
@@ -634,15 +730,27 @@ func (s *Service) ReadCell(ctx context.Context, req ReadCellRequest) (*driver.Ce
 	if len(orderBy) == 0 && req.ApplyDefaultSort {
 		orderBy = driver.DefaultOrderBy(cols)
 	}
+	facts := s.editFacts(ctx, sess, req.ConnectionID, req.Ref, cols)
 
 	// TextCap is deliberately absent: this call exists to defeat it.
-	stmt, err := sess.Driver.BuildSelect(req.Ref, driver.ReadOptions{
-		Filter:  req.Filter,
-		OrderBy: orderBy,
-		Select:  []string{req.Column},
-		Limit:   1,
-		Offset:  req.RowOffset,
-	}, cols)
+	opts := driver.ReadOptions{Select: []string{req.Column}, Limit: 1}
+	if len(req.Key) > 0 {
+		byName := make(map[string]driver.Column, len(cols))
+		for _, c := range cols {
+			byName[c.Name] = c
+		}
+		key, err := coerceKey(byName, facts.EditKey, req.Key)
+		if err != nil {
+			return nil, err
+		}
+		opts.Key = key
+	} else {
+		// Ordered exactly as ReadRows orders, tiebreaker included, or the
+		// offset lands on a different one of the rows that tie.
+		order, _ := driver.StableOrder(orderBy, cols, facts.EditKey)
+		opts.Filter, opts.OrderBy, opts.Offset = req.Filter, order, req.RowOffset
+	}
+	stmt, err := driver.BuildRead(sess.Driver, req.Ref, opts, cols)
 	if err != nil {
 		return nil, err
 	}
@@ -652,14 +760,15 @@ func (s *Service) ReadCell(ctx context.Context, req ReadCellRequest) (*driver.Ce
 		ConnectionID: req.ConnectionID,
 		Database:     req.Ref.Database,
 		Kind:         activity.KindBrowse,
-		SQL:          stmt,
+		SQL:          stmt.Display,
 	}, func(qctx context.Context) error {
 		var err error
-		cell, err = driver.ReadCell(qctx, sess.DB, stmt, driver.MaxCellBytes)
+		cell, err = driver.ReadCell(qctx, sess.DB, stmt.SQL, driver.MaxCellBytes, stmt.Args...)
 		return err
 	}); err != nil {
 		return nil, err
 	}
+	cell.Query = stmt.Display
 	return cell, nil
 }
 

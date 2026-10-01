@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -938,8 +939,14 @@ func TestReadRowsLeavesAnEmptySortEmptyWhenNotAskedToDefault(t *testing.T) {
 	if len(res.OrderBy) != 0 {
 		t.Errorf("sorted anyway: %v", res.OrderBy)
 	}
-	if strings.Contains(res.Result.Query, "ORDER BY") {
-		t.Errorf("emitted an ORDER BY: %q", res.Result.Query)
+	// Paging with no order at all can repeat or skip rows between pages, so the
+	// key is used as a quiet tiebreaker — ascending, never the descending default
+	// the user just turned off, and not reported back as a sort.
+	if strings.Contains(res.Result.Query, "DESC") {
+		t.Errorf("gave the default sort back: %q", res.Result.Query)
+	}
+	if !strings.Contains(res.Result.Query, `ORDER BY "id" ASC`) {
+		t.Errorf("paging without a stable order: %q", res.Result.Query)
 	}
 }
 
@@ -1115,5 +1122,247 @@ func TestSQLiteIgnoresTheSelectedDatabase(t *testing.T) {
 	}
 	if strings.Contains(dsn, "main") {
 		t.Fatalf("sqlite DSN should not carry a database name: %s", dsn)
+	}
+}
+
+// --- keyset paging -------------------------------------------------------------
+
+func readPage(t *testing.T, svc *Service, id string, req ReadRowsRequest) *ReadRowsResult {
+	t.Helper()
+	req.ConnectionID = id
+	req.Ref = driver.ObjectRef{Database: "main", Name: "orders"}
+	res, err := svc.ReadRows(context.Background(), req)
+	if err != nil {
+		t.Fatalf("reading: %v", err)
+	}
+	return res
+}
+
+// wire sends a position across the JSON boundary the way the UI does: a number
+// below 2^53 comes back as a float64, which is what the server must accept.
+func wire(t *testing.T, c *driver.Cursor) *driver.Cursor {
+	t.Helper()
+	if c == nil {
+		return nil
+	}
+	b, err := json.Marshal(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out driver.Cursor
+	if err := json.Unmarshal(b, &out); err != nil {
+		t.Fatal(err)
+	}
+	return &out
+}
+
+func ids(res *ReadRowsResult) []int {
+	var out []int
+	for _, row := range res.Result.Rows {
+		switch v := row[0].(type) {
+		case float64:
+			out = append(out, int(v))
+		case int64:
+			out = append(out, int(v))
+		}
+	}
+	return out
+}
+
+// The case that motivated it: newest first, rows arriving while the user
+// scrolls. By offset the second page repeats what the first ended on.
+func TestKeysetPageDoesNotRepeatRowsInsertedAbove(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 25)
+	paging := Pagination{Enabled: true, Page: 1, PageSize: 10}
+
+	first := readPage(t, svc, id, ReadRowsRequest{ApplyDefaultSort: true, Pagination: paging})
+	if got := ids(first); got[0] != 25 || got[9] != 16 {
+		t.Fatalf("first page %v", got)
+	}
+	if first.Next == nil {
+		t.Fatal("no position returned for the next page")
+	}
+
+	for i := 26; i <= 28; i++ {
+		mustRun(t, svc, id, fmt.Sprintf(`INSERT INTO orders (id, customer) VALUES (%d, 'new')`, i))
+	}
+
+	byOffset := readPage(t, svc, id, ReadRowsRequest{ApplyDefaultSort: true, Pagination: Pagination{Enabled: true, Page: 2, PageSize: 10}})
+	if got := ids(byOffset); got[0] != 18 {
+		t.Fatalf("expected offset paging to be shifted by the inserts (it is the bug), got %v", got)
+	}
+
+	second := readPage(t, svc, id, ReadRowsRequest{ApplyDefaultSort: true, Pagination: paging, After: wire(t, first.Next)})
+	got := ids(second)
+	if got[0] != 15 || got[9] != 6 {
+		t.Errorf("second page by position: %v, want 15 down to 6", got)
+	}
+}
+
+func TestKeysetPageDoesNotSkipRowsDeletedAbove(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 25)
+	paging := Pagination{Enabled: true, Page: 1, PageSize: 10}
+
+	first := readPage(t, svc, id, ReadRowsRequest{ApplyDefaultSort: true, Pagination: paging})
+	mustRun(t, svc, id, `DELETE FROM orders WHERE id IN (24, 22, 20)`)
+
+	second := readPage(t, svc, id, ReadRowsRequest{ApplyDefaultSort: true, Pagination: paging, After: wire(t, first.Next)})
+	if got := ids(second); got[0] != 15 {
+		t.Errorf("second page began at %d, want 15 (offset would skip to 12)", got[0])
+	}
+}
+
+// Every row exactly once, over a sort that ties — three customers share twenty
+// rows — with writes landing between the pages.
+func TestKeysetWalkOverATyingSortVisitsEveryRowOnce(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 20)
+	order := []driver.Sort{{Column: "customer"}}
+
+	seen := map[int]int{}
+	var after *driver.Cursor
+	for page := 0; page < 20; page++ {
+		res := readPage(t, svc, id, ReadRowsRequest{
+			OrderBy:    order,
+			Pagination: Pagination{Enabled: true, Page: 1, PageSize: 4},
+			After:      after,
+		})
+		for _, n := range ids(res) {
+			seen[n]++
+		}
+		if page == 1 {
+			mustRun(t, svc, id, `INSERT INTO orders (id, customer) VALUES (99, 'cust-0')`)
+		}
+		if res.Next == nil {
+			break
+		}
+		after = wire(t, res.Next)
+	}
+	for n := 1; n <= 20; n++ {
+		if seen[n] != 1 {
+			t.Errorf("row %d seen %d times", n, seen[n])
+		}
+	}
+}
+
+func TestKeysetIsNotOfferedForASortItCannotCompare(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 25)
+	// total is a nullable REAL: neither is safe to compare through text.
+	res := readPage(t, svc, id, ReadRowsRequest{
+		OrderBy:    []driver.Sort{{Column: "total"}},
+		Pagination: Pagination{Enabled: true, Page: 1, PageSize: 10},
+	})
+	if res.Next != nil {
+		t.Errorf("offered a position for a nullable float sort: %+v", res.Next)
+	}
+	if !res.HasMore {
+		t.Error("expected more rows")
+	}
+}
+
+func TestKeysetRefusesAPositionFromAnotherSort(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 25)
+	paging := Pagination{Enabled: true, Page: 1, PageSize: 10}
+	first := readPage(t, svc, id, ReadRowsRequest{ApplyDefaultSort: true, Pagination: paging})
+
+	_, err := svc.ReadRows(context.Background(), ReadRowsRequest{
+		ConnectionID: id,
+		Ref:          driver.ObjectRef{Database: "main", Name: "orders"},
+		OrderBy:      []driver.Sort{{Column: "customer"}},
+		Pagination:   paging,
+		After:        wire(t, first.Next),
+	})
+	if err == nil {
+		t.Error("a position for id was applied to a sort by customer")
+	}
+}
+
+func TestKeysetWithTheFilterOnStaysInsideIt(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 30)
+	paging := Pagination{Enabled: true, Page: 1, PageSize: 5}
+	req := ReadRowsRequest{ApplyDefaultSort: true, Pagination: paging, Filter: "id % 2 = 0 OR id = 1"}
+	first := readPage(t, svc, id, req)
+	req.After = wire(t, first.Next)
+	second := readPage(t, svc, id, req)
+	for _, n := range ids(second) {
+		if n%2 != 0 && n != 1 {
+			t.Errorf("row %d escaped the filter", n)
+		}
+		if n >= ids(first)[4] {
+			t.Errorf("row %d is not after the cursor", n)
+		}
+	}
+}
+
+// An offset names a position, and positions move: with a row inserted above,
+// the same offset is a different row. A key does not.
+func TestReadCellByKeyStillFindsTheRowAfterInsertsAbove(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 10)
+	mustRun(t, svc, id, `UPDATE orders SET note = 'the long one' WHERE id = 7`)
+
+	// Offset 3 in the default order (id desc) is id 7.
+	for i := 11; i <= 14; i++ {
+		mustRun(t, svc, id, fmt.Sprintf(`INSERT INTO orders (id, customer) VALUES (%d, 'new')`, i))
+	}
+	ref := driver.ObjectRef{Database: "main", Name: "orders"}
+
+	byOffset, err := svc.ReadCell(context.Background(), ReadCellRequest{
+		ConnectionID: id, Ref: ref, Column: "note", ApplyDefaultSort: true, RowOffset: 3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byOffset.Value != nil {
+		t.Fatalf("expected the offset to have drifted onto another row, got %v", *byOffset.Value)
+	}
+
+	byKey, err := svc.ReadCell(context.Background(), ReadCellRequest{
+		ConnectionID: id, Ref: ref, Column: "note", Key: map[string]any{"id": float64(7)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if byKey.Value == nil || *byKey.Value != "the long one" {
+		t.Errorf("by key got %v", byKey.Value)
+	}
+}
+
+func TestReadCellByKeyRefusesColumnsThatAreNotTheKey(t *testing.T) {
+	svc, id := newTestService(t)
+	seed(t, svc, id, 3)
+	_, err := svc.ReadCell(context.Background(), ReadCellRequest{
+		ConnectionID: id, Ref: driver.ObjectRef{Database: "main", Name: "orders"},
+		Column: "note", Key: map[string]any{"customer": "cust-1"},
+	})
+	if err == nil {
+		t.Error("a key made of a non-key column was accepted")
+	}
+}
+
+// A value the text cap cut is not the stored one; a position built from it would
+// land in the wrong place, so the page gives none and the UI pages by offset.
+func TestCursorAfterRefusesACutSortValue(t *testing.T) {
+	rs := &driver.ResultSet{
+		Columns: []driver.ResultColumn{{Name: "body"}, {Name: "id"}},
+		Rows:    [][]any{{"aaaa", float64(1)}, {"bbbb", float64(2)}},
+	}
+	order := []driver.Sort{{Column: "body"}, {Column: "id"}}
+	if cur := cursorAfter(rs, order); cur == nil || cur.Values[0] != "bbbb" {
+		t.Fatalf("whole values: %+v", cur)
+	}
+	rs.TruncatedCells = []driver.CellRef{{Row: 1, Col: 0}}
+	if cur := cursorAfter(rs, order); cur != nil {
+		t.Errorf("cut value gave a position: %+v", cur)
+	}
+	// A cut value in an earlier row does not matter; only the last row's is used.
+	rs.TruncatedCells = []driver.CellRef{{Row: 0, Col: 0}}
+	if cur := cursorAfter(rs, order); cur == nil {
+		t.Error("an earlier cut value should not matter")
 	}
 }

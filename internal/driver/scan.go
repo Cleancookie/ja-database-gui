@@ -60,14 +60,14 @@ const MaxResultSets = 32
 // RunQuery executes a query and normalises the result into a JSON-safe
 // ResultSet. A batch that produces several is not what this call is for — see
 // RunQueryAll — and only the first is read.
-func RunQuery(ctx context.Context, db *sql.DB, query string, opts QueryOptions) (*ResultSet, error) {
+func RunQuery(ctx context.Context, db *sql.DB, query string, opts QueryOptions, args ...any) (*ResultSet, error) {
 	start := time.Now()
 
 	// Phase reporting for the activity tray. QueryContext covers both the wait
 	// for a pooled connection and the server's own work, so "executing" is
 	// exactly "we are waiting on the database"; everything after it is us.
 	activity.SetPhase(ctx, activity.PhaseExecuting)
-	rows, err := db.QueryContext(ctx, query)
+	rows, err := db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -239,14 +239,14 @@ type Cell struct {
 
 // ReadCell runs a query expected to yield exactly one value and returns it
 // whole, subject to maxBytes. maxBytes of 0 uses MaxCellBytes.
-func ReadCell(ctx context.Context, db *sql.DB, query string, maxBytes int) (*Cell, error) {
+func ReadCell(ctx context.Context, db *sql.DB, query string, maxBytes int, args ...any) (*Cell, error) {
 	if maxBytes <= 0 || maxBytes > MaxCellBytes {
 		maxBytes = MaxCellBytes
 	}
 	out := &Cell{Query: query}
 
 	var v any
-	if err := db.QueryRowContext(ctx, query).Scan(&v); err != nil {
+	if err := db.QueryRowContext(ctx, query, args...).Scan(&v); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// The row moved or was deleted between the page load and the
 			// click. Saying so beats a bare "no rows in result set".
