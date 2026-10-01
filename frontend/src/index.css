@@ -132,6 +132,9 @@
   --ease-snap: cubic-bezier(0.2, 0, 0, 1);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
 
+  /* How long a drawer — the tab strip, the activity tray — takes to slide. */
+  --drawer-duration: 260ms;
+
   --animate-pop-in: pop-in 200ms var(--ease-spring) both;
   --animate-fade-in: fade-in 140ms var(--ease-snap) both;
   --animate-slide-in: slide-in 260ms var(--ease-spring) both;

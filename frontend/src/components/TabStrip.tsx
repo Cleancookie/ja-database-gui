@@ -14,7 +14,7 @@ import { TableMark } from './TableMark'
  * selection or the staged edits — the dirty dot is a per-table boolean, the same
  * way the picker's rows do it.
  */
-export const TabStrip = memo(function TabStrip() {
+export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
   const tabs = useStore((s) => s.tabs)
   const activeTabId = useStore((s) => s.activeTabId)
   const connections = useStore((s) => s.connections)
@@ -49,76 +49,90 @@ export const TabStrip = memo(function TabStrip() {
   }, [tabs, activeTabId, connections, view, activeRef, activeDatabase, activeConnectionId])
 
   return (
-    <aside
-      style={{ width: resize.size }}
-      className={`chrome island relative flex shrink-0 flex-col ${
-        resize.dragging ? '' : 'transition-[width] duration-75'
-      }`}
+    // Two layers so it can slide: the outer one collapses its width (and the
+    // shell's gap with it) while the island inside keeps its own width and
+    // slides left, so the content is clipped rather than squashed.
+    <div
+      style={{ width: open ? resize.size : 0, marginRight: open ? 0 : '-0.5rem' }}
+      aria-hidden={!open}
+      inert={!open}
+      className={`shrink-0 overflow-hidden ${
+        resize.dragging
+          ? ''
+          : 'transition-[width,margin,visibility] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none'
+      } ${open ? 'visible' : 'invisible'}`}
     >
-      <Resizer {...resize} axis="x" label="Resize the tab strip" className="right-0" />
-      <div className="flex items-center border-b border-[var(--color-border)]">
-        <h2 className="flex-1 px-3 py-2 font-bold tracking-wider text-[var(--color-faint)] uppercase">
-          Tabs
-          <span className="ml-1 opacity-60">{tabs.length}</span>
-        </h2>
-        <button
-          onClick={newTab}
-          title="New tab (Ctrl+T)"
-          className="mr-2 rounded-full bg-[var(--color-elevated)] px-2 leading-6 font-bold text-[var(--color-muted)] shadow-xs hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)]"
-        >
-          +
-        </button>
-      </div>
-      <Highlight
-        className="min-h-0 flex-1 overflow-y-auto p-1.5"
-        pillClassName="rounded-xl bg-[var(--color-accent-dim)]/55"
+      <aside
+        style={{ width: resize.size }}
+        className={`chrome island relative flex h-full flex-col ${
+          resize.dragging ? '' : 'transition-transform duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none'
+        } ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        {rows.map((r) => (
-          <div
-            key={r.id}
-            data-highlight={r.live || undefined}
-            className="group relative flex items-center rounded-xl"
-            // Middle-click closes, as in a browser.
-            onAuxClick={(e) => {
-              if (e.button === 1) {
-                e.preventDefault()
-                closeTab(r.id)
-              }
-            }}
+        <Resizer {...resize} axis="x" label="Resize the tab strip" className="right-0" />
+        <div className="flex items-center border-b border-[var(--color-border)]">
+          <h2 className="flex-1 px-3 py-2 font-bold tracking-wider text-[var(--color-faint)] uppercase">
+            Tabs
+            <span className="ml-1 opacity-60">{tabs.length}</span>
+          </h2>
+          <button
+            onClick={newTab}
+            title="New tab (Ctrl+T)"
+            className="mr-2 rounded-full bg-[var(--color-elevated)] px-2 leading-6 font-bold text-[var(--color-muted)] shadow-xs hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)]"
           >
-            <button
-              onClick={() => switchTab(r.id)}
-              title={r.where ? `${r.title} — ${r.where}` : r.title}
-              aria-current={r.live || undefined}
-              className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
-                r.live ? 'font-bold' : 'hover:bg-[var(--color-elevated)] hover:shadow-xs'
-              }`}
+            +
+          </button>
+        </div>
+        <Highlight
+          className="min-h-0 flex-1 overflow-y-auto p-1.5"
+          pillClassName="rounded-xl bg-[var(--color-accent-dim)]/55"
+        >
+          {rows.map((r) => (
+            <div
+              key={r.id}
+              data-highlight={r.live || undefined}
+              className="group relative flex items-center rounded-xl"
+              // Middle-click closes, as in a browser.
+              onAuxClick={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault()
+                  closeTab(r.id)
+                }
+              }}
             >
-              <span
-                className="h-2.5 w-2.5 shrink-0 rounded-full"
-                style={{ background: r.colour || 'var(--color-border-strong)' }}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate">{r.title}</span>
-                {r.where && (
-                  <span className="block truncate font-normal text-[var(--color-faint)]">
-                    {r.where}
-                  </span>
-                )}
-              </span>
-              {r.dirtyKey && <TableMark tableKey={r.dirtyKey} />}
-            </button>
-            <button
-              onClick={() => closeTab(r.id)}
-              title="Close tab (Ctrl+W)"
-              aria-label={`Close ${r.title}`}
-              className="relative mr-1 shrink-0 rounded-full px-1.5 text-[var(--color-faint)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)] focus-visible:opacity-100"
-            >
-              ×
-            </button>
-          </div>
-        ))}
-      </Highlight>
-    </aside>
+              <button
+                onClick={() => switchTab(r.id)}
+                title={r.where ? `${r.title} — ${r.where}` : r.title}
+                aria-current={r.live || undefined}
+                className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
+                  r.live ? 'font-bold' : 'hover:bg-[var(--color-elevated)] hover:shadow-xs'
+                }`}
+              >
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: r.colour || 'var(--color-border-strong)' }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{r.title}</span>
+                  {r.where && (
+                    <span className="block truncate font-normal text-[var(--color-faint)]">
+                      {r.where}
+                    </span>
+                  )}
+                </span>
+                {r.dirtyKey && <TableMark tableKey={r.dirtyKey} />}
+              </button>
+              <button
+                onClick={() => closeTab(r.id)}
+                title="Close tab (Ctrl+W)"
+                aria-label={`Close ${r.title}`}
+                className="relative mr-1 shrink-0 rounded-full px-1.5 text-[var(--color-faint)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)] focus-visible:opacity-100"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </Highlight>
+      </aside>
+    </div>
   )
 })

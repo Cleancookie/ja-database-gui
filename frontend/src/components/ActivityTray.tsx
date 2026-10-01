@@ -102,7 +102,7 @@ export function ActivityTray() {
           style={{ height: `min(${resize.size}px, 80vh)` }}
           // Always mounted so it can slide back down; `invisible` takes it out of
           // the tab order and hit-testing once it has finished closing.
-          className={`island absolute inset-x-2 bottom-0 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)] transition-[translate,visibility] duration-[260ms] ease-[var(--ease-snap)] motion-reduce:transition-none ${
+          className={`island absolute inset-x-2 bottom-0 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)] transition-[translate,visibility] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
             open ? 'visible translate-y-0' : 'invisible translate-y-[calc(100%+0.25rem)]'
           }`}
           aria-hidden={!open}

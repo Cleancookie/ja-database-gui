@@ -1,7 +1,6 @@
 import { useCallback, useEffect } from 'react'
 import { focusFilter } from '../commands'
 import { isTypingTarget } from '../dom'
-import { api } from '../api'
 import { activeSqlResult, useStore } from '../store'
 import { ActivityPage } from './ActivityPage'
 import { TableDetailsPage } from './TableDetailsPage'
@@ -61,7 +60,7 @@ export function App() {
     <div className="flex h-full flex-col">
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        {!tabStripHidden && <TabStrip />}
+        <TabStrip open={!tabStripHidden} />
 
         <main className="island flex min-w-0 flex-1 flex-col">
           {view === 'activity' ? (
@@ -333,16 +332,16 @@ function useGlobalHotkeys() {
     }
 
     // The side buttons of a mouse: 3 is back, 4 is forward. The webview would
-    // treat them as history navigation, of which this app has none, so they are
-    // claimed in the capture phase on every event of the press. They walk the
+    // treat them as history navigation, of which this app has none, so every
+    // event of the press is claimed in the capture phase. They walk the
     // active tab's own history; with Shift they move between tabs.
     const onMouse = (e: MouseEvent | PointerEvent) => {
       if (e.button !== 3 && e.button !== 4) return
-      // DIAGNOSTIC: whether the side buttons reach the page at all is a question
-      // only the Windows webview can answer; the log file is where it shows up.
-      void api.logClient(`input ${e.type} button=${e.button} shift=${e.shiftKey}`).catch(() => {})
       e.preventDefault()
-      if (e.type !== 'mouseup') return
+      // The side buttons arrive as pointerdown / pointerup / auxclick and never
+      // as mousedown / mouseup, so the pointer event is the one acted on; the
+      // others are only silenced so the webview does not navigate.
+      if (e.type !== 'pointerup') return
       const s = useStore.getState()
       if (s.palette !== null || s.dialog.kind !== 'none') return
       const delta = e.button === 3 ? -1 : 1
