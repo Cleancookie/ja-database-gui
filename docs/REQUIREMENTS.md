@@ -529,7 +529,9 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | Picker | Connections, databases and tables as three columns filling left to right. Enter in the table filter opens the first match |
 | `Ctrl+P` | Retargets the current tab. Open tabs are listed in the same palette to jump to |
 | Keys | `Ctrl+T` new, `Ctrl+W` close, `Ctrl+Tab` / `Ctrl+Shift+Tab` and `Ctrl+PageDown` / `PageUp` cycle. All in the action palette too |
-| Mouse | Back / forward walk the tab's history of tables (up to 50). With Shift they cycle tabs |
+| Pages | The main panel shows picker, table, SQL editor, details or activity. Every change of page, including a tab switch, is recorded (up to 100) by a store subscription |
+| Mouse | Back / forward walk those pages across tabs, restoring a table's filter, sort and page. With Shift they cycle tabs |
+| Tab strip | `Ctrl+B` hides or shows it; persisted as `tabStripHidden` |
 | Persistence | None. The app starts on the picker |
 | Staged edits | Global, as before. Two tabs on one table share pending edits |
 | Closing the last tab | Leaves a blank one |

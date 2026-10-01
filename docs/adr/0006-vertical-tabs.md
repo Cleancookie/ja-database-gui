@@ -22,8 +22,13 @@ re-opening one each time, losing its filter, sort, page and selection.
   are three columns in the main pane, filling left to right. It is what a new
   tab shows, and what the app starts on.
 - **`Ctrl+P` retargets the current tab.** `Ctrl+T` opens a new picker tab,
-  `Ctrl+W` closes, `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle. The mouse back/forward
-  buttons walk the tab's own history of tables; with Shift they cycle tabs.
+  `Ctrl+W` closes, `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle, `Ctrl+B` shows or hides
+  the strip.
+- **The main panel is routed.** What it shows is a page — picker, table, SQL
+  editor, details, activity — and every change of page, including switching
+  tab, is recorded in one list. The mouse back/forward buttons walk that list
+  across tabs; with Shift they cycle tabs. Pages are recorded by a store
+  subscription on `pageOf`, not at call sites.
 - **Tabs are not persisted.** The app starts on the picker, as it did.
 - **State stays flat.** The store's "active table / connection / SQL" fields
   remain the live state of the active tab, and every other tab holds a saved

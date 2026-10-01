@@ -178,8 +178,15 @@ fetches by the existing sequence counter, connect / database / details by a
 check of the active tab), and a tab left mid-load reloads when returned to.
 
 `Ctrl+P` retargets the *current* tab; open tabs appear in the same palette as a
-`Tabs` group to jump to. The mouse back / forward buttons walk the tab's own
-history of tables (Shift: between tabs).
+`Tabs` group to jump to.
+
+The main panel is routed. What it shows is a *page* (`pageOf` in `tabs.ts`):
+picker, table, SQL editor, details or activity. A subscription at the bottom of
+`store.ts` records every change of page, switching tab included, into one list
+(`nav`, `navAt`). The mouse back / forward buttons walk it across tabs, with
+the filter, sort and page a table had when it was left (Shift: between tabs).
+Going back is wrapped in `navigating` so it does not record itself, and pages of
+closed tabs are skipped.
 
 Objects are still offered most-recently-opened first, in a `Recent` group above
 the rest of the catalogue. Alphabetical order is no help when switching between
