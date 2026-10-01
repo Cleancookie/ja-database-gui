@@ -55,6 +55,8 @@ type Settings struct {
 	// SqlEditorHeightPx is the SQL editor pane's height above the results,
 	// dragged on the divider between them.
 	SqlEditorHeightPx int `json:"sqlEditorHeightPx"`
+	// TabStripHidden hides the tab strip down the left edge (Ctrl+B).
+	TabStripHidden bool `json:"tabStripHidden"`
 }
 
 // DefaultSettings is also the fallback for any field missing from disk.

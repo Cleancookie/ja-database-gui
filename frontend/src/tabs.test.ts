@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { blankFields, newTab, tabTitle, visit } from './tabs'
+import { blankFields, recordPage, samePage, tabTitle, type Page } from './tabs'
 
 const ref = (name: string) => ({ database: 'db', schema: '', name })
 
@@ -17,34 +17,48 @@ describe('tabTitle', () => {
   })
 })
 
-describe('visit', () => {
-  const entry = (name: string) => ({ connectionId: 'c', ref: ref(name) })
-  it('appends and moves to the new entry', () => {
-    let t = newTab(1, null)
-    t = visit(t, entry('a'))
-    t = visit(t, entry('b'))
-    expect(t.history.map((h) => h.ref.name)).toEqual(['a', 'b'])
-    expect(t.at).toBe(1)
+describe('recordPage', () => {
+  const page = (tabId: number, kind: Page['kind'], name?: string): Page => ({
+    tabId,
+    kind,
+    connectionId: name ? 'c' : null,
+    ref: name ? ref(name) : null,
+    controls: null,
   })
-  it('drops forward entries after going back', () => {
-    let t = newTab(1, null)
-    for (const n of ['a', 'b', 'c']) t = visit(t, entry(n))
-    t = { ...t, at: 0 }
-    t = visit(t, entry('d'))
-    expect(t.history.map((h) => h.ref.name)).toEqual(['a', 'd'])
-    expect(t.at).toBe(1)
+
+  it('writes the page left and the page reached', () => {
+    const r = recordPage([], -1, page(1, 'picker'), page(1, 'table', 'a'))
+    expect(r.nav.map((p) => p.kind)).toEqual(['picker', 'table'])
+    expect(r.at).toBe(1)
   })
-  it('ignores reopening the table already shown', () => {
-    let t = visit(newTab(1, null), entry('a'))
-    const again = visit(t, entry('a'))
-    expect(again).toBe(t)
+  it('drops what was ahead after going back', () => {
+    let r = recordPage([], -1, page(1, 'picker'), page(1, 'table', 'a'))
+    r = recordPage(r.nav, r.at, page(1, 'table', 'a'), page(1, 'table', 'b'))
+    r = { nav: r.nav, at: 1 }
+    r = recordPage(r.nav, r.at, page(1, 'table', 'a'), page(1, 'sql'))
+    expect(r.nav.map((p) => p.kind)).toEqual(['picker', 'table', 'sql'])
   })
-  it('caps the history', () => {
-    let t = newTab(1, null)
-    for (let i = 0; i < 80; i++) t = visit(t, entry(`t${i}`))
-    expect(t.history.length).toBe(50)
-    expect(t.history[49].ref.name).toBe('t79')
-    expect(t.at).toBe(49)
+  it('refreshes the page being left so it keeps its filter', () => {
+    const left = { ...page(1, 'table', 'a'), controls: { filter: 'id > 3', orderBy: [], sortChosen: false, page: 2 } }
+    const r = recordPage([page(1, 'table', 'a')], 0, left, page(1, 'sql'))
+    expect(r.nav[0].controls?.filter).toBe('id > 3')
+  })
+  it('caps the record', () => {
+    let r = { nav: [] as Page[], at: -1 }
+    for (let i = 0; i < 150; i++) r = recordPage(r.nav, r.at, page(1, 'table', `t${i}`), page(1, 'table', `t${i + 1}`))
+    expect(r.nav.length).toBe(100)
+    expect(r.at).toBe(99)
+  })
+})
+
+describe('samePage', () => {
+  it('ignores how a table is filtered', () => {
+    const a: Page = { tabId: 1, kind: 'table', connectionId: 'c', ref: ref('a'), controls: { filter: 'x', orderBy: [], sortChosen: false, page: 1 } }
+    expect(samePage(a, { ...a, controls: null })).toBe(true)
+  })
+  it('tells tabs apart', () => {
+    const a: Page = { tabId: 1, kind: 'picker', connectionId: null, ref: null, controls: null }
+    expect(samePage(a, { ...a, tabId: 2 })).toBe(false)
   })
 })
 
@@ -95,5 +109,64 @@ describe('store tabs', () => {
     s().closeTab()
     expect(s().tabs).toHaveLength(1)
     expect(s().activeRef).toBeNull()
+  })
+})
+
+describe('store routes', () => {
+  async function fresh() {
+    vi.resetModules()
+    vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+    const { useStore } = await import('./store')
+    useStore.setState({ activeConnectionId: 'c', activeDatabase: 'db' })
+    return useStore
+  }
+  const table = (name: string) => ({ schema: '', name, type: 'table' as const })
+
+  it('goes back from a table to the picker, and forward again', async () => {
+    const useStore = await fresh()
+    await useStore.getState().openObject(table('users'))
+    expect(useStore.getState().activeRef?.name).toBe('users')
+
+    await useStore.getState().stepHistory(-1)
+    expect(useStore.getState().activeRef).toBeNull()
+    expect(useStore.getState().view).toBe('data')
+
+    await useStore.getState().stepHistory(1)
+    expect(useStore.getState().activeRef?.name).toBe('users')
+  })
+
+  it('records a tab switch, so back returns to the other tab', async () => {
+    const useStore = await fresh()
+    await useStore.getState().openObject(table('users'))
+    const first = useStore.getState().activeTabId
+    useStore.getState().newTab()
+    expect(useStore.getState().activeTabId).not.toBe(first)
+
+    await useStore.getState().stepHistory(-1)
+    expect(useStore.getState().activeTabId).toBe(first)
+    expect(useStore.getState().activeRef?.name).toBe('users')
+  })
+
+  it('records the SQL editor as a page', async () => {
+    const useStore = await fresh()
+    await useStore.getState().openObject(table('users'))
+    useStore.getState().setView('sql')
+    await useStore.getState().stepHistory(-1)
+    expect(useStore.getState().view).toBe('data')
+    expect(useStore.getState().activeRef?.name).toBe('users')
+  })
+
+  it('skips pages of a closed tab', async () => {
+    const useStore = await fresh()
+    await useStore.getState().openObject(table('users'))
+    const first = useStore.getState().activeTabId
+    useStore.getState().newTab()
+    const second = useStore.getState().activeTabId
+    useStore.getState().switchTab(first)
+    useStore.getState().closeTab(second)
+    const before = useStore.getState().navAt
+    await useStore.getState().stepHistory(-1)
+    expect(useStore.getState().tabs.some((t) => t.id === useStore.getState().activeTabId)).toBe(true)
+    expect(useStore.getState().navAt).toBeLessThan(before)
   })
 })

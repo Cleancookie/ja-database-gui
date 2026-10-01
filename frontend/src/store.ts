@@ -16,7 +16,17 @@ import {
 } from './storeEdits'
 import { mark, reportText } from './startup'
 import { applyTheme, DEFAULT_THEME } from './themes'
-import { blankFields, newTab as makeTab, snapshot, visit, type HistoryEntry, type Tab } from './tabs'
+import {
+  blankFields,
+  newTab as makeTab,
+  pageOf,
+  recordPage,
+  samePage,
+  snapshot,
+  type Controls,
+  type Page,
+  type Tab,
+} from './tabs'
 import type {
   ActivityResult,
   Capabilities,
@@ -106,6 +116,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sidebarWidthPx: 256,
   trayHeightPx: 260,
   sqlEditorHeightPx: 160,
+  tabStripHidden: false,
 }
 
 export interface State extends EditState, EditActions {
@@ -121,6 +132,12 @@ export interface State extends EditState, EditActions {
    */
   tabs: Tab[]
   activeTabId: number
+  /**
+   * Every page the main panel has shown, oldest first, and where the user is in
+   * that list. Written only by the subscription at the bottom of this file.
+   */
+  nav: Page[]
+  navAt: number
 
   // active connection
   activeConnectionId: string | null
@@ -234,8 +251,11 @@ export interface State extends EditState, EditActions {
   switchTab: (id: number) => void
   /** Moves to the next (+1) or previous (-1) tab, wrapping. */
   cycleTab: (delta: number) => void
-  /** Mouse back / forward: walks the tables this tab has shown. */
+  /** Mouse back / forward: walks the pages the main panel has shown, across tabs. */
   stepHistory: (delta: number) => Promise<void>
+  toggleTabStrip: () => Promise<void>
+  /** Shows the picker in the current tab, keeping the connection and database chosen. */
+  showPicker: () => void
   setFilter: (f: string) => void
   applyFilter: (f: string) => Promise<void>
   setPage: (p: number) => Promise<void>
@@ -331,6 +351,31 @@ export interface State extends EditState, EditActions {
 let requestSeq = 0
 let toastSeq = 0
 let tabSeq = 1
+
+/** The table-shaped fields of a tab with nothing open: what the picker shows over. */
+const NO_TABLE = {
+  activeRef: null,
+  columns: [],
+  result: null,
+  orderBy: [],
+  sortChosen: false,
+  filter: '',
+  page: 1,
+  hasMore: false,
+  totalCount: null,
+  detail: null,
+  detailLoading: false,
+  detailError: null,
+  selection: null,
+  view: 'data',
+  editKey: [],
+  readOnlyReason: '',
+} satisfies Partial<State>
+/**
+ * True while a back / forward step is moving the panel. The subscription that
+ * records pages ignores those moves, or going back would write a new page.
+ */
+let navigating = false
 
 export const useStore = create<State>((set, get) => {
   /**
@@ -449,8 +494,8 @@ export const useStore = create<State>((set, get) => {
     if (tab.needsLoad && tab.saved?.activeRef) void fetchRows()
   }
 
-  /** Points the active tab at a table; `record` is false when history itself is doing the moving. */
-  async function openObjectAt(o: SchemaObject, record: boolean) {
+  /** Points the active tab at a table; `restore` brings back how it was filtered, sorted and paged. */
+  async function openObjectAt(o: SchemaObject, restore?: Controls) {
     const s = get()
     if (!s.activeConnectionId) return
     // Functions and procedures have no rows to browse. Selecting one in the
@@ -461,21 +506,17 @@ export const useStore = create<State>((set, get) => {
     }
     const ref = { database: s.activeDatabase, schema: o.schema, name: o.name }
     const key = refKey(ref.database, ref.schema, ref.name)
-    const entry: HistoryEntry = { connectionId: s.activeConnectionId, ref }
     set({
       activeRef: ref,
       // Moved to the front, and de-duplicated, so re-opening a table does not
       // leave a stale copy further down the list.
       recentObjects: [key, ...s.recentObjects.filter((k) => k !== key)].slice(0, RECENT_LIMIT),
-      ...(record
-        ? { tabs: s.tabs.map((t) => (t.id === s.activeTabId ? visit(t, entry) : t)) }
-        : {}),
       // A new table starts clean: carrying a filter written for the previous
       // table over would almost always be a syntax error.
-      filter: '',
-      orderBy: [],
-      sortChosen: false,
-      page: 1,
+      filter: restore?.filter ?? '',
+      orderBy: restore?.orderBy ?? [],
+      sortChosen: restore?.sortChosen ?? false,
+      page: restore?.page ?? 1,
       totalCount: null,
       result: null,
       view: 'data',
@@ -483,15 +524,39 @@ export const useStore = create<State>((set, get) => {
     await fetchRows()
   }
 
-  /** Brings the active tab to a history entry, reconnecting on the way if it has to. */
-  async function showEntry(e: HistoryEntry) {
-    const tabId = get().activeTabId
-    if (get().activeConnectionId !== e.connectionId) await get().connect(e.connectionId)
-    if (get().activeTabId !== tabId || get().activeConnectionId !== e.connectionId) return
-    if (get().activeDatabase !== e.ref.database) await get().selectDatabase(e.ref.database)
-    if (get().activeTabId !== tabId) return
-    const known = get().objects.find((o) => o.name === e.ref.name && o.schema === e.ref.schema)
-    await openObjectAt(known ?? { schema: e.ref.schema, name: e.ref.name, type: 'table' }, false)
+  /** Shows `p`: switches to its tab, then does whatever its page needs. */
+  async function goToPage(p: Page) {
+    navigating = true
+    try {
+      if (p.tabId !== get().activeTabId) get().switchTab(p.tabId)
+      if (samePage(pageOf(get()), p)) return
+      const tabId = p.tabId
+      switch (p.kind) {
+        case 'picker':
+          set(NO_TABLE)
+          return
+        case 'sql':
+        case 'activity':
+          set({ view: p.kind })
+          return
+        case 'details':
+          if (p.ref) await get().openDetails(p.ref)
+          return
+        case 'table': {
+          if (!p.ref || !p.connectionId) return
+          if (get().activeConnectionId !== p.connectionId) await get().connect(p.connectionId)
+          if (get().activeTabId !== tabId || get().activeConnectionId !== p.connectionId) return
+          if (get().activeDatabase !== p.ref.database) await get().selectDatabase(p.ref.database)
+          if (get().activeTabId !== tabId) return
+          const { name, schema } = p.ref
+          const known = get().objects.find((o) => o.name === name && o.schema === schema)
+          await openObjectAt(known ?? { schema, name, type: 'table' }, p.controls ?? undefined)
+          return
+        }
+      }
+    } finally {
+      navigating = false
+    }
   }
 
   return {
@@ -502,6 +567,8 @@ export const useStore = create<State>((set, get) => {
     connectedIds: [],
     tabs: [makeTab(1, null)],
     activeTabId: 1,
+    nav: [],
+    navAt: -1,
     activeConnectionId: null,
     capabilities: null,
     databases: [],
@@ -669,7 +736,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     async openObject(o) {
-      await openObjectAt(o, true)
+      await openObjectAt(o)
     },
 
     newTab() {
@@ -710,14 +777,26 @@ export const useStore = create<State>((set, get) => {
       enter(rest[Math.min(at, rest.length - 1)], rest)
     },
 
+    showPicker() {
+      set(NO_TABLE)
+    },
+
+    async toggleTabStrip() {
+      const { settings, saveSettings } = get()
+      await saveSettings({ ...settings, tabStripHidden: !settings.tabStripHidden })
+    },
+
     async stepHistory(delta) {
       const s = get()
-      const tab = s.tabs.find((t) => t.id === s.activeTabId)
-      if (!tab) return
-      const to = tab.at + delta
-      if (to < 0 || to >= tab.history.length) return
-      set({ tabs: s.tabs.map((t) => (t.id === tab.id ? { ...t, at: to } : t)) })
-      await showEntry(tab.history[to])
+      let i = s.navAt + delta
+      // Pages of tabs that have since been closed are skipped.
+      while (s.nav[i] && !s.tabs.some((t) => t.id === s.nav[i].tabId)) i += delta
+      if (i < 0 || i >= s.nav.length) return
+      // The page being left is refreshed first, so coming back finds its
+      // filter, sort and page as they were.
+      const nav = s.nav.map((p, j) => (j === s.navAt ? pageOf(s) : p))
+      set({ nav, navAt: i })
+      await goToPage(nav[i])
     },
 
     async reload() {
@@ -830,19 +909,7 @@ export const useStore = create<State>((set, get) => {
       }
       // Leaving the grid pointed at something that no longer exists would make
       // every refresh an error, so the view goes back to nothing selected.
-      if (sameRef(get().activeRef, ref)) {
-        set({
-          activeRef: null,
-          result: null,
-          columns: [],
-          filter: '',
-          orderBy: [],
-          sortChosen: false,
-          totalCount: null,
-          selection: null,
-          view: 'data',
-        })
-      }
+      if (sameRef(get().activeRef, ref)) set(NO_TABLE)
       // Another tab may be showing the table that just went.
       set({
         tabs: get().tabs.map((t) =>
@@ -1296,6 +1363,18 @@ export function useHasSchemas(): boolean {
   const kind = useActiveKind()
   return useStore((s) => (kind ? (s.drivers?.[kind]?.hasSchemas ?? false) : false))
 }
+
+// Every change of page is recorded, whatever caused it: a click in the strip, a
+// table opened from the palette, the SQL editor toggled. Done here rather than
+// at those call sites so a new way of reaching a page is recorded for free.
+useStore.subscribe((s, prev) => {
+  if (navigating) return
+  const now = pageOf(s)
+  const before = pageOf(prev)
+  if (samePage(now, before)) return
+  const { nav, at } = recordPage(s.nav, s.navAt, before, now)
+  useStore.setState({ nav, navAt: at })
+})
 
 /**
  * Pushes the two purely visual settings onto <html>, which is where the CSS

@@ -27,6 +27,7 @@ import { Toasts } from './Toasts'
 
 export function App() {
   const init = useStore((s) => s.init)
+  const tabStripHidden = useStore((s) => s.settings.tabStripHidden)
   const dialog = useStore((s) => s.dialog)
   const view = useStore((s) => s.view)
   const activeRef = useStore((s) => s.activeRef)
@@ -59,7 +60,7 @@ export function App() {
     <div className="flex h-full flex-col">
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        <TabStrip />
+        {!tabStripHidden && <TabStrip />}
 
         <main className="island flex min-w-0 flex-1 flex-col">
           {view === 'activity' ? (
@@ -214,6 +215,12 @@ function useGlobalHotkeys() {
       if (mod && e.key === '0') {
         e.preventDefault()
         void s.resetFontSize()
+        return
+      }
+
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'b') {
+        e.preventDefault()
+        void s.toggleTabStrip()
         return
       }
 

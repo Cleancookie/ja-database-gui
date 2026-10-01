@@ -323,6 +323,8 @@ export interface Settings {
   sidebarWidthPx: number
   trayHeightPx: number
   sqlEditorHeightPx: number
+  /** Whether the tab strip is hidden (Ctrl+B). */
+  tabStripHidden: boolean
 }
 
 /**

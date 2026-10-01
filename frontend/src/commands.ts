@@ -116,6 +116,17 @@ export function buildNavigationCommands(s: Store): Command[] {
     }
   }
 
+  if (s.view !== 'data' || s.activeRef) {
+    cmds.push({
+      id: 'page:picker',
+      title: 'Connections, databases and tables',
+      subtitle: 'The picker page',
+      group: 'Pages',
+      candidate: { name: 'Picker', keywords: 'browse connections databases tables home server choose' },
+      run: () => s.showPicker(),
+    })
+  }
+
   // Jump to a tab that is already open, rather than retargeting this one.
   const names = new Map(s.connections.map((c) => [c.id, c.name]))
   for (const t of s.tabs) {
@@ -176,7 +187,6 @@ export function buildNavigationCommands(s: Store): Command[] {
 export function buildActionCommands(s: Store): Command[] {
   const cmds: Command[] = []
 
-  const here = s.tabs.find((t) => t.id === s.activeTabId)
   cmds.push({
     id: 'tab:new',
     title: 'New tab',
@@ -184,6 +194,14 @@ export function buildActionCommands(s: Store): Command[] {
     shortcut: 'Ctrl+T',
     candidate: { name: 'New tab', keywords: 'open picker' },
     run: () => s.newTab(),
+  })
+  cmds.push({
+    id: 'tab:strip',
+    title: s.settings.tabStripHidden ? 'Show tab strip' : 'Hide tab strip',
+    group: 'Tabs',
+    shortcut: 'Ctrl+B',
+    candidate: { name: 'Toggle tab strip', keywords: 'sidebar left panel show hide tabs' },
+    run: () => s.toggleTabStrip(),
   })
   cmds.push({
     id: 'tab:close',
@@ -211,23 +229,23 @@ export function buildActionCommands(s: Store): Command[] {
       run: () => s.cycleTab(-1),
     })
   }
-  if (here && here.at > 0) {
+  if (s.navAt > 0) {
     cmds.push({
       id: 'tab:back',
-      title: 'Back to the previous table in this tab',
+      title: 'Back to the previous page',
       group: 'Tabs',
       shortcut: 'Mouse back',
-      candidate: { name: 'Back', keywords: 'previous history table undo navigation' },
+      candidate: { name: 'Back', keywords: 'previous history page undo navigation route' },
       run: () => s.stepHistory(-1),
     })
   }
-  if (here && here.at < here.history.length - 1) {
+  if (s.navAt < s.nav.length - 1) {
     cmds.push({
       id: 'tab:forward',
-      title: 'Forward to the next table in this tab',
+      title: 'Forward to the next page',
       group: 'Tabs',
       shortcut: 'Mouse forward',
-      candidate: { name: 'Forward', keywords: 'next history table redo navigation' },
+      candidate: { name: 'Forward', keywords: 'next history page redo navigation route' },
       run: () => s.stepHistory(1),
     })
   }
