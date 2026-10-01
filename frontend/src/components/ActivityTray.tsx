@@ -90,14 +90,22 @@ export function ActivityTray() {
 
   return (
     <div className="chrome relative shrink-0">
-      {open && (
+      {/* A zero-height line along the top of the strip that clips everything
+          below it, so a closed drawer slides *into* the strip rather than over
+          it. Open to the top and sides so the shadow is not cut off.
+          z-30: above the grid's sticky headers (z-20), below dialogs (z-40). */}
+      <div className="absolute inset-x-0 bottom-full z-30 h-0 [clip-path:inset(-100vh_-2rem_0_-2rem)]">
         <div
           // Height is inline because it is dragged. Capped by the viewport as
           // well as by the setting: a height saved on a large monitor must not
           // bury the grid on a small one.
           style={{ height: `min(${resize.size}px, 80vh)` }}
-          // z-30: above the grid's sticky headers (z-20), below dialogs (z-40).
-          className="island absolute inset-x-2 bottom-full z-30 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)]"
+          // Always mounted so it can slide back down; `invisible` takes it out of
+          // the tab order and hit-testing once it has finished closing.
+          className={`island absolute inset-x-2 bottom-0 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)] transition-[translate,visibility] duration-[260ms] ease-[var(--ease-snap)] motion-reduce:transition-none ${
+            open ? 'visible translate-y-0' : 'invisible translate-y-[calc(100%+0.25rem)]'
+          }`}
+          aria-hidden={!open}
         >
           {/* Dragging the top edge upwards makes the tray taller, hence invert. */}
           <Resizer {...resize} axis="y" invert label="Resize the activity tray" className="top-0" />
@@ -150,7 +158,7 @@ export function ActivityTray() {
             )}
           </div>
         </div>
-      )}
+      </div>
 
       {/* The strip is one button so the whole width is a hit target, with the
           staged-changes status beside it: a button cannot hold buttons. */}
@@ -159,7 +167,9 @@ export function ActivityTray() {
         onClick={() => setTrayOpen(!open)}
         aria-expanded={open}
         title="Query activity (Ctrl+`)"
-        className="flex min-w-0 flex-1 items-center gap-2 px-3 hover:bg-[var(--color-elevated)]"
+        // No press-scale: the strip is the full width of the window, and shrinking it
+        // on mousedown reads as the layout twitching.
+        className="flex min-w-0 flex-1 items-center gap-2 px-3 hover:bg-[var(--color-elevated)] active:[transform:none]"
       >
         <span className="text-[var(--color-faint)]">{open ? '▾' : '▸'}</span>
         <span className="font-semibold tracking-wider text-[var(--color-faint)] uppercase">
