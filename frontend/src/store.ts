@@ -253,7 +253,7 @@ export interface State extends EditState, EditActions {
   cycleTab: (delta: number) => void
   /** Mouse back / forward: walks the pages the main panel has shown, across tabs. */
   stepHistory: (delta: number) => Promise<void>
-  toggleTabStrip: () => Promise<void>
+  setTabStrip: (open: boolean) => Promise<void>
   /** Shows the picker in the current tab, keeping the connection and database chosen. */
   showPicker: () => void
   setFilter: (f: string) => void
@@ -781,9 +781,10 @@ export const useStore = create<State>((set, get) => {
       set(NO_TABLE)
     },
 
-    async toggleTabStrip() {
+    async setTabStrip(open) {
       const { settings, saveSettings } = get()
-      await saveSettings({ ...settings, tabStripHidden: !settings.tabStripHidden })
+      if (settings.tabStripHidden === !open) return
+      await saveSettings({ ...settings, tabStripHidden: !open })
     },
 
     async stepHistory(delta) {

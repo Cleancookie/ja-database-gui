@@ -34,7 +34,8 @@ func main() {
 	log.Printf("ja-db: config loaded in %s", time.Since(start).Round(time.Millisecond))
 
 	err = wails.Run(&options.App{
-		Title:  "ja-db",
+		// The version is in the title so a stale build is visible at a glance.
+		Title:  "ja-db " + version,
 		Width:  1440,
 		Height: 900,
 		// Below this the sidebar and grid stop being usable together.

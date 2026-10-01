@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { focusFilter } from '../commands'
 import { isTypingTarget } from '../dom'
+import { api } from '../api'
 import { activeSqlResult, useStore } from '../store'
 import { ActivityPage } from './ActivityPage'
 import { TableDetailsPage } from './TableDetailsPage'
@@ -220,7 +221,7 @@ function useGlobalHotkeys() {
 
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
-        void s.toggleTabStrip()
+        void s.setTabStrip(s.settings.tabStripHidden)
         return
       }
 
@@ -292,6 +293,16 @@ function useGlobalHotkeys() {
         return
       }
 
+      // Alt+arrows are the browser's back and forward, and the keyboard twin of
+      // the mouse buttons. Left alone inside the SQL editor, which uses them to
+      // move by syntax; a plain <input> has no use for them, and the picker
+      // focuses one as soon as it opens.
+      if (!target?.isContentEditable && e.altKey && !mod && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault()
+        void s.stepHistory(e.key === 'ArrowLeft' ? -1 : 1)
+        return
+      }
+
       if (mod && e.key === 'ArrowLeft' && s.paginationEnabled && s.page > 1) {
         e.preventDefault()
         void s.setPage(s.page - 1)
@@ -325,8 +336,11 @@ function useGlobalHotkeys() {
     // treat them as history navigation, of which this app has none, so they are
     // claimed in the capture phase on every event of the press. They walk the
     // active tab's own history; with Shift they move between tabs.
-    const onMouse = (e: MouseEvent) => {
+    const onMouse = (e: MouseEvent | PointerEvent) => {
       if (e.button !== 3 && e.button !== 4) return
+      // DIAGNOSTIC: whether the side buttons reach the page at all is a question
+      // only the Windows webview can answer; the log file is where it shows up.
+      void api.logClient(`input ${e.type} button=${e.button} shift=${e.shiftKey}`).catch(() => {})
       e.preventDefault()
       if (e.type !== 'mouseup') return
       const s = useStore.getState()
@@ -337,12 +351,12 @@ function useGlobalHotkeys() {
     }
 
     window.addEventListener('keydown', onKey)
-    for (const type of ['mousedown', 'mouseup', 'auxclick'] as const) {
+    for (const type of ['mousedown', 'mouseup', 'auxclick', 'pointerdown', 'pointerup'] as const) {
       window.addEventListener(type, onMouse, true)
     }
     return () => {
       window.removeEventListener('keydown', onKey)
-      for (const type of ['mousedown', 'mouseup', 'auxclick'] as const) {
+      for (const type of ['mousedown', 'mouseup', 'auxclick', 'pointerdown', 'pointerup'] as const) {
         window.removeEventListener(type, onMouse, true)
       }
     }

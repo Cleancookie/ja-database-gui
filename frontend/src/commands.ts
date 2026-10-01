@@ -196,14 +196,6 @@ export function buildActionCommands(s: Store): Command[] {
     run: () => s.newTab(),
   })
   cmds.push({
-    id: 'tab:strip',
-    title: s.settings.tabStripHidden ? 'Show tab strip' : 'Hide tab strip',
-    group: 'Tabs',
-    shortcut: 'Ctrl+B',
-    candidate: { name: 'Toggle tab strip', keywords: 'sidebar left panel show hide tabs' },
-    run: () => s.toggleTabStrip(),
-  })
-  cmds.push({
     id: 'tab:close',
     title: 'Close tab',
     group: 'Tabs',
@@ -229,26 +221,24 @@ export function buildActionCommands(s: Store): Command[] {
       run: () => s.cycleTab(-1),
     })
   }
-  if (s.navAt > 0) {
-    cmds.push({
-      id: 'tab:back',
-      title: 'Back to the previous page',
-      group: 'Tabs',
-      shortcut: 'Mouse back',
-      candidate: { name: 'Back', keywords: 'previous history page undo navigation route' },
-      run: () => s.stepHistory(-1),
-    })
-  }
-  if (s.navAt < s.nav.length - 1) {
-    cmds.push({
-      id: 'tab:forward',
-      title: 'Forward to the next page',
-      group: 'Tabs',
-      shortcut: 'Mouse forward',
-      candidate: { name: 'Forward', keywords: 'next history page redo navigation route' },
-      run: () => s.stepHistory(1),
-    })
-  }
+  cmds.push({
+    id: 'page:back',
+    title: 'Go back',
+    subtitle: 'To the previous page in the main panel, across tabs',
+    group: 'Pages',
+    shortcut: 'Alt+←',
+    candidate: { name: 'Go back', keywords: 'previous history page undo navigation route mouse' },
+    run: () => s.stepHistory(-1),
+  })
+  cmds.push({
+    id: 'page:forward',
+    title: 'Go forward',
+    subtitle: 'To the next page in the main panel, across tabs',
+    group: 'Pages',
+    shortcut: 'Alt+→',
+    candidate: { name: 'Go forward', keywords: 'next history page redo navigation route mouse' },
+    run: () => s.stepHistory(1),
+  })
 
   cmds.push({
     id: 'connection:new',
@@ -326,18 +316,26 @@ export function buildActionCommands(s: Store): Command[] {
     },
   })
 
-  cmds.push({
-    id: 'tray:toggle',
-    title: s.trayOpen ? 'Hide the activity tray' : 'Show running queries',
-    subtitle: 'In-flight queries, with elapsed time and cancel',
-    group: 'Query',
-    shortcut: 'Ctrl+`',
-    candidate: {
-      name: 'Running queries',
-      keywords: 'activity tray monitor cancel kill progress loading elapsed',
-    },
-    run: () => s.setTrayOpen(!s.trayOpen),
-  })
+  cmds.push(
+    ...paneCommands({
+      id: 'left',
+      label: 'left pane',
+      what: 'tab strip',
+      open: !s.settings.tabStripHidden,
+      set: (open) => s.setTabStrip(open),
+      shortcut: 'Ctrl+B',
+      keywords: 'sidebar tabs vertical',
+    }),
+    ...paneCommands({
+      id: 'bottom',
+      label: 'bottom pane',
+      what: 'activity tray',
+      open: s.trayOpen,
+      set: (open) => s.setTrayOpen(open),
+      shortcut: 'Ctrl+`',
+      keywords: 'running queries monitor cancel kill progress loading elapsed history',
+    }),
+  )
 
   cmds.push({
     id: 'app:startup-timing',
@@ -837,4 +835,53 @@ export function formatDuration(ms: number): string {
   if (ms < 60_000) return `${(ms / 1000).toFixed(1)}s`
   const mins = Math.floor(ms / 60_000)
   return `${mins}m ${Math.round((ms % 60_000) / 1000)}s`
+}
+
+/**
+ * Show, Hide and Toggle for one pane. Every pane gets the same three so the
+ * palette answers "hide the left pane" the same way for each, and Show / Hide
+ * only appear when they would do something. A pane with no content yet (there
+ * is no right or top pane) gets none: a command that toggles nothing is noise.
+ */
+function paneCommands(p: {
+  id: string
+  label: string
+  what: string
+  open: boolean
+  set: (open: boolean) => void
+  shortcut: string
+  keywords: string
+}): Command[] {
+  const keywords = `pane panel show hide toggle ${p.id} ${p.what} ${p.keywords}`
+  const cmds: Command[] = [
+    {
+      id: `pane:${p.id}:toggle`,
+      title: `Toggle ${p.label}`,
+      subtitle: p.what,
+      group: 'Panes',
+      shortcut: p.shortcut,
+      candidate: { name: `Toggle ${p.label}`, keywords },
+      run: () => p.set(!p.open),
+    },
+  ]
+  cmds.push(
+    p.open
+      ? {
+          id: `pane:${p.id}:hide`,
+          title: `Hide ${p.label}`,
+          subtitle: p.what,
+          group: 'Panes',
+          candidate: { name: `Hide ${p.label}`, keywords },
+          run: () => p.set(false),
+        }
+      : {
+          id: `pane:${p.id}:show`,
+          title: `Show ${p.label}`,
+          subtitle: p.what,
+          group: 'Panes',
+          candidate: { name: `Show ${p.label}`, keywords },
+          run: () => p.set(true),
+        },
+  )
+  return cmds
 }
