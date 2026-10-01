@@ -19,7 +19,8 @@ re-opening one each time, losing its filter, sort, page and selection.
   editor and details page, which are views inside the tab. A tab may be on a
   different connection or database from its neighbours.
 - **A tab with nothing open is the picker.** Connections, databases and tables
-  are three columns in the main pane, filling left to right. It is what a new
+  is a centred three-step accordion in the main pane (connection, database,
+  table), each step collapsing to a summary as the next opens. It is what a new
   tab shows, and what the app starts on.
 - **`Ctrl+P` retargets the current tab.** `Ctrl+T` opens a new picker tab,
   `Ctrl+W` closes, `Ctrl+Tab` / `Ctrl+Shift+Tab` cycle, `Ctrl+B` shows or hides

@@ -166,7 +166,8 @@ because inside a palette it is already the emacs-style move-up binding.
 The left rail is a vertical tab strip (ADR 0006). A tab is a workspace: one
 table, its filter, sort, page and selection, plus that tab's own SQL editor and
 details page. A tab with nothing open shows the picker — connections,
-databases and tables as three columns that fill left to right — so opening a
+databases and tables as a centred three-step accordion that collapses each
+step as the next opens — so opening a
 new tab, and the app's first screen, are the same thing.
 
 The store keeps one flat set of "active" fields and nearly every component

@@ -3,7 +3,7 @@ import { ContextMenu, Dialog, dialogButton, type MenuItem } from '../ui'
 import type { Connection } from '../types'
 
 /**
- * Wraps a sidebar connection row in its right-click menu.
+ * Wraps a connection row in its right-click menu.
  *
  * The menu owns its own open state inside the adapter layer, so nothing about
  * mouse position or menu visibility lives in the store.
@@ -18,9 +18,8 @@ export function ConnectionMenu({
   const connectedIds = useStore((s) => s.connectedIds)
   const connect = useStore((s) => s.connect)
   const disconnect = useStore((s) => s.disconnect)
-  const deleteConnection = useStore((s) => s.deleteConnection)
+  const removeConnection = useStore((s) => s.removeConnection)
   const setDialog = useStore((s) => s.setDialog)
-  const confirmDestructive = useStore((s) => s.settings.confirmDestructive)
 
   const isConnected = connectedIds.includes(connection.id)
 
@@ -41,10 +40,7 @@ export function ConnectionMenu({
     {
       label: 'Remove',
       danger: true,
-      onSelect: () => {
-        if (confirmDestructive) setDialog({ kind: 'confirmDelete', connection })
-        else void deleteConnection(connection.id)
-      },
+      onSelect: () => removeConnection(connection),
     },
   ]
 

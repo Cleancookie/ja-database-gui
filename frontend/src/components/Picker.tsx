@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { describeConnection, formatCount, objectCandidate, OBJECT_ICON, qualifiedName } from '../commands'
 import { tableKey } from '../edits'
 import { rankCandidates } from '../fuzzy'
@@ -27,14 +27,27 @@ const GROUP_LABEL: Record<ObjectType, string> = {
 const INPUT =
   'w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-2 py-1 outline-none placeholder:text-[var(--color-faint)]'
 const PILL = 'rounded-lg bg-[var(--color-accent-dim)]/55'
+const ICON_BUTTON =
+  'relative shrink-0 rounded-full px-2 leading-6 text-[var(--color-faint)] opacity-40 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)]'
+
+type StepId = 'connection' | 'database' | 'table'
+
+const HEADLINE: Record<StepId, string> = {
+  connection: 'Choose a connection',
+  database: 'Choose a database',
+  table: 'Choose a table',
+}
 
 /**
- * What a tab with nothing open shows: connection, then database, then table,
- * as three columns that fill left to right. Picking in one column reveals the
- * next, so the whole path stays visible and any step can be redone by clicking
- * back in an earlier column.
+ * What a tab with nothing open shows: a three-step accordion, connection, then
+ * database, then table, centred under a line saying what to do.
  *
- * Memoised and propless for the same reason the sidebar it replaces was: the
+ * Choosing in a step collapses it to a one-line summary and opens the next, so
+ * the path stays readable and the part that wants attention is the only part
+ * open. Any finished step can be reopened by clicking its header to redo it.
+ * A server with no databases to choose between (SQLite) skips the middle step.
+ *
+ * Memoised and propless for the same reason the sidebar it replaced was: the
  * object list is not virtualised, and none of its cost is ever the reason a
  * parent re-rendered.
  */
@@ -46,13 +59,36 @@ export const Picker = memo(function Picker() {
   const databases = useStore((s) => s.databases)
   const activeDatabase = useStore((s) => s.activeDatabase)
   const objects = useStore((s) => s.objects)
+  const busy = useStore((s) => s.busy)
   const connect = useStore((s) => s.connect)
   const selectDatabase = useStore((s) => s.selectDatabase)
   const openObject = useStore((s) => s.openObject)
+  const removeConnection = useStore((s) => s.removeConnection)
   const setDialog = useStore((s) => s.setDialog)
 
   const [objectQuery, setObjectQuery] = useState('')
   const [dbQuery, setDbQuery] = useState('')
+
+  const hasDatabaseStep = !!activeConnectionId && !!capabilities?.serverHostsDatabases
+  const deepest: StepId = !activeConnectionId ? 'connection' : 'table'
+  const [step, setStep] = useState<StepId>(deepest)
+
+  // A connection chosen here moves on to the next step. Done on the change, not
+  // on mount: coming back to the picker with a table list already loaded should
+  // land on the tables, not replay the choice.
+  const lastConnection = useRef(activeConnectionId)
+  useEffect(() => {
+    if (lastConnection.current === activeConnectionId) return
+    lastConnection.current = activeConnectionId
+    if (activeConnectionId) setStep(hasDatabaseStep ? 'database' : 'table')
+    else setStep('connection')
+  }, [activeConnectionId, hasDatabaseStep])
+
+  // The row being connected to, so the click is acknowledged while it waits.
+  const [pending, setPending] = useState<string | null>(null)
+  useEffect(() => {
+    if (!busy) setPending(null)
+  }, [busy])
 
   const matched = useMemo(
     () =>
@@ -75,236 +111,354 @@ export const Picker = memo(function Picker() {
     [databases, dbQuery],
   )
 
-  const showDatabases = !!activeConnectionId && !!capabilities?.serverHostsDatabases
+  const tableFilter = useRef<HTMLInputElement>(null)
+  const dbFilter = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    // After the step has started opening, so the field exists and is on screen.
+    const id = requestAnimationFrame(() => {
+      if (step === 'table') tableFilter.current?.focus()
+      if (step === 'database') dbFilter.current?.focus()
+    })
+    return () => cancelAnimationFrame(id)
+  }, [step])
 
-  // Enter in the filter opens the best match, so a table is reachable without
+  // Enter in a filter takes the best match, so a path is reachable without
   // leaving the keyboard: type a few letters, Enter.
   const openFirst = () => {
     const first = matched.find((o) => o.type === 'table' || o.type === 'view')
     if (first) void openObject(first)
   }
+  const pickDatabase = (d: string) => {
+    void selectDatabase(d)
+    setStep('table')
+  }
+
+  const activeConnection = connections.find((c) => c.id === activeConnectionId)
 
   return (
-    <div className="chrome flex h-full min-h-0">
-      <Column
-        label="Connections"
-        count={connections.length}
-        action={{
-          label: '+',
-          title: 'New connection',
-          onClick: () => setDialog({ kind: 'connection', connection: null }),
-        }}
-      >
-        <Highlight className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2" pillClassName={PILL}>
-          {connections.length === 0 && (
-            <p className="px-1.5 py-2 leading-relaxed text-[var(--color-faint)]">
-              No connections yet. Press{' '}
-              <kbd className="rounded-lg border border-[var(--color-border-strong)] px-1">
-                Ctrl+Shift+P
-              </kbd>{' '}
-              and choose “New connection”.
-            </p>
-          )}
-          {connections.map((c) => {
-            const active = c.id === activeConnectionId
-            return (
-              <ConnectionMenu key={c.id} connection={c}>
-                <button
-                  onClick={() => connect(c.id)}
-                  data-highlight={active || undefined}
-                  className={`relative flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
-                    active ? 'font-bold' : 'hover:bg-[var(--color-elevated)] hover:shadow-xs'
-                  }`}
-                >
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full ring-2 ring-white"
-                    style={{
-                      background:
-                        c.colour ||
-                        (connectedIds.includes(c.id)
-                          ? 'var(--color-success)'
-                          : 'var(--color-border-strong)'),
-                    }}
-                    title={connectedIds.includes(c.id) ? 'connected' : 'not connected'}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{c.name}</span>
-                    <span className="block truncate text-[var(--color-faint)]">
-                      {describeConnection(c.kind, c.host, c.file)}
-                    </span>
-                  </span>
-                </button>
-              </ConnectionMenu>
-            )
-          })}
-        </Highlight>
-      </Column>
+    <div className="chrome flex h-full min-h-0 flex-col items-center overflow-y-auto px-4 pt-[8vh] pb-8">
+      <div className="flex w-full max-w-xl flex-col gap-5">
+        <header className="text-center">
+          <h1 className="font-bold text-[var(--color-text)]">{HEADLINE[step]}</h1>
+          <p className="mt-1 text-[var(--color-muted)]">
+            or press{' '}
+            <kbd className="rounded-lg border border-[var(--color-border-strong)] px-1.5">Ctrl+P</kbd>{' '}
+            to jump to a table from anywhere
+          </p>
+        </header>
 
-      {showDatabases && (
-        <Column label="Databases" count={databases.length}>
-          {databases.length > 8 && (
-            <div className="px-2 pb-1">
-              <input
-                value={dbQuery}
-                onChange={(e) => setDbQuery(e.target.value)}
-                placeholder="Filter databases…"
-                spellCheck={false}
-                aria-label="Filter databases"
-                className={INPUT}
-              />
-            </div>
-          )}
-          <Highlight className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2" pillClassName={PILL}>
-            {visibleDatabases.map((d) => (
-              <button
-                key={d}
-                onClick={() => selectDatabase(d)}
-                title={d}
-                data-highlight={d === activeDatabase || undefined}
-                className={`relative flex w-full items-center gap-1.5 rounded-lg px-2 py-[0.2rem] text-left ${
-                  d === activeDatabase
-                    ? 'font-bold'
-                    : 'hover:bg-[var(--color-elevated)] hover:shadow-xs'
-                }`}
-              >
-                <span className="shrink-0 text-[var(--color-faint)]">▪</span>
-                <span className="min-w-0 flex-1 truncate">{d}</span>
-              </button>
-            ))}
-          </Highlight>
-        </Column>
-      )}
-
-      {activeConnectionId ? (
-        <Column label="Objects" count={objects.length} wide last>
-          <div className="px-2 pb-1">
-            <input
-              value={objectQuery}
-              onChange={(e) => setObjectQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  openFirst()
-                }
-              }}
-              placeholder="Filter objects…  (Enter opens the first match)"
-              spellCheck={false}
-              aria-label="Filter objects"
-              // Keyboard-first: the path is chosen, the next thing is typing a name.
-              autoFocus
-              className={INPUT}
-            />
-          </div>
-          <Highlight className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-3" pillClassName={PILL}>
-            {objects.length === 0 && (
-              <p className="px-1.5 py-2 text-[var(--color-faint)]">No objects</p>
-            )}
-            <ObjectListMenu>
-              {GROUP_ORDER.map((type) => {
-                const list = grouped.get(type)
-                if (!list || list.length === 0) return null
+        <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-elevated)] shadow-sm">
+          <Step
+            n={1}
+            label="Connection"
+            summary={activeConnection?.name}
+            colour={activeConnection?.colour}
+            open={step === 'connection'}
+            enabled
+            onOpen={() => setStep('connection')}
+          >
+            <Highlight className="max-h-[min(22rem,45vh)] overflow-y-auto px-1.5 pb-1.5" pillClassName={PILL}>
+              {connections.length === 0 && (
+                <p className="px-2 py-3 leading-relaxed text-[var(--color-faint)]">
+                  No connections yet. Add one to get started.
+                </p>
+              )}
+              {connections.map((c) => {
+                const active = c.id === activeConnectionId
+                const connected = connectedIds.includes(c.id)
                 return (
-                  <section key={type} className="mt-2">
-                    <h3 className="flex items-center gap-1.5 px-2 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase">
-                      {GROUP_LABEL[type]}
-                      <span
-                        className="rounded-full px-1.5 font-semibold text-[var(--color-text)]/70"
-                        style={{ background: GROUP_TINT[type] }}
+                  <ConnectionMenu key={c.id} connection={c}>
+                    <div
+                      data-highlight={active || undefined}
+                      className={`group relative flex items-center gap-1 rounded-xl ${
+                        active ? 'font-bold' : 'hover:bg-[var(--color-panel)]'
+                      }`}
+                    >
+                      <button
+                        onClick={() => {
+                          setPending(c.id)
+                          void connect(c.id)
+                        }}
+                        className="relative flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left"
                       >
-                        {list.length}
-                      </span>
-                    </h3>
-                    {list.map((o) => {
-                      const qualified = qualifiedName(o)
-                      return (
-                        <button
-                          key={`${type}:${qualified}`}
-                          onClick={() => openObject(o)}
-                          title={qualified}
-                          data-object={objectKey(o)}
-                          className="relative flex w-full items-center gap-1.5 rounded-lg px-2 py-[0.2rem] text-left hover:bg-[var(--color-elevated)] hover:shadow-xs"
-                        >
-                          <span className="shrink-0 text-[var(--color-faint)]">
-                            {OBJECT_ICON[o.type]}
+                        <span
+                          className="h-2.5 w-2.5 shrink-0 rounded-full"
+                          style={{
+                            background:
+                              c.colour ||
+                              (connected ? 'var(--color-success)' : 'var(--color-border-strong)'),
+                          }}
+                          title={connected ? 'connected' : 'not connected'}
+                        />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{c.name}</span>
+                          <span className="block truncate font-normal text-[var(--color-faint)]">
+                            {pending === c.id && busy
+                              ? 'Connecting…'
+                              : describeConnection(c.kind, c.host, c.file)}
                           </span>
-                          <span className="min-w-0 flex-1 truncate">{qualified}</span>
-                          {o.type === 'table' && (
-                            <TableMark
-                              tableKey={tableKey(activeConnectionId, {
-                                database: activeDatabase,
-                                schema: o.schema,
-                                name: o.name,
-                              })}
-                            />
-                          )}
-                          {o.rowEstimate != null && (
-                            <span
-                              className="shrink-0 text-[var(--color-faint)]"
-                              title="estimated row count"
-                            >
-                              ~{formatCount(o.rowEstimate)}
-                            </span>
-                          )}
-                        </button>
-                      )
-                    })}
-                  </section>
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => setDialog({ kind: 'connection', connection: c })}
+                        title={`Edit ${c.name}`}
+                        aria-label={`Edit ${c.name}`}
+                        className={ICON_BUTTON}
+                      >
+                        ✎
+                      </button>
+                      <button
+                        onClick={() => removeConnection(c)}
+                        title={`Remove ${c.name}`}
+                        aria-label={`Remove ${c.name}`}
+                        className={`${ICON_BUTTON} mr-1 hover:text-[var(--color-danger)]`}
+                      >
+                        ×
+                      </button>
+                    </div>
+                  </ConnectionMenu>
                 )
               })}
-            </ObjectListMenu>
-          </Highlight>
-        </Column>
-      ) : (
-        <div className="flex min-w-0 flex-1 flex-col items-center justify-center gap-3 text-[var(--color-muted)]">
-          <p className="font-bold text-[var(--color-text)]">Choose a connection</p>
-          <p>
-            <kbd className="rounded-lg border border-[var(--color-border-strong)] px-1.5">Ctrl+P</kbd>{' '}
-            works from anywhere to jump to a table
-          </p>
+            </Highlight>
+            <div className="border-t border-[var(--color-border)] px-1.5 py-1.5">
+              <button
+                onClick={() => setDialog({ kind: 'connection', connection: null })}
+                className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[var(--color-muted)] hover:bg-[var(--color-panel)] hover:text-[var(--color-accent)]"
+              >
+                <span className="w-2.5 shrink-0 text-center font-bold">+</span>
+                New connection…
+              </button>
+            </div>
+          </Step>
+
+          {hasDatabaseStep && (
+            <Step
+              n={2}
+              label="Database"
+              summary={activeDatabase || undefined}
+              open={step === 'database'}
+              enabled={!!activeConnectionId}
+              onOpen={() => setStep('database')}
+            >
+              {databases.length > 8 && (
+                <div className="px-3 pb-1">
+                  <input
+                    ref={dbFilter}
+                    value={dbQuery}
+                    onChange={(e) => setDbQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && visibleDatabases[0]) {
+                        e.preventDefault()
+                        pickDatabase(visibleDatabases[0])
+                      }
+                    }}
+                    placeholder="Filter databases…  (Enter picks the first)"
+                    spellCheck={false}
+                    aria-label="Filter databases"
+                    className={INPUT}
+                  />
+                </div>
+              )}
+              <Highlight className="max-h-[min(22rem,45vh)] overflow-y-auto px-1.5 pb-1.5" pillClassName={PILL}>
+                {visibleDatabases.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => pickDatabase(d)}
+                    title={d}
+                    data-highlight={d === activeDatabase || undefined}
+                    className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left ${
+                      d === activeDatabase ? 'font-bold' : 'hover:bg-[var(--color-panel)]'
+                    }`}
+                  >
+                    <span className="shrink-0 text-[var(--color-faint)]">▪</span>
+                    <span className="min-w-0 flex-1 truncate">{d}</span>
+                  </button>
+                ))}
+              </Highlight>
+            </Step>
+          )}
+
+          <Step
+            n={hasDatabaseStep ? 3 : 2}
+            label="Table"
+            hint={
+              activeConnectionId
+                ? `${formatCount(objects.length)} ${objects.length === 1 ? 'object' : 'objects'}`
+                : undefined
+            }
+            open={step === 'table'}
+            enabled={!!activeConnectionId}
+            onOpen={() => setStep('table')}
+            last
+          >
+            {activeConnectionId && (
+              <>
+                <div className="px-3 pb-1">
+                  <input
+                    ref={tableFilter}
+                    value={objectQuery}
+                    onChange={(e) => setObjectQuery(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault()
+                        openFirst()
+                      }
+                    }}
+                    placeholder="Filter objects…  (Enter opens the first match)"
+                    spellCheck={false}
+                    aria-label="Filter objects"
+                    className={INPUT}
+                  />
+                </div>
+                <Highlight
+                  className="max-h-[min(26rem,50vh)] overflow-y-auto px-1.5 pb-2"
+                  pillClassName={PILL}
+                >
+                  {objects.length === 0 && (
+                    <p className="px-2 py-2 text-[var(--color-faint)]">
+                      {busy ? 'Loading…' : 'No objects'}
+                    </p>
+                  )}
+                  <ObjectListMenu>
+                    {GROUP_ORDER.map((type) => {
+                      const list = grouped.get(type)
+                      if (!list || list.length === 0) return null
+                      return (
+                        <section key={type} className="mt-2">
+                          <h3 className="flex items-center gap-1.5 px-2.5 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase">
+                            {GROUP_LABEL[type]}
+                            <span
+                              className="rounded-full px-1.5 font-semibold text-[var(--color-text)]/70"
+                              style={{ background: GROUP_TINT[type] }}
+                            >
+                              {list.length}
+                            </span>
+                          </h3>
+                          {list.map((o) => {
+                            const qualified = qualifiedName(o)
+                            return (
+                              <button
+                                key={`${type}:${qualified}`}
+                                onClick={() => openObject(o)}
+                                title={qualified}
+                                data-object={objectKey(o)}
+                                className="relative flex w-full items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left hover:bg-[var(--color-panel)]"
+                              >
+                                <span className="shrink-0 text-[var(--color-faint)]">
+                                  {OBJECT_ICON[o.type]}
+                                </span>
+                                <span className="min-w-0 flex-1 truncate">{qualified}</span>
+                                {o.type === 'table' && (
+                                  <TableMark
+                                    tableKey={tableKey(activeConnectionId, {
+                                      database: activeDatabase,
+                                      schema: o.schema,
+                                      name: o.name,
+                                    })}
+                                  />
+                                )}
+                                {o.rowEstimate != null && (
+                                  <span
+                                    className="shrink-0 text-[var(--color-faint)]"
+                                    title="estimated row count"
+                                  >
+                                    ~{formatCount(o.rowEstimate)}
+                                  </span>
+                                )}
+                              </button>
+                            )
+                          })}
+                        </section>
+                      )
+                    })}
+                  </ObjectListMenu>
+                </Highlight>
+              </>
+            )}
+          </Step>
         </div>
-      )}
+      </div>
     </div>
   )
 })
 
-function Column({
+/**
+ * One accordion step. The body collapses by animating a grid row from 0fr to
+ * 1fr, which needs no measured height, and takes the same duration as the
+ * drawers so the whole app moves at one speed.
+ */
+function Step({
+  n,
   label,
-  count,
-  action,
-  wide = false,
+  summary,
+  hint,
+  colour,
+  open,
+  enabled,
+  onOpen,
   last = false,
   children,
 }: {
+  n: number
   label: string
-  count: number
-  action?: { label: string; title: string; onClick: () => void }
-  /** The table list takes the room the other two leave. */
-  wide?: boolean
+  /** What was chosen; its presence marks the step done. */
+  summary?: string
+  /** Shown when collapsed, without marking the step done. */
+  hint?: string
+  colour?: string
+  open: boolean
+  /** A step cannot be opened before the one it depends on is chosen. */
+  enabled: boolean
+  onOpen: () => void
   last?: boolean
   children: React.ReactNode
 }) {
+  const done = !!summary
   return (
-    <section
-      className={`flex min-h-0 min-w-0 flex-col ${wide ? 'flex-[2]' : 'flex-1'} ${
-        last ? '' : 'border-r border-[var(--color-border)]'
-      }`}
-    >
-      <header className="flex items-center">
-        <h2 className="flex flex-1 items-center gap-1 px-3 py-2.5 font-bold tracking-wider text-[var(--color-faint)] uppercase">
-          {label}
-          <span className="opacity-60">{count}</span>
-        </h2>
-        {action && (
-          <button
-            onClick={action.onClick}
-            title={action.title}
-            className="mr-2 rounded-full bg-[var(--color-elevated)] px-2 leading-6 font-bold text-[var(--color-muted)] shadow-xs hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)]"
+    <section className={last ? '' : 'border-b border-[var(--color-border)]'}>
+      <h2>
+        <button
+          onClick={onOpen}
+          disabled={!enabled}
+          aria-expanded={open}
+          className={`flex w-full items-center gap-3 px-4 py-3 text-left ${
+            enabled ? 'hover:bg-[var(--color-panel)]' : 'opacity-50'
+          }`}
+        >
+          <span
+            className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-bold ${
+              done
+                ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)]'
+                : open
+                  ? 'bg-[var(--color-accent-dim)] text-[var(--color-accent)]'
+                  : 'bg-[var(--color-panel)] text-[var(--color-faint)]'
+            }`}
           >
-            {action.label}
-          </button>
-        )}
-      </header>
-      {children}
+            {done && !open ? '✓' : n}
+          </span>
+          <span className="font-bold tracking-wider text-[var(--color-faint)] uppercase">{label}</span>
+          {!summary && hint && !open && (
+            <span className="ml-auto shrink-0 font-normal text-[var(--color-faint)]">{hint}</span>
+          )}
+          {summary && !open && (
+            <span className="ml-auto flex min-w-0 items-center gap-2 font-semibold text-[var(--color-text)]">
+              {colour && (
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: colour }} />
+              )}
+              <span className="truncate">{summary}</span>
+              <span className="shrink-0 font-normal text-[var(--color-faint)]">change</span>
+            </span>
+          )}
+        </button>
+      </h2>
+      <div
+        className={`grid transition-[grid-template-rows] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
+          open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
+        }`}
+        inert={!open}
+      >
+        <div className="min-h-0 overflow-hidden">{children}</div>
+      </div>
     </section>
   )
 }

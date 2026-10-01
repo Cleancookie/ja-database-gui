@@ -327,6 +327,8 @@ export interface State extends EditState, EditActions {
   selectSqlResult: (index: number) => void
   saveConnection: (c: Connection, password: string | null) => Promise<void>
   deleteConnection: (id: string) => Promise<void>
+  /** Removes a saved connection, asking first unless confirmations are off. */
+  removeConnection: (c: Connection) => void
   setPalette: (mode: PaletteMode | null) => void
   setDialog: (d: DialogState) => void
   /** Resolves a grid coordinate to a cell, or null if there is nothing there. */
@@ -1242,6 +1244,11 @@ export const useStore = create<State>((set, get) => {
       } catch (e) {
         get().pushToast('error', errorMessage(e))
       }
+    },
+
+    removeConnection(c) {
+      if (get().settings.confirmDestructive) set({ dialog: { kind: 'confirmDelete', connection: c } })
+      else void get().deleteConnection(c.id)
     },
 
     async deleteConnection(id) {
