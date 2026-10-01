@@ -17,11 +17,12 @@ import { FilterBar } from './FilterBar'
 import { NewTableDialog } from './NewTableDialog'
 import { ConfirmDropDialog, ConfirmTruncateDialog } from './ObjectMenu'
 import { Paginator } from './Paginator'
+import { Picker } from './Picker'
 import { ReviewChangesDialog } from './ReviewChangesDialog'
 import { SettingsDialog } from './SettingsDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
-import { Sidebar } from './Sidebar'
 import { SqlEditor } from './SqlEditor'
+import { TabStrip } from './TabStrip'
 import { Toasts } from './Toasts'
 
 export function App() {
@@ -58,7 +59,7 @@ export function App() {
     <div className="flex h-full flex-col">
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
-        <Sidebar />
+        <TabStrip />
 
         <main className="island flex min-w-0 flex-1 flex-col">
           {view === 'activity' ? (
@@ -89,7 +90,7 @@ export function App() {
               <Paginator />
             </>
           ) : (
-            <EmptyState />
+            <Picker />
           )}
         </main>
       </div>
@@ -127,40 +128,6 @@ export function App() {
 function Placeholder({ text }: { text: string }) {
   return (
     <div className="flex h-full items-center justify-center text-[var(--color-faint)]">{text}</div>
-  )
-}
-
-function Key({ children }: { children: React.ReactNode }) {
-  return (
-    <kbd className="rounded-lg border border-[var(--color-border-strong)] border-b-2 bg-[var(--color-elevated)] px-2 py-0.5 font-[var(--font-mono)] font-semibold text-[var(--color-text)] shadow-xs">
-      {children}
-    </kbd>
-  )
-}
-
-function EmptyState() {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-4 text-[var(--color-muted)]">
-      {/* Three overlapping pastel discs. It is doing no work beyond making the
-          first screen of the app look like somewhere pleasant to be, which on
-          an otherwise blank pane is work enough. */}
-      <div className="flex items-end -space-x-3" aria-hidden>
-        <span className="h-8 w-8 rounded-full bg-[var(--color-mint)]" />
-        <span className="h-11 w-11 rounded-full bg-[var(--color-lilac)]" />
-        <span className="h-8 w-8 rounded-full bg-[var(--color-peach)]" />
-      </div>
-      <p className="font-bold text-[var(--color-text)]">Nothing open yet</p>
-      {/* With no top bar, this is where the two palettes are advertised. It is
-          the first screen of a palette-first app, so it had better say how. */}
-      <div className="flex flex-col gap-2 rounded-2xl border border-[var(--color-border)] bg-[var(--color-elevated)] px-5 py-4 shadow-sm">
-        <p className="flex items-center gap-2">
-          <Key>Ctrl+P</Key> to open a connection, database or table
-        </p>
-        <p className="flex items-center gap-2">
-          <Key>Ctrl+Shift+P</Key> for settings and everything else
-        </p>
-      </div>
-    </div>
   )
 }
 
@@ -250,6 +217,25 @@ function useGlobalHotkeys() {
         return
       }
 
+      // Tabs. Ctrl+Tab and Ctrl+PageUp/PageDown cycle as in a browser; Ctrl+T and
+      // Ctrl+W open and close. The Tab key itself still means "transpose" below,
+      // which is why that rule insists on no modifier.
+      if (mod && (e.key === 'Tab' || e.key === 'PageDown' || e.key === 'PageUp')) {
+        e.preventDefault()
+        s.cycleTab(e.key === 'PageUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1)
+        return
+      }
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 't') {
+        e.preventDefault()
+        s.newTab()
+        return
+      }
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'w') {
+        e.preventDefault()
+        s.closeTab()
+        return
+      }
+
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         s.setView(s.view === 'activity' ? 'data' : 'activity')
@@ -328,8 +314,31 @@ function useGlobalHotkeys() {
       }
     }
 
+    // The side buttons of a mouse: 3 is back, 4 is forward. The webview would
+    // treat them as history navigation, of which this app has none, so they are
+    // claimed in the capture phase on every event of the press. They walk the
+    // active tab's own history; with Shift they move between tabs.
+    const onMouse = (e: MouseEvent) => {
+      if (e.button !== 3 && e.button !== 4) return
+      e.preventDefault()
+      if (e.type !== 'mouseup') return
+      const s = useStore.getState()
+      if (s.palette !== null || s.dialog.kind !== 'none') return
+      const delta = e.button === 3 ? -1 : 1
+      if (e.shiftKey) s.cycleTab(delta)
+      else void s.stepHistory(delta)
+    }
+
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    for (const type of ['mousedown', 'mouseup', 'auxclick'] as const) {
+      window.addEventListener(type, onMouse, true)
+    }
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      for (const type of ['mousedown', 'mouseup', 'auxclick'] as const) {
+        window.removeEventListener(type, onMouse, true)
+      }
+    }
   }, [])
 }
 

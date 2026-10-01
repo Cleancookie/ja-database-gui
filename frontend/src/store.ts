@@ -93,9 +93,6 @@ export type PaletteMode = 'go' | 'do'
 /** Which pane fills the main area. */
 export type View = 'data' | 'sql' | 'activity' | 'details'
 
-/** Collapsible sidebar sections. */
-export type SectionKey = 'connections' | 'databases' | 'objects'
-
 export const DEFAULT_SETTINGS: Settings = {
   theme: DEFAULT_THEME,
   fontSizePx: FONT_SIZE_DEFAULT,
@@ -137,10 +134,9 @@ export interface State extends EditState, EditActions {
   /**
    * Objects opened this session, most recent first, as refKey strings.
    *
-   * There are no tabs in this app — deliberately — so switching back and forth
-   * happens through the palette, and the palette is only as good as its
-   * ordering. Alphabetical is useless for that: the two tables being compared
-   * are rarely neighbours in the alphabet.
+   * Tabs hold what is open, but Ctrl+P is still how a table gets opened, and
+   * the palette is only as good as its ordering. Alphabetical is useless for
+   * that: the two tables being compared are rarely neighbours in the alphabet.
    *
    * Session-only. Persisting it would mean a list of table names in the config
    * file for a need that is entirely about the last few minutes.
@@ -208,7 +204,6 @@ export interface State extends EditState, EditActions {
    *  Shared by the browser and the editor's result — Tab means the same thing
    *  wherever a grid is on screen. */
   transposed: boolean
-  collapsed: Record<SectionKey, boolean>
   settings: Settings
   activity: ActivityResult
   /** When the activity snapshot was taken, so the tray can tick its timers on
@@ -291,7 +286,6 @@ export interface State extends EditState, EditActions {
   newTable: (schema?: string) => void
   createTable: (spec: CreateTableSpec) => Promise<void>
 
-  toggleSection: (k: SectionKey) => void
   loadSettings: () => Promise<void>
   saveSettings: (s: Settings) => Promise<void>
   /** Steps the root font size by `delta` px, stopping at the bounds. */
@@ -536,7 +530,6 @@ export const useStore = create<State>((set, get) => {
     selection: null,
     view: 'data',
     transposed: false,
-    collapsed: { connections: false, databases: false, objects: false },
     settings: DEFAULT_SETTINGS,
     activity: { queries: [], sessions: [] },
     activityPolledAt: 0,
@@ -809,7 +802,7 @@ export const useStore = create<State>((set, get) => {
         s.pushToast('error', errorMessage(e))
         return
       }
-      // The row count in the sidebar is now wrong, and so is the grid if this is
+      // The row count in the picker is now wrong, and so is the grid if this is
       // the table on screen.
       await get().selectDatabase(get().activeDatabase)
       // The rows the staged edits point at are gone. The confirmation that got
@@ -977,10 +970,6 @@ export const useStore = create<State>((set, get) => {
       } else {
         s.pushToast('info', what)
       }
-    },
-
-    toggleSection(k) {
-      set({ collapsed: { ...get().collapsed, [k]: !get().collapsed[k] } })
     },
 
     async loadSettings() {
