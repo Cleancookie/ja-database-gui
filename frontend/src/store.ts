@@ -16,6 +16,7 @@ import {
 } from './storeEdits'
 import { mark, reportText } from './startup'
 import { applyTheme, DEFAULT_THEME } from './themes'
+import { blankFields, newTab as makeTab, snapshot, visit, type HistoryEntry, type Tab } from './tabs'
 import type {
   ActivityResult,
   Capabilities,
@@ -115,6 +116,14 @@ export interface State extends EditState, EditActions {
   drivers: Record<Kind, Capabilities> | null
   connections: Connection[]
   connectedIds: string[]
+
+  /**
+   * Open tabs, and which one the fields below belong to. See `tabs.ts`: the
+   * fields below are the active tab's live state, and every other tab holds a
+   * saved copy of the same set.
+   */
+  tabs: Tab[]
+  activeTabId: number
 
   // active connection
   activeConnectionId: string | null
@@ -223,6 +232,15 @@ export interface State extends EditState, EditActions {
   selectDatabase: (name: string) => Promise<void>
   openObject: (o: SchemaObject) => Promise<void>
   reload: () => Promise<void>
+  /** Opens a blank tab (the picker) and switches to it. */
+  newTab: () => void
+  /** Closes a tab, the active one by default. Closing the last leaves a blank one. */
+  closeTab: (id?: number) => void
+  switchTab: (id: number) => void
+  /** Moves to the next (+1) or previous (-1) tab, wrapping. */
+  cycleTab: (delta: number) => void
+  /** Mouse back / forward: walks the tables this tab has shown. */
+  stepHistory: (delta: number) => Promise<void>
   setFilter: (f: string) => void
   applyFilter: (f: string) => Promise<void>
   setPage: (p: number) => Promise<void>
@@ -318,6 +336,7 @@ export interface State extends EditState, EditActions {
  */
 let requestSeq = 0
 let toastSeq = 0
+let tabSeq = 1
 
 export const useStore = create<State>((set, get) => {
   /**
@@ -412,12 +431,83 @@ export const useStore = create<State>((set, get) => {
   const edits = createEditSlice(set, get, { tracked, fetchRows })
   const holdForDiscard = edits.holdForDiscard
 
+  const blank = () => blankFields(get().settings.defaultPageSize, get().settings.paginationEnabled)
+
+  /** The tab list with the live fields written into the active tab. */
+  function stashed(): Tab[] {
+    const s = get()
+    return s.tabs.map((t) =>
+      t.id === s.activeTabId ? { ...t, saved: snapshot(s), needsLoad: s.busy } : t,
+    )
+  }
+
+  /** Makes `tab` the active one, writing its saved fields over the live ones. */
+  function enter(tab: Tab, tabs: Tab[]) {
+    // A response still on its way was asked for by the tab being left.
+    requestSeq++
+    set({
+      ...(tab.saved ?? blank()),
+      tabs: tabs.map((t) => (t.id === tab.id ? { ...t, saved: null, needsLoad: false } : t)),
+      activeTabId: tab.id,
+      busy: false,
+      editing: null,
+    })
+    if (tab.needsLoad && tab.saved?.activeRef) void fetchRows()
+  }
+
+  /** Points the active tab at a table; `record` is false when history itself is doing the moving. */
+  async function openObjectAt(o: SchemaObject, record: boolean) {
+    const s = get()
+    if (!s.activeConnectionId) return
+    // Functions and procedures have no rows to browse. Selecting one in the
+    // palette should not blank the grid.
+    if (o.type === 'function' || o.type === 'procedure') {
+      s.pushToast('info', `${o.name} is a ${o.type} — open the SQL editor to call it`)
+      return
+    }
+    const ref = { database: s.activeDatabase, schema: o.schema, name: o.name }
+    const key = refKey(ref.database, ref.schema, ref.name)
+    const entry: HistoryEntry = { connectionId: s.activeConnectionId, ref }
+    set({
+      activeRef: ref,
+      // Moved to the front, and de-duplicated, so re-opening a table does not
+      // leave a stale copy further down the list.
+      recentObjects: [key, ...s.recentObjects.filter((k) => k !== key)].slice(0, RECENT_LIMIT),
+      ...(record
+        ? { tabs: s.tabs.map((t) => (t.id === s.activeTabId ? visit(t, entry) : t)) }
+        : {}),
+      // A new table starts clean: carrying a filter written for the previous
+      // table over would almost always be a syntax error.
+      filter: '',
+      orderBy: [],
+      sortChosen: false,
+      page: 1,
+      totalCount: null,
+      result: null,
+      view: 'data',
+    })
+    await fetchRows()
+  }
+
+  /** Brings the active tab to a history entry, reconnecting on the way if it has to. */
+  async function showEntry(e: HistoryEntry) {
+    const tabId = get().activeTabId
+    if (get().activeConnectionId !== e.connectionId) await get().connect(e.connectionId)
+    if (get().activeTabId !== tabId || get().activeConnectionId !== e.connectionId) return
+    if (get().activeDatabase !== e.ref.database) await get().selectDatabase(e.ref.database)
+    if (get().activeTabId !== tabId) return
+    const known = get().objects.find((o) => o.name === e.ref.name && o.schema === e.ref.schema)
+    await openObjectAt(known ?? { schema: e.ref.schema, name: e.ref.name, type: 'table' }, false)
+  }
+
   return {
     ...INITIAL_EDIT_STATE,
     ...edits.actions,
     drivers: null,
     connections: [],
     connectedIds: [],
+    tabs: [makeTab(1, null)],
+    activeTabId: 1,
     activeConnectionId: null,
     capabilities: null,
     databases: [],
@@ -502,17 +592,25 @@ export const useStore = create<State>((set, get) => {
     },
 
     async connect(id) {
+      const tabId = get().activeTabId
       set({ busy: true })
       try {
         const res = await tracked(() => api.connect(id))
         const databases = res.databases.map((d) => d.name)
         const active = res.defaultDatabase || databases[0] || ''
+        const connectedIds = Array.from(new Set([...get().connectedIds, id]))
+        // The user moved to another tab while this was connecting: the
+        // connection is open, but the tab they are looking at is not its to change.
+        if (get().activeTabId !== tabId) {
+          set({ connectedIds })
+          return
+        }
         set({
           activeConnectionId: id,
           capabilities: res.capabilities,
           databases,
           activeDatabase: active,
-          connectedIds: Array.from(new Set([...get().connectedIds, id])),
+          connectedIds,
           objects: [],
           activeRef: null,
           result: null,
@@ -542,6 +640,10 @@ export const useStore = create<State>((set, get) => {
       const stillActive = get().activeConnectionId === id
       set({
         connectedIds: get().connectedIds.filter((c) => c !== id),
+        // Other tabs on this connection have nothing left to show.
+        tabs: get().tabs.map((t) =>
+          t.saved?.activeConnectionId === id ? { ...t, saved: blank(), needsLoad: false } : t,
+        ),
         ...(stillActive
           ? {
               activeConnectionId: null,
@@ -561,9 +663,11 @@ export const useStore = create<State>((set, get) => {
     async selectDatabase(name) {
       const id = get().activeConnectionId
       if (!id) return
+      const tabId = get().activeTabId
       set({ activeDatabase: name, busy: true, objects: [] })
       try {
         const objects = await tracked(() => api.listObjects(id, name))
+        if (get().activeTabId !== tabId) return
         set({ objects, busy: false })
       } catch (e) {
         set({ busy: false })
@@ -572,31 +676,55 @@ export const useStore = create<State>((set, get) => {
     },
 
     async openObject(o) {
+      await openObjectAt(o, true)
+    },
+
+    newTab() {
+      const tab = makeTab(++tabSeq, blank())
+      enter(tab, [...stashed(), tab])
+    },
+
+    switchTab(id) {
+      if (id === get().activeTabId) return
+      const tabs = stashed()
+      const target = tabs.find((t) => t.id === id)
+      if (target) enter(target, tabs)
+    },
+
+    cycleTab(delta) {
+      const { tabs, activeTabId } = get()
+      if (tabs.length < 2) return
+      const i = tabs.findIndex((t) => t.id === activeTabId)
+      get().switchTab(tabs[(i + delta + tabs.length) % tabs.length].id)
+    },
+
+    closeTab(id) {
       const s = get()
-      if (!s.activeConnectionId) return
-      // Functions and procedures have no rows to browse. Selecting one in the
-      // palette should not blank the grid.
-      if (o.type === 'function' || o.type === 'procedure') {
-        s.pushToast('info', `${o.name} is a ${o.type} — open the SQL editor to call it`)
+      const target = id ?? s.activeTabId
+      const at = s.tabs.findIndex((t) => t.id === target)
+      if (at < 0) return
+      if (s.tabs.length === 1) {
+        const fresh = makeTab(++tabSeq, blank())
+        enter(fresh, [fresh])
         return
       }
-      const key = refKey(s.activeDatabase, o.schema, o.name)
-      set({
-        activeRef: { database: s.activeDatabase, schema: o.schema, name: o.name },
-        // Moved to the front, and de-duplicated, so re-opening a table does not
-        // leave a stale copy further down the list.
-        recentObjects: [key, ...s.recentObjects.filter((k) => k !== key)].slice(0, RECENT_LIMIT),
-        // A new table starts clean: carrying a filter written for the previous
-        // table over would almost always be a syntax error.
-        filter: '',
-        orderBy: [],
-        sortChosen: false,
-        page: 1,
-        totalCount: null,
-        result: null,
-        view: 'data',
-      })
-      await fetchRows()
+      const rest = s.tabs.filter((t) => t.id !== target)
+      if (target !== s.activeTabId) {
+        set({ tabs: rest })
+        return
+      }
+      // The tab being closed is dropped, not stashed.
+      enter(rest[Math.min(at, rest.length - 1)], rest)
+    },
+
+    async stepHistory(delta) {
+      const s = get()
+      const tab = s.tabs.find((t) => t.id === s.activeTabId)
+      if (!tab) return
+      const to = tab.at + delta
+      if (to < 0 || to >= tab.history.length) return
+      set({ tabs: s.tabs.map((t) => (t.id === tab.id ? { ...t, at: to } : t)) })
+      await showEntry(tab.history[to])
     },
 
     async reload() {
@@ -653,9 +781,11 @@ export const useStore = create<State>((set, get) => {
     async openDetails(ref) {
       const connID = get().activeConnectionId
       if (!connID) return
+      const tabId = get().activeTabId
       set({ view: 'details', detailLoading: true, detailError: null, detail: null })
       try {
         const detail = await api.describeObject(connID, ref)
+        if (get().activeTabId !== tabId) return
         set({ detail, detailLoading: false })
       } catch (e) {
         set({ detailError: String(e), detailLoading: false })
@@ -720,6 +850,29 @@ export const useStore = create<State>((set, get) => {
           view: 'data',
         })
       }
+      // Another tab may be showing the table that just went.
+      set({
+        tabs: get().tabs.map((t) =>
+          t.saved?.activeConnectionId === connectionId && sameRef(t.saved.activeRef, ref)
+            ? {
+                ...t,
+                saved: {
+                  ...t.saved,
+                  activeRef: null,
+                  result: null,
+                  columns: [],
+                  filter: '',
+                  orderBy: [],
+                  sortChosen: false,
+                  totalCount: null,
+                  selection: null,
+                  view: 'data',
+                },
+                needsLoad: false,
+              }
+            : t,
+        ),
+      })
       set({ ...forgetTable(get(), ref), recentObjects: get().recentObjects.filter((k) => k !== refKey(ref.database, ref.schema, ref.name)) })
       await get().selectDatabase(get().activeDatabase)
     },
