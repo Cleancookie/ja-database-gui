@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { focusFilter } from '../commands'
 import { isTypingTarget } from '../dom'
-import { activeSqlResult, useStore } from '../store'
+import { activeSqlResult, isInfinite, useStore } from '../store'
 import { ActivityPage } from './ActivityPage'
 import { TableDetailsPage } from './TableDetailsPage'
 import { ActivityTray, ConfirmCancelDialog } from './ActivityTray'
@@ -39,6 +39,8 @@ export function App() {
   const pageSize = useStore((s) => s.pageSize)
   const paginationEnabled = useStore((s) => s.paginationEnabled)
   const toggleSort = useStore((s) => s.toggleSort)
+  const loadMore = useStore((s) => s.loadMore)
+  const infinite = useStore(isInfinite)
   const openCell = useStore((s) => s.openCell)
   const cellMenu = useCellMenu('browse')
   // Stable, so the memoised grid is not re-rendered by an inline arrow every
@@ -80,7 +82,8 @@ export function App() {
                     columns={columns}
                     orderBy={orderBy}
                     onSort={onSort}
-                    rowOffset={paginationEnabled ? (page - 1) * pageSize : 0}
+                    rowOffset={paginationEnabled && !infinite ? (page - 1) * pageSize : 0}
+                    onEndReached={infinite ? loadMore : undefined}
                     onOpenCell={onOpenCell}
                     cellMenu={cellMenu}
                   />
@@ -302,13 +305,13 @@ function useGlobalHotkeys() {
         return
       }
 
-      if (mod && e.key === 'ArrowLeft' && s.paginationEnabled && s.page > 1) {
+      if (mod && e.key === 'ArrowLeft' && s.paginationEnabled && !isInfinite(s) && s.page > 1) {
         e.preventDefault()
         void s.setPage(s.page - 1)
         return
       }
 
-      if (mod && e.key === 'ArrowRight' && s.paginationEnabled && s.hasMore) {
+      if (mod && e.key === 'ArrowRight' && s.paginationEnabled && !isInfinite(s) && s.hasMore) {
         e.preventDefault()
         void s.setPage(s.page + 1)
         return

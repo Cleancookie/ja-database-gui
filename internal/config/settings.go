@@ -57,6 +57,12 @@ type Settings struct {
 	SqlEditorHeightPx int `json:"sqlEditorHeightPx"`
 	// TabStripHidden hides the tab strip down the left edge (Ctrl+B).
 	TabStripHidden bool `json:"tabStripHidden"`
+	// DrawerDurationMs is how long the tab strip and the activity tray take to
+	// slide. 0 turns the animation off.
+	DrawerDurationMs int `json:"drawerDurationMs"`
+	// InfiniteScroll loads the next page below the last when it scrolls into
+	// view, in place of the page controls.
+	InfiniteScroll bool `json:"infiniteScroll"`
 }
 
 // DefaultSettings is also the fallback for any field missing from disk.
@@ -76,6 +82,7 @@ func DefaultSettings() Settings {
 		SidebarWidthPx:     256,
 		TrayHeightPx:       260,
 		SqlEditorHeightPx:  160,
+		DrawerDurationMs:   260,
 	}
 }
 
@@ -106,6 +113,11 @@ func (s Settings) clamp() Settings {
 	}
 	if s.SqlEditorHeightPx < 64 || s.SqlEditorHeightPx > 720 {
 		s.SqlEditorHeightPx = d.SqlEditorHeightPx
+	}
+	// 0 is meaningful for the drawer too — no animation — so only a negative or
+	// absurd duration falls back.
+	if s.DrawerDurationMs < 0 || s.DrawerDurationMs > 2000 {
+		s.DrawerDurationMs = d.DrawerDurationMs
 	}
 	// 0 is meaningful here — it means "do not cap" — so only a negative or
 	// absurd value falls back.

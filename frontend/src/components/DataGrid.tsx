@@ -59,6 +59,12 @@ interface Props {
    * asked for the items of whichever cell was clicked.
    */
   cellMenu?: (rowIndex: number, colIndex: number) => MenuItem[]
+  /**
+   * Called when the last row is in view, so the next page can be appended
+   * below it. Called on every change that leaves it in view; the caller decides
+   * whether there is anything more to load.
+   */
+  onEndReached?: () => void
 }
 
 /**
@@ -92,6 +98,7 @@ function Grid({
   rowOffset = 0,
   onOpenCell,
   cellMenu,
+  onEndReached,
 }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   // The focused cell's own element, so the keyboard menu key can open the
@@ -235,6 +242,14 @@ function Grid({
     scrollMargin: gm.gutter,
   })
 
+  // `range` is what is on screen, without the overscan — the last row has to be
+  // actually visible, not merely rendered, or the next page would load a screen
+  // early.
+  const lastVisibleRow = virtualizer.range?.endIndex ?? -1
+  useEffect(() => {
+    if (!transposed && ed.rowCount > 0 && lastVisibleRow >= ed.rowCount - 1) onEndReached?.()
+  }, [transposed, lastVisibleRow, ed.rowCount, onEndReached])
+
   // Row height and column widths both change with the font size and with the
   // result, so both virtualisers have to remeasure or the old geometry sticks.
   useEffect(() => {
@@ -244,10 +259,14 @@ function Grid({
 
   // A new result set should start at the top, not wherever the last one was,
   // and a selection into rows that are no longer there means nothing.
+  //
+  // Keyed on the column list rather than the result: a page appended below
+  // keeps the list it had, so the user stays where they were, while a re-read
+  // brings a fresh one.
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0 })
     clearSelection()
-  }, [result, clearSelection])
+  }, [result.columns, clearSelection])
 
   // Keeps the focused cell on screen when it moved by keyboard, whole rather
   // than merely touching the edge. Both axes are worked out from the geometry
@@ -414,6 +433,7 @@ function Grid({
         menuItems={menuItems}
         menuHeading={menuHeading}
         ed={ed}
+        onEndReached={onEndReached}
       />
     )
   }
@@ -807,6 +827,7 @@ interface RecordsProps {
   menuItems: MenuItem[] | null
   menuHeading?: string
   ed: GridEdits
+  onEndReached?: () => void
 }
 
 /**
@@ -840,6 +861,7 @@ function RecordsGrid({
   menuItems,
   menuHeading,
   ed,
+  onEndReached,
 }: RecordsProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
@@ -873,7 +895,13 @@ function RecordsGrid({
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0, left: 0 })
-  }, [result])
+  }, [result.columns])
+
+  // Records run along the horizontal axis here, so the end is the last record.
+  const lastVisibleRecord = colV.range?.endIndex ?? -1
+  useEffect(() => {
+    if (ed.rowCount > 0 && lastVisibleRecord >= ed.rowCount - 1) onEndReached?.()
+  }, [lastVisibleRecord, ed.rowCount, onEndReached])
 
   // Where the focus went, on both axes at once: the row is a source column, the
   // column is a source row. One scroll of the shared element rather than two

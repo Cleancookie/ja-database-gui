@@ -325,6 +325,10 @@ export interface Settings {
   sqlEditorHeightPx: number
   /** Whether the tab strip is hidden (Ctrl+B). */
   tabStripHidden: boolean
+  /** Slide time of the tab strip and the activity tray, in ms. 0 is instant. */
+  drawerDurationMs: number
+  /** Load the next page when the last row scrolls into view. */
+  infiniteScroll: boolean
 }
 
 /**

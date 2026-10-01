@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { formatCount } from '../commands'
 import { parsePageSize } from '../pageSize'
-import { PAGE_SIZES, useStore } from '../store'
+import { isInfinite, PAGE_SIZES, useStore } from '../store'
 
 /**
  * Pagination controls: page size, page number, or switched off entirely.
@@ -21,6 +21,7 @@ export function Paginator() {
   const setPageSize = useStore((s) => s.setPageSize)
   const setPaginationEnabled = useStore((s) => s.setPaginationEnabled)
   const rowCap = useStore((s) => s.settings.rowCap)
+  const infinite = useStore(isInfinite)
 
   const [pageDraft, setPageDraft] = useState(String(page))
   useEffect(() => setPageDraft(String(page)), [page])
@@ -51,9 +52,11 @@ export function Paginator() {
   }
 
   const rowCount = result?.rows.length ?? 0
-  const firstRow = enabled ? (page - 1) * pageSize + 1 : 1
-  const lastRow = enabled ? firstRow + rowCount - 1 : rowCount
-  const lastPage = totalCount != null && enabled ? Math.max(1, Math.ceil(totalCount / pageSize)) : null
+  // With infinite scroll the rows on screen are the first through the last
+  // loaded, not one page of them.
+  const firstRow = enabled && !infinite ? (page - 1) * pageSize + 1 : 1
+  const lastRow = enabled && !infinite ? firstRow + rowCount - 1 : rowCount
+  const lastPage = totalCount != null && enabled && !infinite ? Math.max(1, Math.ceil(totalCount / pageSize)) : null
 
   const commitPage = () => {
     const n = Number.parseInt(pageDraft, 10)
@@ -114,47 +117,53 @@ export function Paginator() {
             )}
           </label>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => void setPage(1)}
-              disabled={page <= 1 || busy}
-              title="First page"
-              className="rounded-full px-2 py-0.5 disabled:opacity-30 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
-            >
-              «
-            </button>
-            <button
-              onClick={() => void setPage(page - 1)}
-              disabled={page <= 1 || busy}
-              title="Previous page (Ctrl+←)"
-              className="rounded-full px-2 py-0.5 disabled:opacity-30 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
-            >
-              ‹
-            </button>
-            <input
-              value={pageDraft}
-              onChange={(e) => setPageDraft(e.target.value)}
-              onBlur={commitPage}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  commitPage()
-                  e.currentTarget.blur()
-                }
-              }}
-              aria-label="Page number"
-              className="w-12 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-1 py-0.5 text-center outline-none"
-            />
-            {lastPage != null && <span className="text-[var(--color-faint)]">of {lastPage}</span>}
-            <button
-              onClick={() => void setPage(page + 1)}
-              disabled={!hasMore || busy}
-              title="Next page (Ctrl+→)"
-              className="rounded-full px-2 py-0.5 disabled:opacity-30 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
-            >
-              ›
-            </button>
-          </div>
+          {infinite ? (
+            <span className="text-[var(--color-faint)]">
+              {busy && rowCount > 0 ? 'Loading more…' : hasMore ? 'Scroll for more' : 'End of results'}
+            </span>
+          ) : (
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => void setPage(1)}
+                disabled={page <= 1 || busy}
+                title="First page"
+                className="rounded-full px-2 py-0.5 disabled:opacity-30 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
+              >
+                «
+              </button>
+              <button
+                onClick={() => void setPage(page - 1)}
+                disabled={page <= 1 || busy}
+                title="Previous page (Ctrl+←)"
+                className="rounded-full px-2 py-0.5 disabled:opacity-30 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
+              >
+                ‹
+              </button>
+              <input
+                value={pageDraft}
+                onChange={(e) => setPageDraft(e.target.value)}
+                onBlur={commitPage}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    commitPage()
+                    e.currentTarget.blur()
+                  }
+                }}
+                aria-label="Page number"
+                className="w-12 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-1 py-0.5 text-center outline-none"
+              />
+              {lastPage != null && <span className="text-[var(--color-faint)]">of {lastPage}</span>}
+              <button
+                onClick={() => void setPage(page + 1)}
+                disabled={!hasMore || busy}
+                title="Next page (Ctrl+→)"
+                className="rounded-full px-2 py-0.5 disabled:opacity-30 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
+              >
+                ›
+              </button>
+            </div>
+          )}
         </>
       ) : (
         <span className="rounded-full bg-[var(--color-warn-dim)] px-2.5 py-0.5 font-semibold text-[var(--color-warn)]">

@@ -574,6 +574,16 @@ export function buildActionCommands(s: Store): Command[] {
       candidate: { name: 'Pagination', keywords: 'paging limit all rows off on' },
       run: () => s.setPaginationEnabled(!s.paginationEnabled),
     })
+    cmds.push({
+      id: 'page:infinite',
+      title: s.settings.infiniteScroll ? 'Turn infinite scroll off' : 'Turn infinite scroll on',
+      subtitle: s.settings.infiniteScroll
+        ? 'Back to page controls'
+        : 'Load the next page below the last row as it scrolls into view',
+      group: 'Pagination',
+      candidate: { name: 'Infinite scroll', keywords: 'paging endless load more scroll append' },
+      run: () => s.saveSettings({ ...s.settings, infiniteScroll: !s.settings.infiniteScroll }),
+    })
     if (s.paginationEnabled) {
       for (const n of PAGE_SIZES) {
         if (n === s.pageSize) continue
@@ -585,7 +595,7 @@ export function buildActionCommands(s: Store): Command[] {
           run: () => s.setPageSize(n),
         })
       }
-      if (s.page > 1) {
+      if (!s.settings.infiniteScroll && s.page > 1) {
         cmds.push({
           id: 'page:prev',
           title: 'Previous page',
@@ -602,7 +612,7 @@ export function buildActionCommands(s: Store): Command[] {
           run: () => s.setPage(1),
         })
       }
-      if (s.hasMore) {
+      if (!s.settings.infiniteScroll && s.hasMore) {
         cmds.push({
           id: 'page:next',
           title: 'Next page',

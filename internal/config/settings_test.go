@@ -65,6 +65,35 @@ func TestSavedTextCapSurvivesADefaultChange(t *testing.T) {
 	}
 }
 
+// 0 ms is a real choice (no animation), so it must survive, while a file
+// written before the setting existed must get the default rather than 0.
+func TestDrawerDurationKeepsZeroButDefaultsWhenAbsent(t *testing.T) {
+	dir := t.TempDir()
+	zero := filepath.Join(dir, "zero.json")
+	if err := os.WriteFile(zero, []byte(`{"drawerDurationMs":0}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenSettings(zero)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := store.Get().DrawerDurationMs; got != 0 {
+		t.Errorf("a chosen 0 became %d", got)
+	}
+
+	older := filepath.Join(dir, "older.json")
+	if err := os.WriteFile(older, []byte(`{"fontSizePx":16}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err = OpenSettings(older)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := store.Get().DrawerDurationMs; got != DefaultSettings().DrawerDurationMs {
+		t.Errorf("a file predating the setting got %d, want the default", got)
+	}
+}
+
 // A theme id is a CSS selector on the other side, so an unknown one leaves the
 // UI with no palette at all — a settings file from a newer build, or a typo in
 // a hand-edited one, must land back on the default rather than on nothing.

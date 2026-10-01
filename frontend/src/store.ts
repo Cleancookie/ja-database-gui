@@ -117,6 +117,8 @@ export const DEFAULT_SETTINGS: Settings = {
   trayHeightPx: 260,
   sqlEditorHeightPx: 160,
   tabStripHidden: false,
+  drawerDurationMs: 260,
+  infiniteScroll: false,
 }
 
 export interface State extends EditState, EditActions {
@@ -244,6 +246,8 @@ export interface State extends EditState, EditActions {
   selectDatabase: (name: string) => Promise<void>
   openObject: (o: SchemaObject) => Promise<void>
   reload: () => Promise<void>
+  /** Infinite scroll: appends the next page below the rows on screen. */
+  loadMore: () => Promise<void>
   /** Opens a blank tab (the picker) and switches to it. */
   newTab: () => void
   /** Closes a tab, the active one by default. Closing the last leaves a blank one. */
@@ -343,6 +347,15 @@ export interface State extends EditState, EditActions {
 }
 
 /**
+ * Whether the browse grid grows downwards as it scrolls rather than turning
+ * pages. Needs pagination: it is the page size that sets how much each step
+ * loads, and with pagination off everything is already loaded.
+ */
+export function isInfinite(s: { settings: Settings; paginationEnabled: boolean }): boolean {
+  return s.settings.infiniteScroll && s.paginationEnabled
+}
+
+/**
  * Responses are matched against this counter before being applied. Paging
  * quickly, or retyping a filter, can leave an earlier request in flight;
  * without the guard a slow first response would overwrite a newer one and the
@@ -393,13 +406,27 @@ export const useStore = create<State>((set, get) => {
     }
   }
 
-  /** Fetches the current page and, separately, the total count. */
-  async function fetchRows() {
+  /**
+   * Fetches the current page and, separately, the total count.
+   *
+   * With infinite scroll, `page` counts the pages loaded so far and the rows are
+   * all of them: a read starts again from the top and asks for every page at
+   * once, so a refresh keeps what was on screen, and `append` asks for just the
+   * next one and adds it below.
+   */
+  async function fetchRows(append = false) {
     const s = get()
     if (!s.activeConnectionId || !s.activeRef) return
 
     const seq = ++requestSeq
     const { activeConnectionId, activeRef, filter, orderBy, sortChosen } = s
+    const infinite = isInfinite(s)
+    const rowCap = s.settings.rowCap
+    const pagination = !infinite
+      ? { enabled: s.paginationEnabled, page: s.page, pageSize: s.pageSize }
+      : append
+        ? { enabled: true, page: s.page + 1, pageSize: s.pageSize }
+        : { enabled: true, page: 1, pageSize: Math.min(s.pageSize * s.page, rowCap) }
     set({ busy: true })
 
     try {
@@ -410,14 +437,32 @@ export const useStore = create<State>((set, get) => {
           filter,
           orderBy,
           applyDefaultSort: !sortChosen,
-          pagination: {
-            enabled: s.paginationEnabled,
-            page: s.page,
-            pageSize: s.pageSize,
-          },
+          pagination,
         }),
       )
       if (seq !== requestSeq) return
+      const prev = get().result
+      if (append && infinite && prev) {
+        const rows = [...prev.rows, ...res.result.rows]
+        set({
+          result: {
+            ...prev,
+            rows,
+            truncated: res.result.truncated,
+            elapsedMs: res.result.elapsedMs,
+            truncatedCells: [
+              ...prev.truncatedCells,
+              ...res.result.truncatedCells.map((c) => ({ ...c, row: c.row + prev.rows.length })),
+            ],
+          },
+          page: s.page + 1,
+          // Stops at the row cap: past it the next read would be refused anyway.
+          hasMore: res.hasMore && rows.length < rowCap,
+          busy: false,
+        })
+        // The total has not changed, so it is not asked for again.
+        return
+      }
       set({
         result: res.result,
         columns: res.columns,
@@ -804,6 +849,12 @@ export const useStore = create<State>((set, get) => {
       await fetchRows()
     },
 
+    async loadMore() {
+      const s = get()
+      if (!isInfinite(s) || !s.hasMore || s.busy || !s.activeRef || s.view !== 'data') return
+      await fetchRows(true)
+    },
+
     setFilter(filter) {
       set({ filter })
     },
@@ -814,6 +865,8 @@ export const useStore = create<State>((set, get) => {
     },
 
     async setPage(p) {
+      // Pages do not turn when they all stack in one scroll.
+      if (isInfinite(get())) return
       const page = Math.max(1, p)
       if (page === get().page) return
       set({ page })
@@ -1387,5 +1440,6 @@ useStore.subscribe((s, prev) => {
  */
 function applyAppearance(s: Settings) {
   document.documentElement.style.fontSize = `${s.fontSizePx}px`
+  document.documentElement.style.setProperty('--drawer-duration', `${s.drawerDurationMs}ms`)
   applyTheme(s.theme)
 }

@@ -26,11 +26,13 @@ export function SettingsDialog() {
     // the whole question is what it looks like behind this dialog.
     if (p.fontSizePx != null) document.documentElement.style.fontSize = `${p.fontSizePx}px`
     if (p.theme != null) applyTheme(p.theme)
+    if (p.drawerDurationMs != null) setDrawerDuration(p.drawerDurationMs)
   }
 
   const cancel = () => {
     document.documentElement.style.fontSize = `${saved.fontSizePx}px`
     applyTheme(saved.theme)
+    setDrawerDuration(saved.drawerDurationMs)
     setDialog({ kind: 'none' })
   }
 
@@ -117,7 +119,36 @@ export function SettingsDialog() {
           />
         </Group>
 
+        <Group label="Behaviour">
+          <Row
+            label="Drawer animation"
+            hint="Milliseconds the tab strip and the activity tray take to slide. 0 turns it off."
+            control={
+              <input
+                type="number"
+                min={0}
+                max={2000}
+                step="any"
+                value={draft.drawerDurationMs}
+                onChange={(e) => patch({ drawerDurationMs: Number(e.target.value) })}
+                className={`${selectClass} w-28 text-right`}
+              />
+            }
+          />
+        </Group>
+
         <Group label="Browsing">
+          <Row
+            label="Infinite scroll"
+            hint="Load the next page below the last row as it scrolls into view, instead of paging. Only with pagination on."
+            control={
+              <input
+                type="checkbox"
+                checked={draft.infiniteScroll}
+                onChange={(e) => patch({ infiniteScroll: e.target.checked })}
+              />
+            }
+          />
           <Row
             label="Paginate by default"
             hint="Newly opened tables start paged"
@@ -223,6 +254,11 @@ export function SettingsDialog() {
 
     </FormDialog>
   )
+}
+
+/** Applied live, like the font size, so the effect can be seen before Save. */
+function setDrawerDuration(ms: number) {
+  document.documentElement.style.setProperty('--drawer-duration', `${Math.max(0, ms || 0)}ms`)
 }
 
 const selectClass =
