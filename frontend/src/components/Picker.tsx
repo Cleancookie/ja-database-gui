@@ -241,7 +241,7 @@ export const Picker = memo(function Picker() {
               onOpen={() => setStep('database')}
             >
               {databases.length > 8 && (
-                <div className="px-3 pb-1">
+                <div className="px-3 py-1">
                   <input
                     ref={dbFilter}
                     value={dbQuery}
@@ -293,7 +293,7 @@ export const Picker = memo(function Picker() {
           >
             {activeConnectionId && (
               <>
-                <div className="px-3 pb-1">
+                <div className="px-3 py-1">
                   <input
                     ref={tableFilter}
                     value={objectQuery}
