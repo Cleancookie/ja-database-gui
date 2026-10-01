@@ -507,7 +507,8 @@
 
   body {
     margin: 0;
-    background: var(--color-bg);
+    /* The gutter between islands; see `.island`. */
+    background: var(--color-panel);
     color: var(--color-text);
     font-family: var(--font-sans);
     /* Everything inherits this. No component sets its own size — see @theme. */
@@ -762,5 +763,21 @@
   }
   button:not(:disabled):active {
     transform: none;
+  }
+}
+
+/*
+ * Islands. The window is a gutter (`--color-panel`, which every theme already
+ * keeps a step off the page colour) with the sidebar, the main pane and the
+ * activity tray floating on it as rounded cards. A component opts in with the
+ * class; nothing here knows about a particular theme.
+ */
+@layer components {
+  .island {
+    overflow: hidden;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    background: var(--color-bg);
+    box-shadow: var(--shadow-xs);
   }
 }

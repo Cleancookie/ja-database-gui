@@ -89,7 +89,7 @@ export function ActivityTray() {
         (status.cancelling > 0 ? ` · ${status.cancelling} cancelling` : '')
 
   return (
-    <div className="chrome relative shrink-0 border-t border-[var(--color-border)] bg-[var(--color-panel)]">
+    <div className="chrome relative shrink-0">
       {open && (
         <div
           // Height is inline because it is dragged. Capped by the viewport as
@@ -97,7 +97,7 @@ export function ActivityTray() {
           // bury the grid on a small one.
           style={{ height: `min(${resize.size}px, 80vh)` }}
           // z-30: above the grid's sticky headers (z-20), below dialogs (z-40).
-          className="absolute inset-x-0 bottom-full z-30 flex flex-col border-t border-[var(--color-border)] bg-[var(--color-panel)] shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)]"
+          className="island absolute inset-x-2 bottom-full z-30 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)]"
         >
           {/* Dragging the top edge upwards makes the tray taller, hence invert. */}
           <Resizer {...resize} axis="y" invert label="Resize the activity tray" className="top-0" />

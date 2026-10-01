@@ -76,7 +76,7 @@ export const Sidebar = memo(function Sidebar() {
     // out of the indentation of everything below.
     <aside
       style={{ width: resize.size }}
-      className={`chrome relative flex shrink-0 flex-col overflow-hidden border-r border-[var(--color-border)] bg-[var(--color-panel)] ${
+      className={`chrome island relative flex shrink-0 flex-col ${
         resize.dragging ? '' : 'transition-[width] duration-75'
       }`}
     >
