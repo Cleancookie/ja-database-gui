@@ -123,8 +123,9 @@ reverse; dropping was not.
 
 ## Two palettes, and no top bar
 
-There is no menu bar, toolbar or header. The window is sidebar, content, and the
-activity tray along the bottom. Everything that was in the old top bar — the
+There is no menu bar, toolbar or header. The window is a vertical tab strip,
+content, and the activity tray along the bottom — each a rounded island on a
+gutter (`.island` in `index.css`). Everything that was in the old top bar — the
 palette button, the settings cog, the busy indicator, the active table name —
 moved to where it belongs or to a palette entry, because a permanent strip of
 three buttons is ornament in an app driven from the keyboard.
@@ -160,11 +161,28 @@ the palette moves on `Ctrl+J`/`K` too, so one movement pair works everywhere.
 `Ctrl+Shift+P` also switches between the two while one is open; `Ctrl+P` cannot,
 because inside a palette it is already the emacs-style move-up binding.
 
-## No tabs, so the palette remembers
+## Tabs, and a palette that remembers
 
-Objects are offered most-recently-opened first, in a `Recent` group above the
-rest of the catalogue. This is what stands in for tabs, which the app
-deliberately does not have: alphabetical order is no help when switching between
+The left rail is a vertical tab strip (ADR 0006). A tab is a workspace: one
+table, its filter, sort, page and selection, plus that tab's own SQL editor and
+details page. A tab with nothing open shows the picker — connections,
+databases and tables as three columns that fill left to right — so opening a
+new tab, and the app's first screen, are the same thing.
+
+The store keeps one flat set of "active" fields and nearly every component
+reads them directly. A tab is a saved copy of that set (`frontend/src/tabs.ts`):
+switching stashes the live fields into the tab being left and writes the other
+tab's back. Staged edits, the recent list, settings, dialogs and the activity
+tray are global. A response meant for a tab the user has left is dropped (row
+fetches by the existing sequence counter, connect / database / details by a
+check of the active tab), and a tab left mid-load reloads when returned to.
+
+`Ctrl+P` retargets the *current* tab; open tabs appear in the same palette as a
+`Tabs` group to jump to. The mouse back / forward buttons walk the tab's own
+history of tables (Shift: between tabs).
+
+Objects are still offered most-recently-opened first, in a `Recent` group above
+the rest of the catalogue. Alphabetical order is no help when switching between
 two tables, since the two being compared are rarely neighbours in the alphabet.
 
 Recency is a **bias**, not a sort key (`frontend/src/recency.ts`), which is what

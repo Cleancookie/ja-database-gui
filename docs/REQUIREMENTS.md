@@ -288,9 +288,9 @@ route to an action, never a second implementation.
 
 | Question | Choice |
 | --- | --- |
-| Cause of the lag | `useCellMenu` subscribed to the *selection*. It is held by `App` and by `SqlEditor`, so every cell click re-rendered the whole shell — sidebar included, and the sidebar's object list is unvirtualised with one Radix menu root per table. Moving a one-cell highlight was doing a few hundred menu roots' worth of work |
+| Cause of the lag | `useCellMenu` subscribed to the *selection*. It is held by `App` and by `SqlEditor`, so every cell click re-rendered the whole shell — sidebar included (now the tab strip and picker), and the sidebar's object list is unvirtualised with one Radix menu root per table. Moving a one-cell highlight was doing a few hundred menu roots' worth of work |
 | Fix | The hook reads the store with `getState` and returns a builder that is stable for the life of the component. Correct because the builder only ever runs while the menu is rendering, so `getState` is already current state |
-| Second fix | `Sidebar` is `memo`'d. It takes no props and is the most expensive thing on screen, so no parent re-render should ever cost anything |
+| Second fix | `Sidebar` (now `Picker`, and `TabStrip`) is `memo`'d. It takes no props and is the most expensive thing on screen, so no parent re-render should ever cost anything |
 | Double-click | No longer opens the cell viewer. It selects the text inside the cell, which is what a double-click means everywhere else |
 | How the viewer is reached now | `Enter`, the platform menu key, and **Open in cell viewer** at the top of the right-click menu — which was already there from the 2026-08-17 session, so nothing new was added, only the double-click removed |
 
@@ -487,7 +487,7 @@ User feedback on the first pass, all taken.
 | The review | One dialog, grouped by table, statements numbered by their flat index (that is what a conflict names). Each shows `Statement.short`; "Show full" mounts the whole `display` in a scrollable box on request, "Copy SQL" copies it without showing it, and chips give each column's character count, NULL or DEFAULT |
 | Big values | `F2` opens `CellEditDialog` — near-full-window CodeMirror with line numbers, wrapping and JSON highlighting — for a value over 200 characters, with a newline, in a json/xml column, or capped; `Shift+F2` forces it. The document stays in CodeMirror and is read once on Stage. A capped cell shows a loading state and never edits truncated text |
 | JSON in the editor | Valid/invalid readout, Format and Minify. Those rewrite only the whitespace between tokens (`reformatJson`): parse-and-stringify would round a 20-digit integer, turn `1.0` into `1` and drop a repeated key. Only a json/jsonb column refuses to stage invalid JSON; a text column may hold anything |
-| Markers | Dirty cells as before; a gutter dot on rows (accent edit, red delete, green new) in both orientations; a dot on each sidebar table through `TableMark`, which subscribes to a boolean for its own key so staging re-renders only the row that flipped; `Go to next changed table` in the palette and on the status label |
+| Markers | Dirty cells as before; a gutter dot on rows (accent edit, red delete, green new) in both orientations; a dot on each picker table and each tab through `TableMark`, which subscribes to a boolean for its own key so staging re-renders only the row that flipped; `Go to next changed table` in the palette and on the status label |
 | Esc in the big editor | With unsaved text it asks once, inline in the dialog rather than in a second modal |
 
 Measured on a 4000-table SQLite file: staging five cell edits re-rendered no
@@ -514,6 +514,26 @@ fire there; it needs `OnBeforeClose` and a dirty flag pushed to Go).
 | Activity log | One `write` entry per transaction, text led by `-- N changes across M tables` |
 | Huge values | `Statement.Short`: `Display` with string literals over 160 characters cut to 160 and ended `…(+N more chars)` inside the quotes. Built by the same template, capped when the literal is rendered, before dialect quoting, so an escape is never split. `Display` stays whole |
 | Size of a cell | `Statement.Cells`: column, kind (`value`, `null`, `default`) and character count of the new text |
+
+## 2026-10-01 — tabs replace the sidebar
+
+### Brief
+
+Almost all of a session was spent in the main pane; the sidebar was used for the first half-minute and then left alone. Make the left rail a vertical tab strip, with a picker as what a new tab shows.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| What a tab is | A table with its filter, sort, page and selection, plus the tab's own SQL editor and details page. Activity stays a global tray |
+| Picker | Connections, databases and tables as three columns filling left to right. Enter in the table filter opens the first match |
+| `Ctrl+P` | Retargets the current tab. Open tabs are listed in the same palette to jump to |
+| Keys | `Ctrl+T` new, `Ctrl+W` close, `Ctrl+Tab` / `Ctrl+Shift+Tab` and `Ctrl+PageDown` / `PageUp` cycle. All in the action palette too |
+| Mouse | Back / forward walk the tab's history of tables (up to 50). With Shift they cycle tabs |
+| Persistence | None. The app starts on the picker |
+| Staged edits | Global, as before. Two tabs on one table share pending edits |
+| Closing the last tab | Leaves a blank one |
+| Disconnect, drop | Blank every tab on that connection, or showing that table |
 
 ## Invariants
 
@@ -573,10 +593,11 @@ test — which is the intended speed bump.
 | `applyChanges` has exactly one caller, behind the review dialog | `frontend/src/invariants.test.ts`. Preview, Accept and `Ctrl+S` end at `reviewChanges`, which runs nothing. A second call site is a write the user never saw |
 | Staged edits are keyed by the row's original key values, never by row index | `frontend/src/edits.test.ts`. A page turn, sort or reload moves rows; an edit must stay on the row it was made on |
 | Staged edits are per table, all in one connection and database | `edits.test.ts` (`scopeClash`). The backend applies one transaction, which cannot span databases; the UI refuses the second scope instead of splitting the set |
+| Every per-tab field is listed in `TAB_FIELDS` (`tabs.ts`), and anything async that writes the active-tab fields checks the tab is still active | A tab switch swaps the whole set. A field missing from the list leaks from one tab into the next; a late response that skips the check lands in a tab that never asked for it |
 | The staged-changes bar is global, on the status strip | `ChangesStatus`. Edits outlive the table they were made in, so a bar over one grid would hide work in the others |
 | No component calls a hook after an early return | `hooks.test.ts`. React error 300 crashed the SQL editor when a statement with no result set followed a SELECT |
 | Big-editor Format and Minify touch whitespace only | `bigEdit.test.ts`. Re-stringifying would change the data |
-| No app-shell component subscribes to the staged edits | Same reason as the selection rule above: `DataGrid`, `ChangesStatus`, `ReviewChangesDialog`, `LargeEditorHost` and each sidebar `TableMark` subscribe — the last with a boolean for its own table — and `App` does not |
+| No app-shell component subscribes to the staged edits | Same reason as the selection rule above: `DataGrid`, `ChangesStatus`, `ReviewChangesDialog`, `LargeEditorHost` and each picker and tab-strip `TableMark` subscribe — the last with a boolean for its own table — and `App` does not |
 | A context-menu item fires a store action the palette also exposes | The palette is the primary surface. A menu that calls the API directly is a second code path where the confirmation and the refresh afterwards can drift |
 | Truncate and drop are decided in the store action, never at the call site | `runTruncate` / `runDrop` skip the confirmation by design; anything but a confirmation dialog calling them is a destructive statement with no prompt |
 | No DDL builder emits `CASCADE` | The engine refusing is the useful answer. `CASCADE` would act on objects the user never named |
