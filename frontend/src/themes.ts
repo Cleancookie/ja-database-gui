@@ -44,6 +44,30 @@ export const THEMES: Theme[] = [
     note: 'Cool blue-grey, editor classic',
     swatch: { bg: '#282c34', accent: '#61afef' },
   },
+  {
+    id: 'catppuccin-latte',
+    name: 'Catppuccin Latte',
+    note: 'Soft lavender paper, the light flavour',
+    swatch: { bg: '#eff1f5', accent: '#8839ef' },
+  },
+  {
+    id: 'catppuccin-frappe',
+    name: 'Catppuccin Frappé',
+    note: 'Muted blue-grey, the gentle dark',
+    swatch: { bg: '#303446', accent: '#ca9ee6' },
+  },
+  {
+    id: 'catppuccin-macchiato',
+    name: 'Catppuccin Macchiato',
+    note: 'Deeper slate, a dim middle ground',
+    swatch: { bg: '#24273a', accent: '#c6a0f6' },
+  },
+  {
+    id: 'catppuccin-mocha',
+    name: 'Catppuccin Mocha',
+    note: 'The darkest flavour, mauve on charcoal',
+    swatch: { bg: '#1e1e2e', accent: '#cba6f7' },
+  },
 ]
 
 export const DEFAULT_THEME = 'sherbet'

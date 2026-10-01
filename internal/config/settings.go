@@ -13,7 +13,8 @@ import (
 // frontend/src/index.css and an entry in frontend/src/themes.ts; this copy
 // exists so a hand-edited settings file cannot leave the app with no palette.
 // The first is the default.
-var ThemeIDs = []string{"sherbet", "gruvbox-dark", "gruvbox-light", "one-dark"}
+var ThemeIDs = []string{"sherbet", "gruvbox-dark", "gruvbox-light", "one-dark",
+	"catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha"}
 
 // Settings are the user's preferences, persisted alongside connections.
 type Settings struct {

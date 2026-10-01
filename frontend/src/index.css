@@ -308,6 +308,178 @@
 }
 
 /*
+ * Catppuccin Latte. Soft lavender paper, the light flavour.
+ * Mauve is the accent; surfaces are the flavour's base, mantle and surface0.
+ */
+:root[data-theme='catppuccin-latte'] {
+  --color-bg: #eff1f5;
+  --color-panel: #e6e9ef;
+  --color-elevated: #f8f9fb;
+  --color-row-alt: #ebedf2;
+  --color-scrim: rgb(76 79 105 / 0.32);
+
+  --color-border: #ccd0da;
+  --color-border-strong: #bcc0cc;
+
+  --color-text: #4c4f69;
+  --color-muted: #6c6f85;
+  --color-faint: #8c8fa1;
+
+  --color-accent: #8839ef;
+  --color-accent-dim: #d8c9f4;
+  --color-on-accent: #eff1f5;
+  --color-accent-rgb: 136 57 239;
+
+  --color-danger: #d20f39;
+  --color-success: #3a9027;
+  --color-warn: #a56915;
+  --color-danger-dim: #ecd6de;
+  --color-warn-dim: #e5ded6;
+
+  --color-mint: #179299;
+  --color-sky: #04a5e5;
+  --color-lilac: #7287fd;
+  --color-blush: #ea76cb;
+  --color-peach: #fe640b;
+  --color-lemon: #df8e1d;
+
+  --color-shadow: 76 79 105;
+  --app-wash:
+    radial-gradient(60rem 40rem at 12% -10%, rgb(136 57 239 / 0.1), transparent 70%),
+    radial-gradient(50rem 36rem at 105% 8%, rgb(30 102 245 / 0.08), transparent 70%);
+  --app-color-scheme: light;
+}
+
+/*
+ * Catppuccin Frappé. Muted blue-grey, the gentle dark.
+ * Mauve is the accent; surfaces are the flavour's base, mantle and surface0.
+ */
+:root[data-theme='catppuccin-frappe'] {
+  --color-bg: #303446;
+  --color-panel: #292c3c;
+  --color-elevated: #414559;
+  --color-row-alt: #35394c;
+  --color-scrim: rgb(35 38 52 / 0.6);
+
+  --color-border: #51576d;
+  --color-border-strong: #626880;
+
+  --color-text: #c6d0f5;
+  --color-muted: #a5adce;
+  --color-faint: #737994;
+
+  --color-accent: #ca9ee6;
+  --color-accent-dim: #5b5273;
+  --color-on-accent: #232634;
+  --color-accent-rgb: 202 158 230;
+
+  --color-danger: #e78284;
+  --color-success: #a6d189;
+  --color-warn: #e5c890;
+  --color-danger-dim: #554452;
+  --color-warn-dim: #514f53;
+
+  --color-mint: #81c8be;
+  --color-sky: #99d1db;
+  --color-lilac: #babbf1;
+  --color-blush: #f4b8e4;
+  --color-peach: #ef9f76;
+  --color-lemon: #e5c890;
+
+  --color-shadow: 0 0 0;
+  --app-wash:
+    radial-gradient(60rem 40rem at 12% -10%, rgb(202 158 230 / 0.06), transparent 70%),
+    radial-gradient(50rem 36rem at 105% 8%, rgb(140 170 238 / 0.05), transparent 70%);
+  --app-color-scheme: dark;
+}
+
+/*
+ * Catppuccin Macchiato. Deeper slate, a dim middle ground.
+ * Mauve is the accent; surfaces are the flavour's base, mantle and surface0.
+ */
+:root[data-theme='catppuccin-macchiato'] {
+  --color-bg: #24273a;
+  --color-panel: #1e2030;
+  --color-elevated: #363a4f;
+  --color-row-alt: #292d40;
+  --color-scrim: rgb(24 25 38 / 0.6);
+
+  --color-border: #494d64;
+  --color-border-strong: #5b6078;
+
+  --color-text: #cad3f5;
+  --color-muted: #a5adcb;
+  --color-faint: #6e738d;
+
+  --color-accent: #c6a0f6;
+  --color-accent-dim: #51496f;
+  --color-on-accent: #181926;
+  --color-accent-rgb: 198 160 246;
+
+  --color-danger: #ed8796;
+  --color-success: #a6da95;
+  --color-warn: #eed49f;
+  --color-danger-dim: #4c3a4c;
+  --color-warn-dim: #48464c;
+
+  --color-mint: #8bd5ca;
+  --color-sky: #91d7e3;
+  --color-lilac: #b7bdf8;
+  --color-blush: #f5bde6;
+  --color-peach: #f5a97f;
+  --color-lemon: #eed49f;
+
+  --color-shadow: 0 0 0;
+  --app-wash:
+    radial-gradient(60rem 40rem at 12% -10%, rgb(198 160 246 / 0.06), transparent 70%),
+    radial-gradient(50rem 36rem at 105% 8%, rgb(138 173 244 / 0.05), transparent 70%);
+  --app-color-scheme: dark;
+}
+
+/*
+ * Catppuccin Mocha. The darkest flavour, mauve on charcoal.
+ * Mauve is the accent; surfaces are the flavour's base, mantle and surface0.
+ */
+:root[data-theme='catppuccin-mocha'] {
+  --color-bg: #1e1e2e;
+  --color-panel: #181825;
+  --color-elevated: #313244;
+  --color-row-alt: #242435;
+  --color-scrim: rgb(17 17 27 / 0.6);
+
+  --color-border: #45475a;
+  --color-border-strong: #585b70;
+
+  --color-text: #cdd6f4;
+  --color-muted: #a6adc8;
+  --color-faint: #6c7086;
+
+  --color-accent: #cba6f7;
+  --color-accent-dim: #4e4466;
+  --color-on-accent: #11111b;
+  --color-accent-rgb: 203 166 247;
+
+  --color-danger: #f38ba8;
+  --color-success: #a6e3a1;
+  --color-warn: #f9e2af;
+  --color-danger-dim: #493446;
+  --color-warn-dim: #454145;
+
+  --color-mint: #94e2d5;
+  --color-sky: #89dceb;
+  --color-lilac: #b4befe;
+  --color-blush: #f5c2e7;
+  --color-peach: #fab387;
+  --color-lemon: #f9e2af;
+
+  --color-shadow: 0 0 0;
+  --app-wash:
+    radial-gradient(60rem 40rem at 12% -10%, rgb(203 166 247 / 0.06), transparent 70%),
+    radial-gradient(50rem 36rem at 105% 8%, rgb(137 180 250 / 0.05), transparent 70%);
+  --app-color-scheme: dark;
+}
+
+/*
  * Everything from here to the end of the block is `@layer base`, and that is
  * load-bearing rather than tidiness. These rules used to sit unlayered *after*
  * `@import 'tailwindcss'`, which put them later in the sheet than the utility
