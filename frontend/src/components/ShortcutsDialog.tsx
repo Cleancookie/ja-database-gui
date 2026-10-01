@@ -5,7 +5,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+P', 'Go to a connection, database or table'],
   ['Ctrl+Shift+P', 'Run a command — settings, editor, activity'],
   ['Ctrl+,', 'Settings'],
-  ['Ctrl+=  /  Ctrl+-', 'Increase / decrease the font size'],
+  ['Ctrl+=  /  Ctrl+-  /  Ctrl+0', 'Increase / decrease / reset the font size'],
   ['Ctrl+F  /  /', 'Focus the WHERE filter'],
   ['Enter', 'Apply the filter'],
   ['Ctrl+E', 'Toggle the SQL editor'],

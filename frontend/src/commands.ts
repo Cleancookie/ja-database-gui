@@ -13,7 +13,7 @@ import { reportText } from './startup'
 import { objectBias, orderByRecency, refKey } from './recency'
 import { rectOf, rectSize } from './selection'
 import { runSqlFromEditor } from './sqlEditorRun'
-import { FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
+import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
 import { THEMES } from './themes'
 import type { ObjectType, SchemaObject } from './types'
 
@@ -556,6 +556,17 @@ export function buildActionCommands(s: Store): Command[] {
       shortcut: 'Ctrl+-',
       candidate: { name: 'Decrease font size', keywords: fontKeywords },
       run: () => s.adjustFontSize(-1),
+    })
+  }
+
+  if (s.settings.fontSizePx !== FONT_SIZE_DEFAULT) {
+    cmds.push({
+      id: 'app:font:reset',
+      title: 'Reset font size',
+      group: 'App',
+      shortcut: 'Ctrl+0',
+      candidate: { name: 'Reset font size', keywords: fontKeywords },
+      run: () => s.resetFontSize(),
     })
   }
 

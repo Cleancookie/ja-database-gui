@@ -244,6 +244,11 @@ function useGlobalHotkeys() {
         void s.adjustFontSize(-1)
         return
       }
+      if (mod && e.key === '0') {
+        e.preventDefault()
+        void s.resetFontSize()
+        return
+      }
 
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault()

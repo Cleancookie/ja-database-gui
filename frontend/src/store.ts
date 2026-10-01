@@ -38,6 +38,7 @@ export const PAGE_SIZES = [50, 100, 200, 500, 1000] as const
 /** Root font size bounds, one step per press. `config.Settings.clamp` on the Go side enforces the same range. */
 export const FONT_SIZE_MIN = 10
 export const FONT_SIZE_MAX = 28
+export const FONT_SIZE_DEFAULT = 16
 
 export interface Toast {
   id: number
@@ -96,7 +97,7 @@ export type SectionKey = 'connections' | 'databases' | 'objects'
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: DEFAULT_THEME,
-  fontSizePx: 16,
+  fontSizePx: FONT_SIZE_DEFAULT,
   defaultPageSize: 100,
   paginationEnabled: true,
   rowCap: 100_000,
@@ -277,6 +278,7 @@ export interface State extends EditState, EditActions {
   saveSettings: (s: Settings) => Promise<void>
   /** Steps the root font size by `delta` px, stopping at the bounds. */
   adjustFontSize: (delta: number) => Promise<void>
+  resetFontSize: () => Promise<void>
   refreshActivity: () => Promise<void>
   cancelQuery: (id: string) => Promise<void>
   clearQueryHistory: () => Promise<void>
@@ -859,6 +861,13 @@ export const useStore = create<State>((set, get) => {
       const { settings, saveSettings } = get()
       const fontSizePx = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, settings.fontSizePx + delta))
       if (fontSizePx !== settings.fontSizePx) await saveSettings({ ...settings, fontSizePx })
+    },
+
+    async resetFontSize() {
+      const { settings, saveSettings } = get()
+      if (settings.fontSizePx !== FONT_SIZE_DEFAULT) {
+        await saveSettings({ ...settings, fontSizePx: FONT_SIZE_DEFAULT })
+      }
     },
 
     async refreshActivity() {
