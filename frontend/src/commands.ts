@@ -13,7 +13,7 @@ import { reportText } from './startup'
 import { objectBias, orderByRecency, refKey } from './recency'
 import { rectOf, rectSize } from './selection'
 import { runSqlFromEditor } from './sqlEditorRun'
-import { PAGE_SIZES, type useStore } from './store'
+import { FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
 import { THEMES } from './themes'
 import type { ObjectType, SchemaObject } from './types'
 
@@ -536,6 +536,28 @@ export function buildActionCommands(s: Store): Command[] {
     },
     run: () => s.setDialog({ kind: 'settings' }),
   })
+
+  const fontKeywords = 'font size text zoom bigger smaller larger appearance'
+  if (s.settings.fontSizePx < FONT_SIZE_MAX) {
+    cmds.push({
+      id: 'app:font:increase',
+      title: 'Increase font size',
+      group: 'App',
+      shortcut: 'Ctrl+=',
+      candidate: { name: 'Increase font size', keywords: fontKeywords },
+      run: () => s.adjustFontSize(1),
+    })
+  }
+  if (s.settings.fontSizePx > FONT_SIZE_MIN) {
+    cmds.push({
+      id: 'app:font:decrease',
+      title: 'Decrease font size',
+      group: 'App',
+      shortcut: 'Ctrl+-',
+      candidate: { name: 'Decrease font size', keywords: fontKeywords },
+      run: () => s.adjustFontSize(-1),
+    })
+  }
 
   // One per theme rather than a "change theme" that opens the dialog. Switching
   // is the entire action, it is instant, and typing "gruv" should do it — going

@@ -232,6 +232,19 @@ function useGlobalHotkeys() {
       // dialog while the user is typing in it.
       if (s.palette !== null || s.dialog.kind !== 'none') return
 
+      // Ctrl+= is the unshifted half of Ctrl++, so both keys zoom in. preventDefault
+      // stops the webview applying its own page zoom on top.
+      if (mod && (e.key === '=' || e.key === '+')) {
+        e.preventDefault()
+        void s.adjustFontSize(1)
+        return
+      }
+      if (mod && (e.key === '-' || e.key === '_')) {
+        e.preventDefault()
+        void s.adjustFontSize(-1)
+        return
+      }
+
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         s.setView(s.view === 'activity' ? 'data' : 'activity')
