@@ -167,7 +167,10 @@ function Grid({
     const chars: number[] = []
     const columns = meta.map((m, i) => {
       const pk = m.column?.primaryKey
-      let longest = m.name.length + (pk ? 2 : 0)
+      // A table opens sorted by its primary key, so that header carries the
+      // PK chip and the sort arrow beside the name. Short names like `id`
+      // would otherwise land on minCol and truncate under them.
+      let longest = m.name.length + (pk ? 6 : 0)
       // Three, not two: the badge sits next to the name in the label column
       // rather than sharing a truncating header with it.
       const nameChars = m.name.length + (pk ? 3 : 0)
