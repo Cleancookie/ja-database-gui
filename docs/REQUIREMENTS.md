@@ -537,6 +537,19 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | Closing the last tab | Leaves a blank one |
 | Disconnect, drop | Blank every tab on that connection, or showing that table |
 
+## 2026-10-01 — infinite scroll, drawer speed
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Infinite scroll | Setting `infiniteScroll`, also a palette toggle. Needs pagination on: the page size is the chunk. When the last row of the browse grid is in view, the next page is appended below it. The SQL editor's result is unaffected |
+| What `page` means | Pages loaded so far. A refresh asks for page 1 at `pageSize × page` rows, so what was on screen is kept; a new sort, filter or table resets to 1 |
+| Scroll and selection | The grid scrolls to the top and clears the selection when the *column list* changes, not when rows are appended |
+| Limits | Stops at `rowCap`. The total is not re-counted on append |
+| Page controls | Hidden; the bar says Scroll for more / Loading more… / End of results. `Ctrl+←/→` and the page commands are inert |
+| Drawer speed | Setting `drawerDurationMs` (0–2000, default 260, 0 is off), applied as `--drawer-duration` and previewed live in Settings. The tab strip and the activity tray both use it |
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
