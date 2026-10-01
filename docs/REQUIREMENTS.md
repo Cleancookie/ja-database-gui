@@ -545,10 +545,24 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | --- | --- |
 | Infinite scroll | Setting `infiniteScroll`, also a palette toggle. Needs pagination on: the page size is the chunk. When the last row of the browse grid is in view, the next page is appended below it. The SQL editor's result is unaffected |
 | What `page` means | Pages loaded so far. A refresh asks for page 1 at `pageSize × page` rows, so what was on screen is kept; a new sort, filter or table resets to 1 |
+| Next page | By position, not by offset: the read returns `next`, the sort-column values of its last row, and the append sends it back as `after`. Rows added or removed above cannot then repeat or skip one. Falls back to the offset where the sort cannot be compared exactly |
 | Scroll and selection | The grid scrolls to the top and clears the selection when the *column list* changes, not when rows are appended |
 | Limits | Stops at `rowCap`. The total is not re-counted on append |
 | Page controls | Hidden; the bar says Scroll for more / Loading more… / End of results. `Ctrl+←/→` and the page commands are inert |
 | Drawer speed | Setting `drawerDurationMs` (0–2000, default 260, 0 is off), applied as `--drawer-duration` and previewed live in Settings. The tab strip and the activity tray both use it |
+
+## 2026-10-01 — paging by position
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Problem | `LIMIT/OFFSET` counts from the top on every read. A row inserted above the window repeats one at the next page; a delete skips one. Newest-first on a growing table does it constantly |
+| Tiebreaker | Every read is ordered by the requested sort **plus the missing key columns, ascending** (`driver.StableOrder`), paged or not. Rows that tie on the sort no longer swap places between pages. The UI is told the requested sort only, so the header is unchanged. An emptied sort therefore reads in key order |
+| By position | `ReadRowsResult.Next` is the last row's sort-column values; `ReadRowsRequest.After` sends them back. `driver.BuildRead` adds `(a > ?) OR (a = ? AND id > ?)` — a chain, not a tuple, because directions can differ and SQL Server has no row values — with the values bound, and the filter parenthesised. The activity log shows it with the values filled in |
+| When not offered | No key; a sort column that is nullable (a key column never is), a float (the value travels as text), or a binary preview; or the last row's sort value was cut by the text cap. `Next` is then absent and the UI counts pages as before |
+| Where it is used | Infinite scroll's append only. Paged mode and `Ctrl+←/→` still count pages: a page number is a position the user chose |
+| Full-value fetch | `ReadCell` finds the row by its key when the table has one, falling back to the offset. An offset names a position, and positions move; infinite scroll also made the old arithmetic wrong, since `page` there counts what is loaded |
 
 ## Invariants
 
@@ -605,6 +619,8 @@ test — which is the intended speed bump.
 | `frontend/dist/.gitkeep` stays tracked, and builds must not delete it | `main.go` embeds `frontend/dist`; without it a fresh clone will not compile |
 | No component that renders the app shell subscribes to the grid selection | A click moves a one-cell highlight. If `App` re-renders, so does the unvirtualised sidebar and its menu root per table, and the click takes seconds. `useCellMenu` reads state with `getState` for exactly this reason |
 | `DataGrid` is memoised and every prop it is given is stable | Its parents subscribe to state that changes constantly — `busy`, `dialog`, and `sqlText` on every keystroke. One inline arrow at a call site voids the memo silently, and the grid is the most expensive thing on screen |
+| A cursor is rejected unless it matches the sort it is applied to, and its values go through `CoerceKey` | `service_test.go`. A position from another sort compares the wrong columns and returns plausible, wrong rows |
+| `ReadCell` orders exactly as `ReadRows` does when it falls back to an offset | Same tiebreaker, or the offset lands on a different one of the rows that tie |
 | `applyChanges` has exactly one caller, behind the review dialog | `frontend/src/invariants.test.ts`. Preview, Accept and `Ctrl+S` end at `reviewChanges`, which runs nothing. A second call site is a write the user never saw |
 | Staged edits are keyed by the row's original key values, never by row index | `frontend/src/edits.test.ts`. A page turn, sort or reload moves rows; an edit must stay on the row it was made on |
 | Staged edits are per table, all in one connection and database | `edits.test.ts` (`scopeClash`). The backend applies one transaction, which cannot span databases; the UI refuses the second scope instead of splitting the set |

@@ -11,6 +11,7 @@ import type {
   QuerySqlResult,
   ApplyResult,
   Capabilities,
+  Cell,
   CellValue,
   ChangesPreview,
   ChangesRequest,
@@ -18,6 +19,7 @@ import type {
   Connection,
   ConnectResult,
   CreateTableSpec,
+  Cursor,
   Kind,
   ObjectDetail,
   ObjectRef,
@@ -136,6 +138,8 @@ export const api = {
     /** Fill an empty orderBy with the table's default sort — see the store. */
     applyDefaultSort: boolean
     pagination: Pagination
+    /** Read the rows after this position instead of counting `pagination.page`. */
+    after?: Cursor
   }) => call<ReadRowsResult>('ReadRows', [req], req),
 
   /**
@@ -152,6 +156,8 @@ export const api = {
     orderBy: Sort[]
     applyDefaultSort: boolean
     rowOffset: number
+    /** The row's key values, which find it exactly; the offset is the fallback. */
+    key?: Record<string, Cell>
   }) => call<CellValue>('ReadCell', [req], req),
 
   countRows: (req: { connectionId: string; ref: ObjectRef; filter: string }) =>

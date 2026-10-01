@@ -36,6 +36,7 @@ import {
   undo,
   type Counts,
   type EditSet,
+  rowKeyOf,
   type Keyed,
   type Staged,
   type TableKey,
@@ -429,10 +430,13 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
               orderBy: s.orderBy,
               applyDefaultSort: !s.sortChosen,
               rowOffset: absoluteRowOffset(row, {
-                enabled: s.paginationEnabled,
+                // Infinite scroll stacks every page from the top, so the index is
+                // already absolute (and `page` only counts what is loaded).
+                enabled: s.paginationEnabled && !s.settings.infiniteScroll,
                 page: s.page,
                 pageSize: s.pageSize,
               }),
+              ...keyFor(rs, row, s.editKey),
             }),
           )
           if (res.truncated) {
@@ -621,4 +625,14 @@ export function guardUnload(get: () => State) {
     e.preventDefault()
     e.returnValue = ''
   })
+}
+
+/** The row's key for ReadCell, as a spread: empty when the table has none. */
+function keyFor(
+  rs: Parameters<typeof rowKeyOf>[0],
+  row: number,
+  editKey: string[],
+): { key?: Record<string, Cell> } {
+  const key = rowKeyOf(rs, row, editKey)
+  return key ? { key } : {}
 }

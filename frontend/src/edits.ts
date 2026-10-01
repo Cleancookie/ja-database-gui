@@ -90,6 +90,22 @@ export function keyIndexes(resultColumns: { name: string }[], editKey: string[])
   return idx.some((i) => i < 0) ? null : idx
 }
 
+/**
+ * The key values of one row of a result, by column, or null when the table has
+ * no key or a key column is not among the result's. ReadCell takes these to find
+ * a row exactly rather than by position.
+ */
+export function rowKeyOf(
+  rs: { columns: { name: string }[]; rows: Cell[][] },
+  rowIndex: number,
+  editKey: string[],
+): Record<string, Cell> | null {
+  const idx = keyIndexes(rs.columns, editKey)
+  const row = rs.rows[rowIndex]
+  if (!idx || !row) return null
+  return keyedRow(row, editKey, idx).values
+}
+
 export function keyedRow(row: Cell[], editKey: string[], idx: number[]): Keyed {
   const values: Record<string, Cell> = {}
   editKey.forEach((name, n) => {

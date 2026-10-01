@@ -209,6 +209,16 @@ export interface GridColumn extends Column {
   readOnlyReason?: string
 }
 
+/**
+ * A position in a sort: the values of the last row's sort columns. Opaque to
+ * the UI — it is returned by one read and handed back to ask for the rows after
+ * it, so rows added or removed above cannot repeat or skip one.
+ */
+export interface Cursor {
+  columns: string[]
+  values: unknown[]
+}
+
 export interface ReadRowsResult {
   result: ResultSet
   columns: GridColumn[]
@@ -222,6 +232,8 @@ export interface ReadRowsResult {
   /** The sort the page was read with — the default one when none was asked for. */
   orderBy: Sort[] | null
   hasMore: boolean
+  /** Where the next page starts, when this sort can be read by position. */
+  next?: Cursor | null
 }
 
 /**

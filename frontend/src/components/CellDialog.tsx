@@ -53,6 +53,7 @@ export function CellDialog({ cell }: { cell: CellTarget }) {
           orderBy,
           applyDefaultSort: !sortChosen,
           rowOffset,
+          ...(cell.key ? { key: cell.key } : {}),
         })
         if (cancelled) return
         setFull(res.value ?? '')

@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { reuseUnchanged } from './activity'
 import { api, errorMessage } from './api'
 import { absoluteRowOffset, cellText, isCellTruncated } from './cells'
+import { rowKeyOf } from './edits'
 import { RECENT_LIMIT, refKey } from './recency'
 import { downloadText } from './dom'
 import { csv, describeCopy, rectOf, selectionText, type CellPos, type Selection } from './selection'
@@ -33,6 +34,7 @@ import type {
   Cell,
   Connection,
   CreateTableSpec,
+  Cursor,
   GridColumn,
   Kind,
   ObjectDetail,
@@ -70,6 +72,11 @@ export interface CellTarget {
    * ad-hoc SQL result has no table to go back to.
    */
   rowOffset: number | null
+  /**
+   * The row's key values, when the table has a key. Finds the row exactly,
+   * where the offset finds whatever is at that position now.
+   */
+  key: Record<string, Cell> | null
 }
 
 export type DialogState =
@@ -180,6 +187,12 @@ export interface State extends EditState, EditActions {
   page: number
   pageSize: number
   hasMore: boolean
+  /**
+   * Where the page below the rows on screen starts, when the sort can be read by
+   * position. Infinite scroll asks for it so rows added above cannot repeat; null
+   * means page by offset.
+   */
+  nextCursor: Cursor | null
   totalCount: number | null
 
   // sql editor
@@ -377,6 +390,7 @@ const NO_TABLE = {
   filter: '',
   page: 1,
   hasMore: false,
+  nextCursor: null,
   totalCount: null,
   detail: null,
   detailLoading: false,
@@ -424,10 +438,14 @@ export const useStore = create<State>((set, get) => {
     const { activeConnectionId, activeRef, filter, orderBy, sortChosen } = s
     const infinite = isInfinite(s)
     const rowCap = s.settings.rowCap
+    // Appending below the last row asks for the rows after it, not for "page N":
+    // a row inserted above since the last page was read would shift every page
+    // and repeat one. Where the sort cannot be read by position, the offset it is.
+    const byPosition = infinite && append && s.nextCursor !== null
     const pagination = !infinite
       ? { enabled: s.paginationEnabled, page: s.page, pageSize: s.pageSize }
       : append
-        ? { enabled: true, page: s.page + 1, pageSize: s.pageSize }
+        ? { enabled: true, page: byPosition ? 1 : s.page + 1, pageSize: s.pageSize }
         : { enabled: true, page: 1, pageSize: Math.min(s.pageSize * s.page, rowCap) }
     set({ busy: true })
 
@@ -440,6 +458,7 @@ export const useStore = create<State>((set, get) => {
           orderBy,
           applyDefaultSort: !sortChosen,
           pagination,
+          ...(byPosition && s.nextCursor ? { after: s.nextCursor } : {}),
         }),
       )
       if (seq !== requestSeq) return
@@ -458,6 +477,7 @@ export const useStore = create<State>((set, get) => {
             ],
           },
           page: s.page + 1,
+          nextCursor: res.next ?? null,
           // Stops at the row cap: past it the next read would be refused anyway.
           hasMore: res.hasMore && rows.length < rowCap,
           busy: false,
@@ -481,6 +501,7 @@ export const useStore = create<State>((set, get) => {
           ? { orderBy: res.orderBy }
           : {}),
         hasMore: res.hasMore,
+        nextCursor: res.next ?? null,
         busy: false,
       })
     } catch (e) {
@@ -632,6 +653,7 @@ export const useStore = create<State>((set, get) => {
     page: 1,
     pageSize: 100,
     hasMore: false,
+    nextCursor: null,
     totalCount: null,
     sqlText: '',
     sqlHasSelection: false,
@@ -1287,11 +1309,14 @@ export const useStore = create<State>((set, get) => {
         rowOffset:
           source === 'browse' && s.activeRef
             ? absoluteRowOffset(rowIndex, {
-                enabled: s.paginationEnabled,
+                // With infinite scroll the rows are all of them from the top,
+                // so the index is already absolute and `page` is a count.
+                enabled: s.paginationEnabled && !isInfinite(s),
                 page: s.page,
                 pageSize: s.pageSize,
               })
             : null,
+        key: source === 'browse' ? rowKeyOf(rs, rowIndex, s.editKey) : null,
       }
     },
 
@@ -1318,6 +1343,7 @@ export const useStore = create<State>((set, get) => {
             orderBy: s.orderBy,
             applyDefaultSort: !s.sortChosen,
             rowOffset: cell.rowOffset,
+            ...(cell.key ? { key: cell.key } : {}),
           })
           text = res.value ?? ''
         } catch (e) {
