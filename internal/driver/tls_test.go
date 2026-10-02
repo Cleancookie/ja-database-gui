@@ -1,8 +1,11 @@
 package driver
 
 import (
+	"database/sql"
 	"github.com/go-sql-driver/mysql"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -155,5 +158,39 @@ func TestMySQLDSNKeepsADatabaseNameInert(t *testing.T) {
 	}
 	if cfg.TLSConfig != "preferred" {
 		t.Errorf("tls = %q", cfg.TLSConfig)
+	}
+}
+
+// A path with URI metacharacters must open that exact file, not a different
+// one with parameters.
+func TestSQLitePathIsOpenedLiterally(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "we?ird#100%.db")
+	d, _ := Get(KindSQLite)
+	dsn, err := d.DSN(ConnConfig{Kind: KindSQLite, File: path}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open(d.SQLDriverName(), dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE t(x)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("the literal path was not the file opened: %v", err)
+	}
+	var trusted int
+	if err := db.QueryRow(`PRAGMA trusted_schema`).Scan(&trusted); err != nil || trusted != 0 {
+		t.Errorf("trusted_schema = %d, err %v; want 0", trusted, err)
+	}
+	if _, err := db.Exec(`CREATE VIEW v AS SELECT lower('A') AS a`); err != nil {
+		t.Fatal(err)
+	}
+	var a string
+	if err := db.QueryRow(`SELECT a FROM v`).Scan(&a); err != nil || a != "a" {
+		t.Errorf("an ordinary view should still work: %q, %v", a, err)
 	}
 }

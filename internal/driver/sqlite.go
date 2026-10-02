@@ -48,10 +48,22 @@ func (sqliteDriver) DSN(cfg ConnConfig, _ string) (string, error) {
 	q := url.Values{}
 	q.Add("_pragma", "busy_timeout(5000)")
 	q.Add("_pragma", "foreign_keys(1)")
+	// A .db file opened from somewhere else is untrusted input: with this off,
+	// SQL stored in its views, triggers, CHECKs and generated columns cannot call
+	// functions that are not marked safe.
+	q.Add("_pragma", "trusted_schema(0)")
 	for k, v := range cfg.Params {
 		q.Add(k, v)
 	}
-	return "file:" + cfg.File + "?" + q.Encode(), nil
+	return "file:" + escapeSQLiteURIPath(cfg.File) + "?" + q.Encode(), nil
+}
+
+// escapeSQLiteURIPath makes a file path inert inside a file: URI. Without it a
+// '?' or '#' in the path ends the path early and what follows is read as
+// parameters, so "x.db?mode=ro" would be a different connection to "x.db".
+// SQLite decodes %HH in the path, so a literal '%' is escaped too.
+func escapeSQLiteURIPath(p string) string {
+	return strings.NewReplacer("%", "%25", "?", "%3f", "#", "%23").Replace(p)
 }
 
 func (sqliteDriver) TLS(ConnConfig) TLSInfo {
