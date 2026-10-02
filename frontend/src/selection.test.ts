@@ -84,6 +84,30 @@ describe('csv', () => {
   })
 })
 
+describe('csv formula defusing', () => {
+  it('prefixes cells a spreadsheet would run, in the file export only', () => {
+    for (const evil of ['=1+1', '+SUM(A1)', '-2+3', '@SUM(A1)', '\tx', '\rx', '=HYPERLINK("http://x","y")']) {
+      expect(csvField(evil, true).replace(/^"/, '').startsWith("'")).toBe(true)
+      expect(csvField(evil)).not.toContain("'")
+    }
+  })
+  it('defuses the header row too', () => {
+    expect(csv(['=a'], [['x']], true)).toBe("'=a\nx")
+  })
+  it('leaves ordinary text, numbers and bare numeric strings alone', () => {
+    for (const ok of ['acme', '-5.25', '+7', '1e5', 'a=b', '']) {
+      expect(csvField(ok, true)).toBe(csvField(ok))
+    }
+    expect(csvField(-3 as unknown as string, true)).toBe('-3')
+  })
+  it('quotes after prefixing', () => {
+    expect(csvField('=a,b', true)).toBe('"\'=a,b"')
+  })
+  it('keeps the clipboard path byte-faithful', () => {
+    expect(selectionText(['a', 'b'], [['=1', 'x']])).toBe('a,b\n=1,x')
+  })
+})
+
 describe('selectionText', () => {
   it('is the bare value for one cell, so it pastes anywhere', () => {
     expect(selectionText(['name'], [["O'Brien"]])).toBe("O'Brien")

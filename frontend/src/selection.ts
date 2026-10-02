@@ -80,23 +80,43 @@ export function inList(values: Cell[]): string {
  * the only way CSV can tell them apart at all — and telling them apart is half
  * of why the grid marks them differently in the first place.
  */
-export function csvField(v: Cell): string {
+export function csvField(v: Cell, safe = false): string {
   if (v === null) return ''
   if (typeof v !== 'string') return String(v)
+  if (safe) v = defuseFormula(v)
   if (v === '') return '""'
   if (/["\n\r,]/.test(v)) return `"${v.replace(/"/g, '""')}"`
   return v
 }
 
+const FORMULA_START = /^[=+\-@\t\r]/
+// Decimals travel as strings (see scan.go), and "-5.25" is a number to a
+// spreadsheet, not a formula. Anything longer than a bare number is still defused.
+const PLAIN_NUMBER = /^[+-]?\d+(\.\d+)?([eE][+-]?\d+)?$/
+
+/**
+ * Spreadsheet formula injection: a cell that starts with = + - @ tab or CR is
+ * run as a formula when the file is opened in Excel or Sheets. A leading
+ * apostrophe makes it text; the apostrophe is the one deliberate change to the
+ * value. Only the file export uses this; the clipboard stays byte-faithful.
+ */
+export function defuseFormula(v: string): string {
+  return FORMULA_START.test(v) && !PLAIN_NUMBER.test(v) ? `'${v}` : v
+}
+
 /**
  * CSV with a header row of column names.
+ *
+ * `safe` defuses spreadsheet formulas, for a file that will be opened in a
+ * spreadsheet. Leave it off for text that goes straight to the clipboard.
  *
  * The header is always included: the point of copying a block out of a grid is
  * to paste it somewhere that has lost the grid, and unlabelled columns are the
  * first thing anyone asks about.
  */
-export function csv(columns: string[], rows: Cell[][]): string {
-  return [columns.map(csvField).join(','), ...rows.map((r) => r.map(csvField).join(','))].join('\n')
+export function csv(columns: string[], rows: Cell[][], safe = false): string {
+  const field = (v: Cell) => csvField(v, safe)
+  return [columns.map(field).join(','), ...rows.map((r) => r.map(field).join(','))].join('\n')
 }
 
 /**

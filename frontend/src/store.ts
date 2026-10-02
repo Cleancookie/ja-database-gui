@@ -1421,8 +1421,8 @@ export const useStore = create<State>((set, get) => {
     exportCsv() {
       const s = get()
       // Whichever grid is on screen — the editor's active result tab, or the
-      // browse page. Same CSV writer the clipboard uses, so a file and a paste
-      // of the same rows are byte-identical.
+      // browse page. Same CSV writer the clipboard uses, except that the file is
+      // opened in a spreadsheet and so has formulas defused (audit B5).
       const rs = s.view === 'sql' ? activeSqlResult(s) : s.result
       if (!rs || rs.columns.length === 0) {
         s.pushToast('error', 'Nothing to export')
@@ -1435,6 +1435,7 @@ export const useStore = create<State>((set, get) => {
         csv(
           rs.columns.map((c) => c.name),
           rs.rows,
+          true,
         ),
       )
       // The browse grid holds one page, and capped cells are partial in the
