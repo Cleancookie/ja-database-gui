@@ -153,6 +153,10 @@ func (a *App) Activity() api.ActivityResult { return a.svc.Activity() }
 
 func (a *App) CancelQuery(id string) { a.svc.CancelQuery(id) }
 
+func (a *App) CancelSQL(id, database string) { a.svc.CancelSQL(id, database) }
+
+func (a *App) CancelConnectionQueries(id string) { a.svc.CancelConnectionQueries(id) }
+
 func (a *App) QuerySQL(id string) api.QuerySQLResult { return a.svc.QuerySQL(id) }
 
 func (a *App) ClearQueryHistory() { a.svc.ClearQueryHistory() }

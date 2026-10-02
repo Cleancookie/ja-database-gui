@@ -164,10 +164,15 @@ func routes(s *api.Service) map[string]route {
 		"QuerySQL":          withArgs(func(_ context.Context, a args) (any, error) { return s.QuerySQL(a.ID), nil }),
 		"ClearQueryHistory": withArgs(func(context.Context, args) (any, error) { s.ClearQueryHistory(); return nil, nil }),
 		"CancelQuery":       withArgs(func(_ context.Context, a args) (any, error) { s.CancelQuery(a.ID); return nil, nil }),
-		"Disconnect":        withArgs(func(_ context.Context, a args) (any, error) { s.Disconnect(a.ID); return nil, nil }),
-		"DeleteConnection":  withArgs(func(_ context.Context, a args) (any, error) { return nil, s.DeleteConnection(a.ID) }),
-		"LogClient":         withArgs(func(_ context.Context, a args) (any, error) { s.LogClient(a.Line); return nil, nil }),
-		"ListDatabases":     withArgs(func(ctx context.Context, a args) (any, error) { return s.ListDatabases(ctx, a.ID) }),
+		"CancelSQL":         withArgs(func(_ context.Context, a args) (any, error) { s.CancelSQL(a.ID, a.Database); return nil, nil }),
+		"CancelConnectionQueries": withArgs(func(_ context.Context, a args) (any, error) {
+			s.CancelConnectionQueries(a.ID)
+			return nil, nil
+		}),
+		"Disconnect":       withArgs(func(_ context.Context, a args) (any, error) { s.Disconnect(a.ID); return nil, nil }),
+		"DeleteConnection": withArgs(func(_ context.Context, a args) (any, error) { return nil, s.DeleteConnection(a.ID) }),
+		"LogClient":        withArgs(func(_ context.Context, a args) (any, error) { s.LogClient(a.Line); return nil, nil }),
+		"ListDatabases":    withArgs(func(ctx context.Context, a args) (any, error) { return s.ListDatabases(ctx, a.ID) }),
 		"ListObjects": withArgs(func(ctx context.Context, a args) (any, error) {
 			return s.ListObjects(ctx, a.ID, a.Database)
 		}),

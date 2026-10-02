@@ -40,6 +40,14 @@ func (postgresDriver) Caps() Capabilities {
 	}
 }
 
+func (postgresDriver) SessionIDQuery() string { return "SELECT pg_backend_pid()" }
+
+// pg_cancel_backend cancels the running statement, as a cancel request does,
+// and leaves the session alone. A role may always cancel its own sessions.
+func (postgresDriver) KillStatement(id int64) string {
+	return fmt.Sprintf("SELECT pg_cancel_backend(%d)", id)
+}
+
 func (postgresDriver) SQLDriverName() string { return "pgx" }
 
 func (postgresDriver) DSN(cfg ConnConfig, database string) (string, error) {

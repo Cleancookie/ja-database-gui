@@ -353,6 +353,14 @@ type Driver interface {
 	// BuildChange renders one row insert, update or delete. The SQL it returns
 	// is parameterised; the values travel in Args. See write.go.
 	BuildChange(ref ObjectRef, ch Change) (Stmt, error)
+
+	// SessionIDQuery returns a statement yielding one integer, the server's id
+	// for the connection it runs on, or "" when cancelling the context is enough
+	// to stop the server (see session.go). KillStatement is its partner: it
+	// renders the statement that stops whatever that session is running, from an
+	// id that came out of SessionIDQuery and nowhere else.
+	SessionIDQuery() string
+	KillStatement(sessionID int64) string
 }
 
 // textCapper is how a dialect says "the first n characters of this

@@ -40,6 +40,11 @@ func (mssqlDriver) Caps() Capabilities {
 	}
 }
 
+// SQL Server needs no kill: cancelling the context sends an attention packet,
+// which aborts the batch. See session.go.
+func (mssqlDriver) SessionIDQuery() string        { return "" }
+func (mssqlDriver) KillStatement(id int64) string { return "" }
+
 func (mssqlDriver) SQLDriverName() string { return "sqlserver" }
 
 func (mssqlDriver) DSN(cfg ConnConfig, database string) (string, error) {

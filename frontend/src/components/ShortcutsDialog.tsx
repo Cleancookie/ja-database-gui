@@ -16,6 +16,7 @@ const SHORTCUTS: [string, string][] = [
   ['Enter', 'Apply the filter'],
   ['Ctrl+E', 'Toggle the SQL editor'],
   ['Ctrl+Enter', 'Run the query, or only the selected text (in the editor)'],
+  ['Ctrl+.', 'Cancel the running SQL editor query'],
   ['Ctrl+R', 'Refresh the current rows'],
   ['Ctrl+Shift+R', 'Reload the app — the escape hatch if the UI wedges'],
   ['Ctrl+`', 'Toggle the activity tray (query log)'],

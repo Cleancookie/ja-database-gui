@@ -26,8 +26,9 @@ The cost is a change to how queries are run, which is why it was deferred:
 
 - Each tracked query has to be pinned to its own `*sql.Conn` for its whole
   lifetime, so its connection id can be captured — `CONNECTION_ID()`,
-  `pg_backend_pid()`, `@@SPID`. Today queries take any connection from the
-  pool, and `database/sql` gives no way to ask which one it used.
+  `pg_backend_pid()`, `@@SPID`. The SQL editor now does this (`runEditor`, for
+  cancel) and records `Info.SessionID`; every other kind of query still takes
+  any connection from the pool.
 - Reading the state then needs a *second* connection, since the first is busy
   running the query being asked about. That is a monitoring connection, and
   it needs its own lifecycle, error handling and permissions story —
@@ -35,8 +36,8 @@ The cost is a change to how queries are run, which is why it was deferred:
   other users' queries only to a superuser or `pg_read_all_stats`, and
   `dm_exec_requests` wants `VIEW SERVER STATE`.
 - The pinned connection also unlocks a better cancel: `KILL QUERY <id>` /
-  `pg_cancel_backend(pid)` reaches queries that context cancellation cannot,
-  and reports whether it worked.
+  `pg_cancel_backend(pid)` reaches queries that context cancellation cannot.
+  Built for the editor; it does not yet report whether the kill worked.
 - **SQLite has no equivalent at all.** There is no server, no session view. The
   column would have to fall back to the instrumented phases per dialect, which
   means the tray must keep both sources and label which one it is showing.

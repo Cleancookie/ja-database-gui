@@ -37,6 +37,10 @@ func (sqliteDriver) Caps() Capabilities {
 	}
 }
 
+// Cancelling the context interrupts the statement. See session.go.
+func (sqliteDriver) SessionIDQuery() string        { return "" }
+func (sqliteDriver) KillStatement(id int64) string { return "" }
+
 func (sqliteDriver) SQLDriverName() string { return "sqlite" }
 
 func (sqliteDriver) DSN(cfg ConnConfig, _ string) (string, error) {

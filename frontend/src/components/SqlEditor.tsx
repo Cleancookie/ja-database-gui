@@ -28,6 +28,8 @@ export function SqlEditor() {
   const selectSqlResult = useStore((s) => s.selectSqlResult)
   const sqlResult = useStore(activeSqlResult)
   const busy = useStore((s) => s.busy)
+  const sqlRun = useStore((s) => s.sqlRun)
+  const cancelSql = useStore((s) => s.cancelSql)
   const setView = useStore((s) => s.setView)
   const openCell = useStore((s) => s.openCell)
   const objects = useStore((s) => s.objects)
@@ -73,6 +75,19 @@ export function SqlEditor() {
           {hasSelection ? 'Run selection' : 'Run'}{' '}
           <span className="text-[var(--color-faint)]">Ctrl+Enter</span>
         </button>
+        {/* Separate from Run, not a toggle of it: Run stays where it was so the
+            next press is never a stop by accident. */}
+        {sqlRun && (
+          <button
+            onClick={() => void cancelSql()}
+            disabled={sqlRun.cancelled}
+            title="Stop the running statement (Ctrl+.)"
+            className="rounded-full border border-[var(--color-danger)] bg-[var(--color-elevated)] px-3 py-0.5 font-semibold text-[var(--color-danger)] disabled:opacity-60 enabled:hover:bg-[var(--color-danger)]/10"
+          >
+            {sqlRun.cancelled ? 'Cancelling…' : 'Cancel'}{' '}
+            <span className="text-[var(--color-faint)]">Ctrl+.</span>
+          </button>
+        )}
         <button
           onClick={() => setView('data')}
           className="ml-auto rounded-lg px-1.5 text-[var(--color-muted)] hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)]"

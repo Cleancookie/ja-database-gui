@@ -66,10 +66,18 @@ const rowReportInterval = 512
 // only row-capped, not free.
 const MaxResultSets = 32
 
+// Queryer is what the scan helpers need to run a statement. A *sql.DB, a pinned
+// *sql.Conn and an open *sql.Tx all satisfy it, so the editor can run on the
+// one connection it has pinned, inside a transaction or not.
+type Queryer interface {
+	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
 // RunQuery executes a query and normalises the result into a JSON-safe
 // ResultSet. A batch that produces several is not what this call is for — see
 // RunQueryAll — and only the first is read.
-func RunQuery(ctx context.Context, db *sql.DB, query string, opts QueryOptions, args ...any) (*ResultSet, error) {
+func RunQuery(ctx context.Context, db Queryer, query string, opts QueryOptions, args ...any) (*ResultSet, error) {
 	start := time.Now()
 
 	// Phase reporting for the activity tray. QueryContext covers both the wait
@@ -103,7 +111,7 @@ func RunQuery(ctx context.Context, db *sql.DB, query string, opts QueryOptions, 
 // one, so keeping them would put an empty tab in front of the user for the
 // `use` they wrote as setup. more is true when the batch produced more than
 // MaxResultSets and reading stopped early.
-func RunQueryAll(ctx context.Context, db *sql.DB, query string, opts QueryOptions) (sets []*ResultSet, more bool, err error) {
+func RunQueryAll(ctx context.Context, db Queryer, query string, opts QueryOptions) (sets []*ResultSet, more bool, err error) {
 	start := time.Now()
 
 	activity.SetPhase(ctx, activity.PhaseExecuting)
@@ -238,7 +246,7 @@ func cellBytes(v any) int64 {
 }
 
 // Exec runs a statement that returns no rows and reports the affected count.
-func Exec(ctx context.Context, db *sql.DB, query string) (*ResultSet, error) {
+func Exec(ctx context.Context, db Queryer, query string) (*ResultSet, error) {
 	start := time.Now()
 	// A statement that returns no rows has only the one phase worth showing.
 	activity.SetPhase(ctx, activity.PhaseExecuting)

@@ -1,3 +1,4 @@
+import { endRun, markCancelled, startRun, wasCancelled, type SqlRun } from './sqlRunState'
 import { create } from 'zustand'
 import { reuseUnchanged } from './activity'
 import { api, errorMessage } from './api'
@@ -255,6 +256,13 @@ export interface State extends EditState, EditActions {
   palette: PaletteMode | null
   dialog: DialogState
   busy: boolean
+  /**
+   * The editor run in flight, if any. Not tab state: a run carries on when the
+   * user moves to another tab, and Cancel must still reach the connection and
+   * database it was started against. `cancelled` is set once the user has
+   * asked, so the failure that follows reads as a choice rather than an error.
+   */
+  sqlRun: SqlRun | null
   toasts: Toast[]
 
   // actions
@@ -343,6 +351,10 @@ export interface State extends EditState, EditActions {
   resetFontSize: () => Promise<void>
   refreshActivity: () => Promise<void>
   cancelQuery: (id: string) => Promise<void>
+  /** Stops the editor run in flight. */
+  cancelSql: () => Promise<void>
+  /** Stops everything running on the connection the editor run is using. */
+  cancelConnectionSql: () => Promise<void>
   clearQueryHistory: () => Promise<void>
   setTrayOpen: (open: boolean) => void
   setSqlText: (t: string) => void
@@ -696,6 +708,7 @@ export const useStore = create<State>((set, get) => {
     palette: null,
     dialog: { kind: 'none' },
     busy: false,
+    sqlRun: null,
     toasts: [],
 
     async init() {
@@ -1239,6 +1252,31 @@ export const useStore = create<State>((set, get) => {
       }
     },
 
+    async cancelSql() {
+      const run = get().sqlRun
+      if (!run || run.cancelled) return
+      set({ sqlRun: markCancelled(run) })
+      try {
+        await api.cancelSql(run.connectionId, run.database)
+        await get().refreshActivity()
+      } catch (e) {
+        get().pushToast('error', errorMessage(e))
+      }
+    },
+
+    async cancelConnectionSql() {
+      const run = get().sqlRun
+      const connectionId = run?.connectionId ?? get().activeConnectionId
+      if (!connectionId) return
+      if (run) set({ sqlRun: markCancelled(run) })
+      try {
+        await api.cancelConnectionQueries(connectionId)
+        await get().refreshActivity()
+      } catch (e) {
+        get().pushToast('error', errorMessage(e))
+      }
+    },
+
     async clearQueryHistory() {
       try {
         await api.clearQueryHistory()
@@ -1272,7 +1310,11 @@ export const useStore = create<State>((set, get) => {
       const sql = text ?? s.sqlText
       if (!sql.trim()) return
       const connectionId = s.activeConnectionId
-      set({ busy: true })
+      const token = ++sqlRunSeq
+      set({
+        busy: true,
+        sqlRun: startRun(token, connectionId, s.activeDatabase),
+      })
       try {
         const res = await tracked(() =>
           api.runSql({
@@ -1289,6 +1331,7 @@ export const useStore = create<State>((set, get) => {
           // The old result's selection means nothing against the new one.
           selection: s.selection?.source === 'sql' ? null : s.selection,
           busy: false,
+          sqlRun: endRun(get().sqlRun, token),
         })
         // Only a statement with nothing to show says how many rows it moved.
         // With a grid on screen the row count is already in front of the user.
@@ -1297,8 +1340,10 @@ export const useStore = create<State>((set, get) => {
           s.pushToast('info', `${only.rowsAffected} row(s) affected in ${only.elapsedMs}ms`)
         }
       } catch (e) {
-        set({ busy: false })
-        get().pushToast('error', errorMessage(e))
+        const cancelled = wasCancelled(get().sqlRun, token)
+        set({ busy: false, sqlRun: endRun(get().sqlRun, token) })
+        if (cancelled) get().pushToast('info', 'Query cancelled')
+        else get().pushToast('error', errorMessage(e))
       }
     },
 
@@ -1495,6 +1540,8 @@ export function useActiveKind(): Kind | null {
  * would be a second thing to keep in step with the tab index, and the two
  * drifting is exactly the bug that would show the wrong grid.
  */
+let sqlRunSeq = 0
+
 export function activeSqlResult(s: State): ResultSet | null {
   return s.sqlResults[s.sqlResultIndex] ?? null
 }

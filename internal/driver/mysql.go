@@ -41,6 +41,12 @@ func (mysqlDriver) Caps() Capabilities {
 	}
 }
 
+func (mysqlDriver) SessionIDQuery() string { return "SELECT CONNECTION_ID()" }
+
+// KILL QUERY stops the statement and leaves the connection open; a plain KILL
+// would drop it. Neither can be parameterised, so the id is formatted as an int.
+func (mysqlDriver) KillStatement(id int64) string { return fmt.Sprintf("KILL QUERY %d", id) }
+
 func (mysqlDriver) SQLDriverName() string { return "mysql" }
 
 func (mysqlDriver) DSN(cfg ConnConfig, database string) (string, error) {

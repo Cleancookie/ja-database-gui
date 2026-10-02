@@ -558,3 +558,78 @@ func TestSpillDirectoryIsNamedForThisProcess(t *testing.T) {
 		t.Fatalf("stat = %v, %v, want a 0700 directory", info, err)
 	}
 }
+
+func TestSessionIDIsRecordedAndKilledBeforeContextCancel(t *testing.T) {
+	r := New()
+	ctx, done := r.Begin(context.Background(), "c1", "shop", KindQuery, "select sleep(60)")
+
+	var ctxLiveAtKill bool
+	SetSession(ctx, 4242, func(context.Context) error {
+		ctxLiveAtKill = ctx.Err() == nil
+		return nil
+	})
+	if got := r.List()[0].SessionID; got != 4242 {
+		t.Fatalf("running SessionID = %d, want 4242", got)
+	}
+
+	r.Cancel(IDOf(ctx))
+	if !ctxLiveAtKill {
+		t.Fatal("context was cancelled before the kill ran; the socket would be gone first")
+	}
+	if ctx.Err() == nil {
+		t.Fatal("context not cancelled after the kill")
+	}
+	done(ctx.Err())
+	if got := r.List()[0]; got.Phase != PhaseCancelled || got.SessionID != 4242 {
+		t.Fatalf("history entry = %+v, want cancelled with session 4242", got)
+	}
+}
+
+func TestClearSessionDisarmsTheKill(t *testing.T) {
+	r := New()
+	ctx, done := r.Begin(context.Background(), "c1", "shop", KindQuery, "select 1")
+	defer done(nil)
+
+	killed := false
+	SetSession(ctx, 7, func(context.Context) error { killed = true; return nil })
+	ClearSession(ctx)
+	r.Cancel(IDOf(ctx))
+
+	if killed {
+		t.Fatal("kill ran after ClearSession; it could have hit a reused connection")
+	}
+	if ctx.Err() == nil {
+		t.Fatal("cancel must still cancel the context")
+	}
+}
+
+func TestFailedKillStillCancelsTheContext(t *testing.T) {
+	r := New()
+	ctx, done := r.Begin(context.Background(), "c1", "", KindQuery, "x")
+	defer done(nil)
+	SetSession(ctx, 1, func(context.Context) error { return errors.New("pool exhausted") })
+	r.Cancel(IDOf(ctx))
+	if ctx.Err() == nil {
+		t.Fatal("context not cancelled after a failed kill")
+	}
+}
+
+func TestCancelQueriesOnlyTouchesEditorStatementsOfThatTarget(t *testing.T) {
+	r := New()
+	editor, d1 := r.Begin(context.Background(), "c1", "shop", KindQuery, "a")
+	otherDB, d2 := r.Begin(context.Background(), "c1", "other", KindQuery, "b")
+	browse, d3 := r.Begin(context.Background(), "c1", "shop", KindBrowse, "c")
+	otherConn, d4 := r.Begin(context.Background(), "c2", "shop", KindQuery, "d")
+	defer func() { d1(nil); d2(nil); d3(nil); d4(nil) }()
+
+	r.CancelQueries("c1", "shop")
+
+	if editor.Err() == nil {
+		t.Fatal("the editor statement was not cancelled")
+	}
+	for name, c := range map[string]context.Context{"other database": otherDB, "browse": browse, "other connection": otherConn} {
+		if c.Err() != nil {
+			t.Fatalf("%s was cancelled but should not be", name)
+		}
+	}
+}

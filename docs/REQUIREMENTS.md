@@ -593,6 +593,41 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | CSP | Header from the Wails asset middleware: same-origin scripts and connections, inline styles allowed |
 | Build | `npm ci` from the lockfile; SQL Server test image pinned by digest; `make vuln` before a release |
 
+## 2026-10-02 — SQL editor: click area, cancel
+
+### Brief
+
+1. Clicking the empty part of the editor pane did nothing; only the placeholder line took focus.
+2. A Cancel separate from Run, working on every dialect.
+
+### Decided: click area
+
+| Question | Choice |
+| --- | --- |
+| Where | `focusEditorFromPane` on the pane wrapper in `SqlEditor.tsx`. A press outside `.cm-editor` focuses the editor with the caret at the end (`EditorHandle.focusEnd`) |
+| Left alone | Presses inside the editor (selection), on the pane's scrollbar (`paneClick.ts`), and the Resizer, which is a sibling of the pane |
+
+### Decided: cancel
+
+| Question | Choice |
+| --- | --- |
+| Surface | A Cancel button in the editor toolbar while an editor run is in flight, beside Run and not a toggle of it. Hotkey `Ctrl+.` (no CodeMirror or app binding uses it; Escape already closes popups and the palette). Palette: "Cancel running query" and "Cancel all running queries on this connection" |
+| API | `CancelSQL(connectionId, database)` stops the editor's statements on that target. `CancelConnectionQueries(connectionId)` stops everything on the connection. Both in `internal/api`, both in `app.go` and `cmd/devserver` |
+| Pinned connection | Every editor run takes one `*sql.Conn` (`runEditor`). Its server session id is read first and recorded on the activity entry (`Info.SessionID`) |
+| Order | Kill on a second pool connection, then cancel the context. The other way round drops the socket first |
+| Safety | The kill is armed only between capture and release (`activity.SetSession` / `ClearSession`) and `ClearSession` waits for a kill in flight, so it cannot reach a session that has moved on. The statement is `fmt.Sprintf` of an `int64` the server returned for our own connection. Nothing else can name a session |
+
+What cancelling the context does on the server, read from the driver source at the versions in `go.mod`:
+
+| Dialect | Context cancel alone | Kill added |
+| --- | --- | --- |
+| SQLite | modernc interrupts the statement. Stops | none |
+| SQL Server | go-mssqldb sends a TDS attention packet; the server aborts the batch. Stops | none. `KILL` needs ALTER ANY CONNECTION and ends the session |
+| PostgreSQL | pgx expires the socket deadline, closes the connection and sends a cancel request from a new socket. Best effort and asynchronous | `pg_cancel_backend(pid)` |
+| MySQL / MariaDB | go-sql-driver only closes the socket. The server keeps running the statement until it next writes | `KILL QUERY <id>` |
+
+Not verified against live servers: the test containers are not running in this WSL. The table is from reading the drivers and from tests against SQLite and fakes.
+
 
 ## Invariants
 
@@ -668,6 +703,8 @@ test — which is the intended speed bump.
 | A context-menu item fires a store action the palette also exposes | The palette is the primary surface. A menu that calls the API directly is a second code path where the confirmation and the refresh afterwards can drift |
 | Truncate and drop are decided in the store action, never at the call site | `runTruncate` / `runDrop` skip the confirmation by design; anything but a confirmation dialog calling them is a destructive statement with no prompt |
 | No DDL builder emits `CASCADE` | The engine refusing is the useful answer. `CASCADE` would act on objects the user never named |
+| Cancel kills a session only by an id captured on a connection the app pinned for that tracked query, and disarms it before the connection is released | `registry_test.go`, `editor.go`. A pid or thread id outlives the statement; a late kill would hit whatever the pool ran next |
+| Cancel runs the kill before cancelling the context | `registry_test.go`. MySQL's driver answers a cancelled context by closing the socket, after which the server keeps going and the kill has nothing to reach |
 | `Capabilities.TruncateIsDelete` matches what `BuildTruncate` actually returns | `ddl_test.go`. The confirmation wording is derived from it, and it must not describe a statement other than the one that runs |
 
 ### Known gaps, accepted for now

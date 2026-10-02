@@ -325,6 +325,33 @@ export function buildActionCommands(s: Store): Command[] {
     })
   }
 
+  // Offered only while something is running, in the editor or not: a run goes
+  // on when the user changes tab, and the palette is how they stop it.
+  if (s.sqlRun) {
+    cmds.push(
+      {
+        id: 'sql:cancel',
+        title: 'Cancel running query',
+        subtitle: 'The SQL editor statement in flight',
+        group: 'Query',
+        shortcut: 'Ctrl+.',
+        candidate: { name: 'Cancel running query', keywords: 'stop abort kill editor sql' },
+        run: () => s.cancelSql(),
+      },
+      {
+        id: 'sql:cancel-connection',
+        title: 'Cancel all running queries on this connection',
+        subtitle: 'The editor and anything else this app is running there',
+        group: 'Query',
+        candidate: {
+          name: 'Cancel all running queries',
+          keywords: 'stop abort kill everything connection activity',
+        },
+        run: () => s.cancelConnectionSql(),
+      },
+    )
+  }
+
   // The dropdown is in the editor's header, so the command has to open the
   // editor before it can focus it — after the render that mounts it, the way
   // Ctrl+F waits for the filter bar.

@@ -194,6 +194,16 @@ function useGlobalHotkeys() {
         return
       }
 
+      // Ctrl+. stops the editor's running statement. Claimed before the typing
+      // guard so it works with the caret in the editor, which is where it is
+      // needed. No CodeMirror binding uses it, and Escape cannot be the key: it
+      // already closes popups and the palette.
+      if (mod && !e.shiftKey && e.key === '.') {
+        e.preventDefault()
+        if (s.sqlRun) void s.cancelSql()
+        return
+      }
+
       // Escape here only closes the palette, which is hand-rolled. Dialogs and
       // menus dismiss themselves through the ui layer — unmounting them from
       // out here would pre-empt the close sequence that restores focus to

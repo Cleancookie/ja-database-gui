@@ -213,6 +213,14 @@ export const api = {
 
   cancelQuery: (id: string) => call<void>('CancelQuery', [id], { id }),
 
+  /** Stops what the SQL editor is running against this connection and database. */
+  cancelSql: (connectionId: string, database: string) =>
+    call<void>('CancelSQL', [connectionId, database], { id: connectionId, database }),
+
+  /** Stops everything running on a connection, browse reads included. */
+  cancelConnectionQueries: (connectionId: string) =>
+    call<void>('CancelConnectionQueries', [connectionId], { id: connectionId }),
+
   /** The whole statement and error of an entry the tray shows truncated. */
   querySql: (id: string) => call<QuerySqlResult>('QuerySQL', [id], { id }),
 

@@ -2,9 +2,9 @@
 // the user can see what the app is doing and cancel anything taking too long.
 //
 // Every query the app issues is wrapped by Begin, which returns a derived
-// context. Cancelling that context is what actually stops the query: Go's
-// database/sql propagates cancellation to the driver, which sends the
-// dialect's own kill/cancel signal to the server.
+// context. Cancelling that context stops the client side of the query, and for
+// most drivers the server side too. Where it does not (MySQL), a query may
+// register a server-side kill with SetSession, which Cancel runs first.
 //
 // The context also carries a tracker, which is how code deep in
 // internal/driver reports which phase a query has reached without importing
@@ -34,9 +34,9 @@ const (
 // Phase is where a query has got to. These are the app's own lifecycle states,
 // instrumented at the points that actually exist in the code — not the
 // server's opinion of the query. Real engine state (MySQL's "writing to net",
-// pg_stat_activity, dm_exec_requests) needs each query pinned to its own
-// connection so its thread id can be captured; that is deliberately not done
-// here, and is written up in docs/WISHLIST.md.
+// pg_stat_activity, dm_exec_requests) needs a monitoring connection, which is
+// deliberately not done here and is written up in docs/WISHLIST.md. Only the SQL
+// editor pins a connection, and only to be able to cancel (see SetSession).
 type Phase string
 
 const (
@@ -105,6 +105,10 @@ type Info struct {
 	// Error is set on PhaseFailed, so the history row can say why.
 	Error          string `json:"error,omitempty"`
 	ErrorTruncated bool   `json:"errorTruncated,omitempty"`
+	// SessionID is the server's id for the connection the statement ran on
+	// (pg_backend_pid, CONNECTION_ID), where the dialect needs one to cancel
+	// reliably. Zero otherwise.
+	SessionID int64 `json:"sessionId,omitempty"`
 }
 
 // tracker holds the parts of an Info that a running query updates from its own
@@ -113,6 +117,37 @@ type Info struct {
 type tracker struct {
 	phase atomic.Pointer[Phase]
 	rows  atomic.Int64
+
+	// sessMu serialises a kill against the connection being handed back. Without
+	// it a kill could land after the connection had moved on to someone else's
+	// statement. The kill holds it for at most killTimeout.
+	sessMu    sync.Mutex
+	sessionID int64
+	kill      func(context.Context) error
+}
+
+// killTimeout bounds one server-side kill. The context cancel that follows is
+// the fallback when it is exceeded.
+const killTimeout = 3 * time.Second
+
+func (t *tracker) session() int64 {
+	t.sessMu.Lock()
+	defer t.sessMu.Unlock()
+	return t.sessionID
+}
+
+// killSession runs the registered kill, if there is one still armed.
+func (t *tracker) killSession() {
+	t.sessMu.Lock()
+	defer t.sessMu.Unlock()
+	if t.kill == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), killTimeout)
+	defer cancel()
+	// A failed kill is not reported: the context cancel that follows still
+	// aborts the client side, and Cancel has no caller to tell.
+	_ = t.kill(ctx)
 }
 
 func (t *tracker) setPhase(p Phase) { t.phase.Store(&p) }
@@ -133,6 +168,31 @@ type trackerKey struct{}
 func SetPhase(ctx context.Context, p Phase) {
 	if t, ok := ctx.Value(trackerKey{}).(*tracker); ok {
 		t.setPhase(p)
+	}
+}
+
+// SetSession records the server session a tracked query is running on, and the
+// function that stops it from another connection. Cancel calls that function
+// before cancelling the context, because for some drivers cancelling the context
+// only drops the socket and leaves the server working. It is armed only until
+// ClearSession, so a kill can never reach a session that has gone on to other
+// work. A context with no tracker is a no-op.
+func SetSession(ctx context.Context, id int64, kill func(context.Context) error) {
+	if t, ok := ctx.Value(trackerKey{}).(*tracker); ok {
+		t.sessMu.Lock()
+		t.sessionID, t.kill = id, kill
+		t.sessMu.Unlock()
+	}
+}
+
+// ClearSession disarms the kill. Call it before the connection is released. It
+// waits for a kill already in progress, so by the time it returns nothing more
+// will be sent to that session on this query's behalf.
+func ClearSession(ctx context.Context) {
+	if t, ok := ctx.Value(trackerKey{}).(*tracker); ok {
+		t.sessMu.Lock()
+		t.kill = nil
+		t.sessMu.Unlock()
 	}
 }
 
@@ -254,6 +314,7 @@ func (r *Registry) finish(id string, err error) {
 
 	info := e.info
 	_, info.RowsRead = e.track.load()
+	info.SessionID = e.track.session()
 	info.ElapsedMS = time.Since(info.StartedAt).Milliseconds()
 	var errText string
 	switch {
@@ -310,6 +371,7 @@ func (r *Registry) List() []Info {
 	for _, e := range r.running {
 		info := e.info
 		info.Phase, info.RowsRead = e.track.load()
+		info.SessionID = e.track.session()
 		info.ElapsedMS = now.Sub(info.StartedAt).Milliseconds()
 		out = append(out, info)
 	}
@@ -385,25 +447,46 @@ func (r *Registry) Cancel(id string) {
 	r.mu.Unlock()
 
 	if ok {
-		e.cancel()
+		stop(e)
 	}
 }
 
 // CancelConnection stops everything running against one saved connection,
 // which is what disconnecting has to do before closing the pool.
 func (r *Registry) CancelConnection(connID string) {
+	r.cancelWhere(func(i Info) bool { return i.ConnectionID == connID })
+}
+
+// CancelQueries stops the SQL editor's running statements against one
+// connection and database, and nothing else: a browse or a count on the same
+// connection carries on.
+func (r *Registry) CancelQueries(connID, database string) {
+	r.cancelWhere(func(i Info) bool {
+		return i.Kind == KindQuery && i.ConnectionID == connID && i.Database == database
+	})
+}
+
+func (r *Registry) cancelWhere(match func(Info) bool) {
 	r.mu.Lock()
-	var cancels []context.CancelFunc
+	var hit []*entry
 	for _, e := range r.running {
-		if e.info.ConnectionID == connID {
+		if match(e.info) {
 			e.stopped = true
 			e.track.setPhase(PhaseCancelling)
-			cancels = append(cancels, e.cancel)
+			hit = append(hit, e)
 		}
 	}
 	r.mu.Unlock()
 
-	for _, c := range cancels {
-		c()
+	for _, e := range hit {
+		stop(e)
 	}
+}
+
+// stop kills the server-side work first, where the query registered a way to,
+// and only then cancels the context. The other order drops the socket before
+// the kill can be sent on a pool that is still open.
+func stop(e *entry) {
+	e.track.killSession()
+	e.cancel()
 }

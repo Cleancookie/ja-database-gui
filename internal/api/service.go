@@ -174,6 +174,19 @@ func (s *Service) Activity() ActivityResult {
 // CancelQuery stops one running query.
 func (s *Service) CancelQuery(id string) { s.activity.Cancel(id) }
 
+// CancelSQL stops what the SQL editor is running against one connection and
+// database. Only statements this app started and tracks can be reached: the
+// registry holds the session ids it captured itself.
+func (s *Service) CancelSQL(connectionID, database string) {
+	s.activity.CancelQueries(connectionID, database)
+}
+
+// CancelConnectionQueries stops everything running on one connection, the
+// editor's statements and the browse reads alike.
+func (s *Service) CancelConnectionQueries(connectionID string) {
+	s.activity.CancelConnection(connectionID)
+}
+
 // QuerySQLResult is the whole text of one activity-log entry. Kept is false
 // when the text has been evicted, in which case SQL and Error hold only the
 // preview the log still has, or nothing for an id it never knew.
@@ -1070,26 +1083,10 @@ func (s *Service) RunSQL(ctx context.Context, req RunSQLRequest) (*RunSQLResult,
 		Kind:         activity.KindQuery,
 		SQL:          stmt,
 	}, func(qctx context.Context) error {
-		// Any statement in the batch that returns rows sends the whole batch
-		// down the query path: Exec would run it all and throw those rows
-		// away, which is what `use db; select …` used to do.
-		if batchReturnsRows(stmt) {
-			// The editor's SQL is the user's own text and must not be
-			// rewritten, so the text cap here is applied while scanning. It
-			// keeps the grid responsive; it cannot keep the bytes off the wire.
-			sets, more, err := driver.RunQueryAll(qctx, sess.DB, stmt, driver.QueryOptions{
-				RowCap:  maxRows,
-				TextCap: settings.TextCapChars,
-			})
-			out.Results, out.MoreResults = sets, more
-			return err
-		}
-		rs, err := driver.Exec(qctx, sess.DB, stmt)
-		if err != nil {
-			return err
-		}
-		out.Results = []*driver.ResultSet{rs}
-		return nil
+		return runEditor(qctx, sess, stmt, driver.QueryOptions{
+			RowCap:  maxRows,
+			TextCap: settings.TextCapChars,
+		}, out)
 	}); err != nil {
 		return nil, err
 	}

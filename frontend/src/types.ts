@@ -423,6 +423,8 @@ export interface QueryInfo {
   /** A preview of at most 500 characters. */
   error?: string
   errorTruncated?: boolean
+  /** The server session the statement ran on, where the dialect needs one to cancel. */
+  sessionId?: number
 }
 
 /** The whole text behind a QueryInfo. Mirrors api.QuerySQLResult. */
