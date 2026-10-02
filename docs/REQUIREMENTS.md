@@ -531,7 +531,7 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | Keys | `Ctrl+T` new, `Ctrl+W` close, `Ctrl+Shift+T` reopens the last ten closed (not bare pickers), `Ctrl+Tab` / `Ctrl+Shift+Tab` and `Ctrl+PageDown` / `PageUp` cycle. All in the action palette too |
 | Pages | The main panel shows picker, table, SQL editor, details or activity. Every change of page, including a tab switch, is recorded (up to 100) by a store subscription |
 | Mouse | Back / forward walk those pages across tabs, restoring a table's filter, sort and page. With Shift they cycle tabs |
-| Tab strip | `Ctrl+B` hides or shows it; persisted as `tabStripHidden` |
+| Tab strip | `Ctrl+B` or `Ctrl+←` hides or shows it (`Ctrl+↓` toggles the activity tray, as `` Ctrl+` `` does; both skipped while typing); persisted as `tabStripHidden` |
 | Persistence | None. The app starts on the picker |
 | Staged edits | Global, as before. Two tabs on one table share pending edits |
 | Closing the last tab | Leaves a blank one |
@@ -548,7 +548,7 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | Next page | By position, not by offset: the read returns `next`, the sort-column values of its last row, and the append sends it back as `after`. Rows added or removed above cannot then repeat or skip one. Falls back to the offset where the sort cannot be compared exactly |
 | Scroll and selection | The grid scrolls to the top and clears the selection when the *column list* changes, not when rows are appended |
 | Limits | Stops at `rowCap`. The total is not re-counted on append |
-| Page controls | Hidden; the bar says Scroll for more / Loading more… / End of results. `Ctrl+←/→` and the page commands are inert |
+| Page controls | Hidden; the bar says Scroll for more / Loading more… / End of results. the page commands are inert |
 | Drawer speed | Setting `drawerDurationMs` (0–2000, default 260, 0 is off), applied as `--drawer-duration` and previewed live in Settings. The tab strip and the activity tray both use it |
 
 ## 2026-10-01 — paging by position
@@ -561,7 +561,7 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | Tiebreaker | Every read is ordered by the requested sort **plus the missing key columns, ascending** (`driver.StableOrder`), paged or not. Rows that tie on the sort no longer swap places between pages. The UI is told the requested sort only, so the header is unchanged. An emptied sort therefore reads in key order |
 | By position | `ReadRowsResult.Next` is the last row's sort-column values; `ReadRowsRequest.After` sends them back. `driver.BuildRead` adds `(a > ?) OR (a = ? AND id > ?)` — a chain, not a tuple, because directions can differ and SQL Server has no row values — with the values bound, and the filter parenthesised. The activity log shows it with the values filled in |
 | When not offered | No key; a sort column that is nullable (a key column never is), a float (the value travels as text), or a binary preview; or the last row's sort value was cut by the text cap. `Next` is then absent and the UI counts pages as before |
-| Where it is used | Infinite scroll's append only. Paged mode and `Ctrl+←/→` still count pages: a page number is a position the user chose |
+| Where it is used | Infinite scroll's append only. Paged mode still counts pages: a page number is a position the user chose |
 | Full-value fetch | `ReadCell` finds the row by its key when the table has one, falling back to the offset. An offset names a position, and positions move; infinite scroll also made the old arithmetic wrong, since `page` there counts what is loaded |
 
 ## Invariants

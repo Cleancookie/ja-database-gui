@@ -329,8 +329,8 @@ function Grid({
       // is the same movement — the app is keyboard-first, and a hand that never
       // leaves the home row is the whole argument for it. Select-all keeps
       // Ctrl+A above, so only these four letters are claimed.
-      // Ctrl+arrow stays pagination, which is why the modifier picks the map
-      // rather than being tolerated by both.
+      // Ctrl+arrow belongs to the pane toggles in App, which is why the
+      // modifier picks the map rather than being tolerated by both.
       const step = mod ? VIM[e.key.toLowerCase()] : ARROWS[e.key]
       if (step) {
         const d = transposed ? { row: step.col, col: step.row } : step

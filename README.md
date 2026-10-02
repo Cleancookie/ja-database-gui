@@ -34,7 +34,7 @@ MVP walking skeleton. Working end-to-end:
 | `Ctrl+E` | Toggle SQL editor |
 | `Ctrl+Enter` | Run query (in SQL editor) |
 | `Ctrl+R` | Refresh current result set |
-| `Ctrl+←` / `Ctrl+→` | Previous / next page |
+| `Ctrl+←` / `Ctrl+↓` | Toggle the left / bottom pane |
 | `Enter` | Open the selected cell (full value, JSON tree) |
 | Right-click / `Menu` | Cell actions — open in viewer, copy value, copy full value |
 | `Esc` | Close palette / dialog, or blur the filter |

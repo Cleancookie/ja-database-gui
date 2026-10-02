@@ -331,7 +331,7 @@ export function buildActionCommands(s: Store): Command[] {
       what: 'tab strip',
       open: !s.settings.tabStripHidden,
       set: (open) => s.setTabStrip(open),
-      shortcut: 'Ctrl+B',
+      shortcut: 'Ctrl+B / Ctrl+←',
       keywords: 'sidebar tabs vertical',
     }),
     ...paneCommands({
@@ -340,7 +340,7 @@ export function buildActionCommands(s: Store): Command[] {
       what: 'activity tray',
       open: s.trayOpen,
       set: (open) => s.setTrayOpen(open),
-      shortcut: 'Ctrl+`',
+      shortcut: 'Ctrl+` / Ctrl+↓',
       keywords: 'running queries monitor cancel kill progress loading elapsed history',
     }),
   )
@@ -608,7 +608,6 @@ export function buildActionCommands(s: Store): Command[] {
           id: 'page:prev',
           title: 'Previous page',
           group: 'Pagination',
-          shortcut: 'Ctrl+←',
           candidate: { name: 'Previous page', keywords: 'back' },
           run: () => s.setPage(s.page - 1),
         })
@@ -625,7 +624,6 @@ export function buildActionCommands(s: Store): Command[] {
           id: 'page:next',
           title: 'Next page',
           group: 'Pagination',
-          shortcut: 'Ctrl+→',
           candidate: { name: 'Next page', keywords: 'forward' },
           run: () => s.setPage(s.page + 1),
         })

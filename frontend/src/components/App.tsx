@@ -310,15 +310,17 @@ function useGlobalHotkeys() {
         return
       }
 
-      if (mod && e.key === 'ArrowLeft' && s.paginationEnabled && !isInfinite(s) && s.page > 1) {
+      // Ctrl+arrow toggles the pane on that edge. Skipped while typing, where
+      // Ctrl+Left/Right mean "move by word". There is no top or right pane, so
+      // those arrows are free.
+      if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault()
-        void s.setPage(s.page - 1)
+        void s.setTabStrip(s.settings.tabStripHidden)
         return
       }
-
-      if (mod && e.key === 'ArrowRight' && s.paginationEnabled && !isInfinite(s) && s.hasMore) {
+      if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowDown') {
         e.preventDefault()
-        void s.setPage(s.page + 1)
+        s.setTrayOpen(!s.trayOpen)
         return
       }
 

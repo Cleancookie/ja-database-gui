@@ -134,7 +134,7 @@ export function Paginator() {
               <button
                 onClick={() => void setPage(page - 1)}
                 disabled={page <= 1 || busy}
-                title="Previous page (Ctrl+←)"
+                title="Previous page"
                 className="rounded-full px-2 py-0.5 disabled:opacity-30 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
               >
                 ‹
@@ -157,7 +157,7 @@ export function Paginator() {
               <button
                 onClick={() => void setPage(page + 1)}
                 disabled={!hasMore || busy}
-                title="Next page (Ctrl+→)"
+                title="Next page"
                 className="rounded-full px-2 py-0.5 disabled:opacity-30 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
               >
                 ›
