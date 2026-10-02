@@ -1,4 +1,16 @@
 import { effectiveIsolation } from './isolation'
+import {
+  activeRun,
+  addRun,
+  clearUnpinned,
+  closeRun,
+  nextRunId,
+  selectRun,
+  stepTarget,
+  togglePin,
+  type SqlHistory,
+  type SqlRunEntry,
+} from './sqlHistory'
 import { endRun, markCancelled, startRun, wasCancelled, type SqlRun } from './sqlRunState'
 import { create } from 'zustand'
 import { reuseUnchanged } from './activity'
@@ -218,15 +230,19 @@ export interface State extends EditState, EditActions {
    */
   sqlIsolation: string
   /**
-   * Every result set the last run produced, in order. A batch is one round
-   * trip that can answer several times over — `use other_db; select …` — and
-   * the editor puts a tab on each. Empty until something has been run.
+   * Every editor run kept for this tab, oldest first, within the limits in
+   * sqlHistory.ts. In memory only: results can be sensitive, so this is never
+   * persisted and a closed tab's runs are not kept for Reopen.
    */
-  sqlResults: ResultSet[]
-  /** Which of them the editor is showing. */
+  sqlRuns: SqlRunEntry[]
+  /** Id of the run on screen; null until something has been run. */
+  sqlActiveRun: number | null
+  /**
+   * Which of the active run's result sets is showing. A batch is one round
+   * trip that can answer several times over — `use other_db; select …` — and
+   * the editor puts a second row of tabs on them.
+   */
   sqlResultIndex: number
-  /** The run produced more result sets than were kept — see MaxResultSets. */
-  moreSqlResults: boolean
 
   // table details page
   detail: ObjectDetail | null
@@ -370,8 +386,20 @@ export interface State extends EditState, EditActions {
   setSqlIsolation: (level: string) => void
   /** Runs `text` when given — the trimmed selection — else the whole buffer. */
   runSql: (text?: string) => Promise<void>
-  /** Switches result tabs. The selection goes with the old one. */
+  /** Switches result tabs within the active run. The selection goes with the old one. */
   selectSqlResult: (index: number) => void
+  /** Shows another kept run. */
+  selectSqlRun: (id: number) => void
+  /** Previous (-1) or next (1) kept run, wrapping. */
+  stepSqlRun: (delta: number) => void
+  /** Closes a run (the active one by default). */
+  closeSqlRun: (id?: number) => void
+  /** Pins or unpins a run (the active one by default); a pinned run is never evicted. */
+  toggleSqlRunPin: (id?: number) => void
+  /** Drops every unpinned run. */
+  clearSqlRuns: () => void
+  /** Puts a run's SQL back in the editor (the active run by default). */
+  restoreSqlRunText: (id?: number) => void
   saveConnection: (c: Connection, password: string | null) => Promise<void>
   deleteConnection: (id: string) => Promise<void>
   /** Removes a saved connection, asking first unless confirmations are off. */
@@ -700,9 +728,9 @@ export const useStore = create<State>((set, get) => {
     sqlText: '',
     sqlHasSelection: false,
     sqlIsolation: '',
-    sqlResults: [],
+    sqlRuns: [],
+    sqlActiveRun: null,
     sqlResultIndex: 0,
-    moreSqlResults: false,
     detail: null,
     detailLoading: false,
     detailError: null,
@@ -899,7 +927,9 @@ export const useStore = create<State>((set, get) => {
       if (at < 0) return
       const closing = stashed()[at].saved
       if (closing && worthReopening(closing)) {
-        closedTabs = [...closedTabs, closing].slice(-CLOSED_TABS_LIMIT)
+        // Reopen brings back the editor text, not the results: they may be sensitive.
+        const forgotten = { ...closing, sqlRuns: [], sqlActiveRun: null, sqlResultIndex: 0 }
+        closedTabs = [...closedTabs, forgotten].slice(-CLOSED_TABS_LIMIT)
       }
       if (s.tabs.length === 1) {
         const fresh = makeTab(++tabSeq, blank())
@@ -1325,6 +1355,25 @@ export const useStore = create<State>((set, get) => {
       if (!sql.trim()) return
       const connectionId = s.activeConnectionId
       const token = ++sqlRunSeq
+      const startedAt = Date.now()
+      const connName = s.connections.find((c) => c.id === connectionId)?.name ?? connectionId
+      const target = s.activeDatabase ? `${connName} / ${s.activeDatabase}` : connName
+      const record = (outcome: Pick<SqlRunEntry, 'results' | 'moreResults' | 'error'>) => {
+        const h = get()
+        const added = addRun(
+          { runs: h.sqlRuns, activeId: h.sqlActiveRun },
+          {
+            id: nextRunId({ runs: h.sqlRuns, activeId: h.sqlActiveRun }),
+            sql,
+            at: startedAt,
+            durationMs: Date.now() - startedAt,
+            target,
+            pinned: false,
+            ...outcome,
+          },
+        )
+        return { sqlRuns: added.runs, sqlActiveRun: added.activeId, sqlResultIndex: 0 }
+      }
       set({
         busy: true,
         sqlRun: startRun(token, connectionId, s.activeDatabase),
@@ -1340,9 +1389,7 @@ export const useStore = create<State>((set, get) => {
           }),
         )
         set({
-          sqlResults: res.results,
-          sqlResultIndex: 0,
-          moreSqlResults: res.moreResults,
+          ...record({ results: res.results, moreResults: res.moreResults }),
           // The old result's selection means nothing against the new one.
           selection: s.selection?.source === 'sql' ? null : s.selection,
           busy: false,
@@ -1356,7 +1403,16 @@ export const useStore = create<State>((set, get) => {
         }
       } catch (e) {
         const cancelled = wasCancelled(get().sqlRun, token)
-        set({ busy: false, sqlRun: endRun(get().sqlRun, token) })
+        set({
+          ...record({
+            results: [],
+            moreResults: false,
+            error: cancelled ? 'Query cancelled' : errorMessage(e),
+          }),
+          selection: get().selection?.source === 'sql' ? null : get().selection,
+          busy: false,
+          sqlRun: endRun(get().sqlRun, token),
+        })
         if (cancelled) get().pushToast('info', 'Query cancelled')
         else get().pushToast('error', errorMessage(e))
       }
@@ -1364,11 +1420,46 @@ export const useStore = create<State>((set, get) => {
 
     selectSqlResult(index) {
       const s = get()
-      if (index < 0 || index >= s.sqlResults.length || index === s.sqlResultIndex) return
+      const n = activeRun(history(s))?.results.length ?? 0
+      if (index < 0 || index >= n || index === s.sqlResultIndex) return
       set({
         sqlResultIndex: index,
         selection: s.selection?.source === 'sql' ? null : s.selection,
       })
+    },
+
+    selectSqlRun(id) {
+      const s = get()
+      if (id === s.sqlActiveRun) return
+      set(historyPatch(s, selectRun(history(s), id)))
+    },
+
+    stepSqlRun(delta) {
+      const id = stepTarget(history(get()), delta)
+      if (id !== null) get().selectSqlRun(id)
+    },
+
+    closeSqlRun(id) {
+      const s = get()
+      const target = id ?? s.sqlActiveRun
+      if (target !== null) set(historyPatch(s, closeRun(history(s), target)))
+    },
+
+    toggleSqlRunPin(id) {
+      const s = get()
+      const target = id ?? s.sqlActiveRun
+      if (target !== null) set(historyPatch(s, togglePin(history(s), target)))
+    },
+
+    clearSqlRuns() {
+      const s = get()
+      set(historyPatch(s, clearUnpinned(history(s))))
+    },
+
+    restoreSqlRunText(id) {
+      const s = get()
+      const run = history(s).runs.find((r) => r.id === (id ?? s.sqlActiveRun))
+      if (run) set({ sqlText: run.sql })
     },
 
     async saveConnection(connection, password) {
@@ -1557,8 +1648,27 @@ export function useActiveKind(): Kind | null {
  */
 let sqlRunSeq = 0
 
+function history(s: State): SqlHistory {
+  return { runs: s.sqlRuns, activeId: s.sqlActiveRun }
+}
+
+/**
+ * The state change for a new history. Moving to another run drops the grid
+ * selection and goes back to its first result set; closing or pinning another
+ * run leaves what is on screen alone.
+ */
+function historyPatch(s: State, h: SqlHistory): Partial<State> {
+  if (h.activeId === s.sqlActiveRun) return { sqlRuns: h.runs }
+  return {
+    sqlRuns: h.runs,
+    sqlActiveRun: h.activeId,
+    sqlResultIndex: 0,
+    selection: s.selection?.source === 'sql' ? null : s.selection,
+  }
+}
+
 export function activeSqlResult(s: State): ResultSet | null {
-  return s.sqlResults[s.sqlResultIndex] ?? null
+  return s.sqlRuns.find((r) => r.id === s.sqlActiveRun)?.results[s.sqlResultIndex] ?? null
 }
 
 /** Whether the active dialect has schemas, so names are worth qualifying. */

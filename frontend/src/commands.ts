@@ -492,11 +492,13 @@ export function buildActionCommands(s: Store): Command[] {
   cmds.push(...buildEditCommands(s))
 
   // Only a batch that answered more than once has tabs to move between.
-  if (s.sqlResults.length > 1) {
-    const next = (s.sqlResultIndex + 1) % s.sqlResults.length
+  const activeSqlRun = s.sqlRuns.find((r) => r.id === s.sqlActiveRun)
+  const sets = activeSqlRun?.results.length ?? 0
+  if (sets > 1) {
+    const next = (s.sqlResultIndex + 1) % sets
     cmds.push({
       id: 'sql:next-result',
-      title: `Show result ${next + 1} of ${s.sqlResults.length}`,
+      title: `Show result ${next + 1} of ${sets}`,
       subtitle: 'The next result set this batch returned',
       group: 'Query',
       candidate: {
@@ -507,9 +509,71 @@ export function buildActionCommands(s: Store): Command[] {
     })
   }
 
+  // Run history: every editor run is kept as a tab above the results.
+  if (s.view === 'sql' && s.sqlRuns.length > 0) {
+    const group = 'Query'
+    const kw = 'sql editor run history result tab'
+    if (s.sqlRuns.length > 1) {
+      cmds.push(
+        {
+          id: 'sql:prev-run',
+          title: 'Previous run',
+          subtitle: 'The run before this one in the history',
+          group,
+          shortcut: 'Alt+[',
+          candidate: { name: 'Previous run', keywords: kw + ' back older' },
+          run: async () => s.stepSqlRun(-1),
+        },
+        {
+          id: 'sql:next-run',
+          title: 'Next run',
+          subtitle: 'The run after this one in the history',
+          group,
+          shortcut: 'Alt+]',
+          candidate: { name: 'Next run', keywords: kw + ' forward newer' },
+          run: async () => s.stepSqlRun(1),
+        },
+      )
+    }
+    cmds.push(
+      {
+        id: 'sql:restore-run-sql',
+        title: "Put this run's SQL back in the editor",
+        subtitle: 'Replaces the editor text with what this run sent',
+        group,
+        candidate: { name: "Put this run's SQL back in the editor", keywords: kw + ' restore rerun recall' },
+        run: async () => s.restoreSqlRunText(),
+      },
+      {
+        id: 'sql:pin-run',
+        title: activeSqlRun?.pinned ? 'Unpin this run' : 'Pin this run',
+        subtitle: 'A pinned run is never dropped to make room for new ones',
+        group,
+        candidate: { name: 'Pin this run', keywords: kw + ' keep unpin' },
+        run: async () => s.toggleSqlRunPin(),
+      },
+      {
+        id: 'sql:close-run',
+        title: 'Close this run',
+        subtitle: 'Forgets its results',
+        group,
+        candidate: { name: 'Close this run', keywords: kw + ' forget discard remove' },
+        run: async () => s.closeSqlRun(),
+      },
+      {
+        id: 'sql:clear-runs',
+        title: 'Clear unpinned runs',
+        subtitle: 'Forgets every run that is not pinned',
+        group,
+        candidate: { name: 'Clear runs', keywords: kw + ' forget discard remove all' },
+        run: async () => s.clearSqlRuns(),
+      },
+    )
+  }
+
   // The grid on screen, as a file. Browse shows one page, so that is what it
   // exports — the page size control is how you ask for more.
-  const exportable = s.view === 'sql' ? s.sqlResults[s.sqlResultIndex] : s.result
+  const exportable = s.view === 'sql' ? activeSqlRun?.results[s.sqlResultIndex] : s.result
   if (exportable && exportable.columns.length > 0) {
     cmds.push({
       id: 'grid:export-csv',

@@ -728,3 +728,28 @@ test — which is the intended speed bump.
 - **No read-only mode.** A user can type a destructive statement into the filter or the editor and mean it. Row edits are the one write path with guards of their own (`ApplyChanges`: key-only, one row, one transaction); a connection-level read-only switch would still have to refuse those too. Enforcing otherwise belongs at the session level, not in string parsing. Truncate and drop being two clicks away in the object menu raises the stakes on this: the only guard is `confirmDestructive`, which the user can turn off.
 - **No `ALTER`.** Columns can be added to a new table but not to an existing one, and nothing can be renamed or retyped. The SQL editor is the route for now — see the wishlist.
 - **Wails v2 cannot cross-compile to macOS or Linux.** Windows works only because every driver is pure Go. Keep it that way — a cgo driver would end Windows cross-compilation from WSL.
+
+## 2026-10-02 — SQL editor: run history
+
+### Brief
+
+Running a second query replaced the first run's results. Keep every run as a tab above the results so it can be revisited.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| What a run is | `SqlRunEntry` in `sqlHistory.ts`: the SQL sent (the selection when there was one), start time, duration, `connection / database`, its result sets, `moreResults`, and `error` when it failed or was cancelled. A batch's result sets keep their own second row of tabs, shown only when the active run has more than one |
+| Order | Oldest left, newest right. A new run is appended and becomes active |
+| An errored or cancelled run | Is kept as a run with no results. Its tab shows "error" and the pane shows the message (the toast still appears). The previous good result stays one click away rather than being replaced |
+| Limits | `MAX_UNPINNED_RUNS` = 10 and `MAX_RETAINED_CELLS` = 2,000,000 (rows x columns, all runs). Oldest unpinned run goes first. The active run and pinned runs are never evicted; a newest run over the cell budget is still kept. The backend lets one result reach 256 MB and every kept run lives in the webview heap, hence the cell budget |
+| Pin | A pinned run does not count toward the run limit and is never evicted, but its cells still count toward the budget (so they push unpinned runs out) |
+| Closing | ✕ or middle click closes one run; "Clear" drops all unpinned. Closing the active run activates the next one along, else the previous |
+| Restoring the SQL | Button and palette command "Put this run's SQL back in the editor". Never automatic |
+| Keys | `Alt+[` / `Alt+]` previous / next run (matched on `e.code`, SQL view only, also inside the editor; CodeMirror and the app leave both unbound). Palette: previous run, next run, put SQL back, pin, close, clear. `Alt+Left/Right` stay history back / forward |
+| Switching runs | Only `sqlActiveRun` changes. The `ResultSet` objects are the same references, so the memoised `DataGrid` is not rebuilt |
+| State | `sqlResults` and `moreSqlResults` are gone; `sqlRuns` and `sqlActiveRun` are tab state (`TAB_FIELDS`), `sqlResultIndex` now indexes into the active run |
+
+### Security
+
+Results and SQL can contain sensitive data. The history is **in memory only**, per editor tab. It is never written to disk, `localStorage` or settings. Closing the editor tab or the app discards it, and Reopen closed tab restores the editor text but not the runs (`closeTab` strips them before stashing). The activity log keeps its existing, separate record of statements.

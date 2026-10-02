@@ -320,6 +320,15 @@ function useGlobalHotkeys() {
         return
       }
 
+      // Alt+[ and Alt+] step through the SQL editor's kept runs. Claimed inside
+      // the editor too: CodeMirror leaves both unbound. e.code, not e.key, since
+      // some layouts type a character on Alt+bracket.
+      if (s.view === 'sql' && e.altKey && !mod && !e.shiftKey && (e.code === 'BracketLeft' || e.code === 'BracketRight')) {
+        e.preventDefault()
+        s.stepSqlRun(e.code === 'BracketLeft' ? -1 : 1)
+        return
+      }
+
       // Alt+arrows are the browser's back and forward, and the keyboard twin of
       // the mouse buttons. Left alone inside the SQL editor, which uses them to
       // move by syntax; a plain <input> has no use for them, and the picker

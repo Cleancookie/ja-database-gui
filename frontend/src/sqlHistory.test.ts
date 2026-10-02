@@ -20,7 +20,7 @@ import type { ResultSet } from './types'
 
 function set(rows: number, cols = 1): ResultSet {
   return {
-    columns: Array.from({ length: cols }, (_, i) => ({ name: `c${i}`, type: 'int' })) as ResultSet['columns'],
+    columns: Array.from({ length: cols }, (_, i) => ({ name: `c${i}`, dbType: 'int' })) as unknown as ResultSet['columns'],
     rows: Array(rows).fill(Array(cols).fill(1)) as ResultSet['rows'],
     truncated: false,
     textCap: 0,
