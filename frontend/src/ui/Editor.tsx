@@ -45,6 +45,8 @@ export interface EditorCompletion {
 
 export interface EditorHandle {
   focus: () => void
+  /** Focuses with the caret after the last character, scrolled into view. */
+  focusEnd: () => void
   /** Selects everything, matching what focusing an input used to do. */
   focusAndSelectAll: () => void
   blur: () => void
@@ -184,6 +186,12 @@ export function Editor({
 
   useImperativeHandle(handleRef, () => ({
     focus: () => view.current?.focus(),
+    focusEnd: () => {
+      const v = view.current
+      if (!v) return
+      v.focus()
+      v.dispatch({ selection: { anchor: v.state.doc.length }, scrollIntoView: true })
+    },
     focusAndSelectAll: () => {
       const v = view.current
       if (!v) return

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { editorCandidates, tokenAt } from '../completion'
-import { runSqlFromEditor, sqlEditorHandle } from '../sqlEditorRun'
+import { focusEditorFromPane, runSqlFromEditor, sqlEditorHandle } from '../sqlEditorRun'
 import { activeSqlResult, useActiveKind, useHasSchemas, useStore } from '../store'
 import { DatabasePicker } from './DatabasePicker'
 import { Highlight } from './Highlight'
@@ -86,7 +86,10 @@ export function SqlEditor() {
           area, so the height belongs on the wrapper. */}
       <ResultsSplit
         top={
-          <div className="h-full overflow-auto bg-[var(--color-elevated)]">
+          <div
+            className="h-full cursor-text overflow-auto bg-[var(--color-elevated)]"
+            onMouseDown={focusEditorFromPane}
+          >
             <Editor
               autoFocus
               value={sqlText}
