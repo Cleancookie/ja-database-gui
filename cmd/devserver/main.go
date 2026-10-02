@@ -19,6 +19,7 @@ import (
 	"mime"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -52,7 +53,12 @@ func main() {
 	// directory behind.
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	srv := &http.Server{Addr: *addr, Handler: newHandler(svc)}
+	srv := &http.Server{
+		Addr:    *addr,
+		Handler: newHandler(svc),
+		// A client that never finishes its headers would hold a connection open.
+		ReadHeaderTimeout: 10 * time.Second,
+	}
 	go func() {
 		<-ctx.Done()
 		shutCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -201,9 +207,52 @@ func routes(s *api.Service) map[string]route {
 	}
 }
 
+// maxBody bounds one request. A change set with large cell values is the
+// biggest legitimate body; nothing real comes near this.
+const maxBody = 64 << 20
+
+// loopbackHostPort accepts a Host header naming this machine, on any port. The
+// port does not matter: a DNS-rebinding page is recognised by its hostname,
+// which is the attacker's own, and the Vite proxy on :5173 forwards the browser's
+// Host unchanged.
+func loopbackHostPort(hostport string) bool {
+	host := hostport
+	if h, _, err := net.SplitHostPort(hostport); err == nil {
+		host = h
+	}
+	return loopbackName(host)
+}
+
+// loopbackOrigin accepts a page served by
+// this machine. Anything else is a page on another site calling in.
+func loopbackOrigin(origin string) bool {
+	u, err := url.Parse(origin)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") {
+		return false
+	}
+	return loopbackName(u.Hostname())
+}
+
+func loopbackName(host string) bool {
+	host = strings.Trim(strings.ToLower(host), "[]")
+	if host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
 func newHandler(s *api.Service) http.Handler {
 	table := routes(s)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !loopbackHostPort(r.Host) {
+			http.Error(w, "bad Host", http.StatusForbidden)
+			return
+		}
+		if o := r.Header.Get("Origin"); o != "" && !loopbackOrigin(o) {
+			http.Error(w, "bad Origin", http.StatusForbidden)
+			return
+		}
 		if r.Method != http.MethodPost {
 			http.Error(w, "POST only", http.StatusMethodNotAllowed)
 			return
@@ -221,8 +270,13 @@ func newHandler(s *api.Service) http.Handler {
 			return
 		}
 
-		body, err := io.ReadAll(r.Body)
+		body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
 		if err != nil {
+			var tooBig *http.MaxBytesError
+			if errors.As(err, &tooBig) {
+				http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}

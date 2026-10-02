@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -24,9 +25,16 @@ func testHandler(t *testing.T) http.Handler {
 	return newHandler(svc)
 }
 
+// newReq is httptest.NewRequest addressed the way a browser on this machine would.
+func newReq(method, target string, body io.Reader) *http.Request {
+	req := httptest.NewRequest(method, target, body)
+	req.Host = "127.0.0.1:34567"
+	return req
+}
+
 func post(h http.Handler, method, body string) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/"+method, strings.NewReader(body))
+	req := newReq(http.MethodPost, "/api/"+method, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	h.ServeHTTP(rec, req)
 	return rec
@@ -88,7 +96,7 @@ func TestUnknownMethodIs404(t *testing.T) {
 
 func TestGetIsRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
-	testHandler(t).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/Drivers", nil))
+	testHandler(t).ServeHTTP(rec, newReq(http.MethodGet, "/api/Drivers", nil))
 	if rec.Code != http.StatusMethodNotAllowed {
 		t.Errorf("status %d, want 405", rec.Code)
 	}
@@ -97,7 +105,7 @@ func TestGetIsRejected(t *testing.T) {
 // A cross-origin form can POST text/plain to loopback without a preflight.
 func TestNonJSONContentTypeIsRejected(t *testing.T) {
 	rec := httptest.NewRecorder()
-	req := httptest.NewRequest(http.MethodPost, "/api/Drivers", strings.NewReader(`{}`))
+	req := newReq(http.MethodPost, "/api/Drivers", strings.NewReader(`{}`))
 	req.Header.Set("Content-Type", "text/plain")
 	testHandler(t).ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnsupportedMediaType {
@@ -206,5 +214,48 @@ func TestEveryServiceMethodHasARoute(t *testing.T) {
 		if _, ok := table[name]; !ok && name != "Shutdown" {
 			t.Errorf("api.Service.%s has no devserver route", name)
 		}
+	}
+}
+
+func TestHostAndOriginChecks(t *testing.T) {
+	h := testHandler(t)
+	cases := []struct {
+		name, host, origin string
+		want               int
+	}{
+		{"loopback ip", "127.0.0.1:34567", "", 200},
+		{"localhost", "localhost:34567", "", 200},
+		{"ipv6", "[::1]:34567", "", 200},
+		{"vite proxy keeps the browser's host and port", "localhost:5173", "http://localhost:5173", 200},
+		{"dns rebinding", "evil.com:34567", "", 403},
+		{"rebinding that spoofs a loopback prefix", "localhost.evil.com:34567", "", 403},
+		{"foreign origin", "127.0.0.1:34567", "https://evil.com", 403},
+		{"opaque origin", "127.0.0.1:34567", "null", 403},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			req := newReq(http.MethodPost, "/api/Drivers", strings.NewReader(`{}`))
+			req.Host = c.host
+			req.Header.Set("Content-Type", "application/json")
+			if c.origin != "" {
+				req.Header.Set("Origin", c.origin)
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+			if rec.Code != c.want {
+				t.Errorf("status %d, want %d", rec.Code, c.want)
+			}
+		})
+	}
+}
+
+func TestOversizedBodyIsRejected(t *testing.T) {
+	big := strings.NewReader(strings.Repeat("x", maxBody+1))
+	req := newReq(http.MethodPost, "/api/Drivers", big)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	testHandler(t).ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Errorf("status %d, want 413", rec.Code)
 	}
 }
