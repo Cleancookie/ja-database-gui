@@ -104,6 +104,7 @@ export type DialogState =
   | { kind: 'password'; connection: Connection; database: string; error?: string }
   | { kind: 'settings' }
   | { kind: 'confirmDelete'; connection: Connection }
+  | { kind: 'confirmResetSample' }
   | { kind: 'cell'; cell: CellTarget }
   | { kind: 'confirmCancel'; queryId: string; sql: string }
   | { kind: 'confirmTruncate'; ref: ObjectRef }
@@ -299,6 +300,10 @@ export interface State extends EditState, EditActions {
    */
   connect: (id: string, password?: string | null, database?: string) => Promise<void>
   disconnect: (id: string) => Promise<void>
+  /** Saves the sample database's connection if missing, then connects to it. */
+  openSample: () => Promise<void>
+  /** Rebuilds the sample database, then reconnects. Call after the user confirmed. */
+  resetSample: () => Promise<void>
   selectDatabase: (name: string) => Promise<void>
   openObject: (o: SchemaObject) => Promise<void>
   reload: () => Promise<void>
@@ -791,6 +796,31 @@ export const useStore = create<State>((set, get) => {
     async refreshConnections() {
       try {
         set({ connections: await api.listConnections() })
+      } catch (e) {
+        get().pushToast('error', errorMessage(e))
+      }
+    },
+
+    async openSample() {
+      try {
+        const conn = await api.openSample()
+        await get().refreshConnections()
+        await get().connect(conn.id)
+        get().setView('data')
+      } catch (e) {
+        get().pushToast('error', errorMessage(e))
+      }
+    },
+
+    async resetSample() {
+      set({ dialog: { kind: 'none' } })
+      try {
+        const conn = await api.resetSample()
+        await get().refreshConnections()
+        set({ connectedIds: get().connectedIds.filter((id) => id !== conn.id) })
+        await get().connect(conn.id)
+        get().setView('data')
+        get().pushToast('info', 'Sample database reset')
       } catch (e) {
         get().pushToast('error', errorMessage(e))
       }

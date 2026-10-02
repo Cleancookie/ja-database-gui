@@ -263,6 +263,23 @@ export function buildActionCommands(s: Store): Command[] {
   })
 
   cmds.push({
+    id: 'sample:open',
+    title: 'Open sample database',
+    subtitle: 'A small shop to play with; created in the config folder on first use',
+    group: 'Connections',
+    candidate: { name: 'Open sample database', keywords: 'demo example try tutorial sqlite playground' },
+    run: () => s.openSample(),
+  })
+  cmds.push({
+    id: 'sample:reset',
+    title: 'Reset sample database…',
+    subtitle: 'Rebuild it from scratch, discarding your changes',
+    group: 'Connections',
+    candidate: { name: 'Reset sample database…', keywords: 'demo example restore recreate sqlite' },
+    run: () => s.setDialog({ kind: 'confirmResetSample' }),
+  })
+
+  cmds.push({
     id: 'connection:password-storage',
     title: 'Show where passwords are stored',
     subtitle: 'OS keyring, or plain text if none is available',

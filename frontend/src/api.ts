@@ -207,6 +207,12 @@ export const api = {
   previewCreateTable: (req: { connectionId: string; spec: CreateTableSpec }) =>
     call<string>('PreviewCreateTable', [req], req),
 
+  /** Creates the sample database and its saved connection if missing; takes no path. */
+  openSample: () => call<Connection>('OpenSample', [], {}),
+
+  /** Rebuilds the sample database from its seed, discarding edits. */
+  resetSample: () => call<Connection>('ResetSample', [], {}),
+
   getSettings: () => call<Settings>('GetSettings', [], {}),
 
   saveSettings: (s: Settings) => call<Settings>('SaveSettings', [s], s),

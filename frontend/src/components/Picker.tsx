@@ -67,6 +67,7 @@ export const Picker = memo(function Picker() {
   const openObject = useStore((s) => s.openObject)
   const removeConnection = useStore((s) => s.removeConnection)
   const setDialog = useStore((s) => s.setDialog)
+  const openSample = useStore((s) => s.openSample)
 
   const [objectQuery, setObjectQuery] = useState('')
   const [dbQuery, setDbQuery] = useState('')
@@ -214,9 +215,15 @@ export const Picker = memo(function Picker() {
           >
             <Highlight className="max-h-[min(22rem,45vh)] overflow-y-auto px-1.5 pb-1.5" pillClassName={PILL}>
               {connections.length === 0 && (
-                <p className="px-2 py-3 leading-relaxed text-[var(--color-faint)]">
-                  No connections yet. Add one to get started.
-                </p>
+                <div className="flex flex-col items-start gap-2 px-2 py-3 leading-relaxed text-[var(--color-faint)]">
+                  <p>No connections yet. Add one to get started, or look around first.</p>
+                  <button
+                    onClick={() => void openSample()}
+                    className="rounded-lg bg-[var(--color-accent-dim)] px-3 py-1.5 font-bold text-[var(--color-text)] hover:brightness-95"
+                  >
+                    Open the sample database
+                  </button>
+                </div>
               )}
               {connections.map((c, i) => {
                 const active = c.id === activeConnectionId
