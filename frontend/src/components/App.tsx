@@ -312,7 +312,7 @@ function useGlobalHotkeys() {
 
       if (mod && e.key.toLowerCase() === 'e') {
         e.preventDefault()
-        s.setView(s.view === 'sql' ? 'data' : 'sql')
+        s.toggleSql()
         return
       }
 

@@ -323,7 +323,7 @@ export function buildActionCommands(s: Store): Command[] {
     group: 'Query',
     shortcut: 'Ctrl+E',
     candidate: { name: 'SQL editor', keywords: 'query write execute run' },
-    run: () => s.setView(s.view === 'sql' ? 'data' : 'sql'),
+    run: () => s.toggleSql(),
   })
 
   // Only offered in the editor: elsewhere there is nothing to run. The title
