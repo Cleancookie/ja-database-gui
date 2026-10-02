@@ -30,6 +30,7 @@ func (postgresDriver) Caps() Capabilities {
 		SupportsFunctions:     true,
 		SetToDefault:          true,
 		DefaultPort:           5432,
+		SSLModes:              []string{"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
 		CommonTypes: []string{
 			"bigserial", "serial", "integer", "bigint", "boolean",
 			"text", "varchar(255)", "jsonb", "uuid",
@@ -58,13 +59,15 @@ func (postgresDriver) DSN(cfg ConnConfig, database string) (string, error) {
 	if port == 0 {
 		port = 5432
 	}
-	sslMode := cfg.SSLMode
-	if sslMode == "" {
-		sslMode = "prefer"
+	if err := checkSSLMode(postgresDriver{}, cfg.SSLMode); err != nil {
+		return "", err
+	}
+	if err := checkParams(cfg.Params, "sslmode"); err != nil {
+		return "", err
 	}
 
 	q := url.Values{}
-	q.Set("sslmode", sslMode)
+	q.Set("sslmode", postgresDriver{}.TLS(cfg).Mode)
 	for k, v := range cfg.Params {
 		q.Set(k, v)
 	}
@@ -77,6 +80,30 @@ func (postgresDriver) DSN(cfg ConnConfig, database string) (string, error) {
 		RawQuery: q.Encode(),
 	}
 	return u.String(), nil
+}
+
+// TLS: with no mode chosen, a remote host is verified and a loopback one keeps
+// pgx's old "prefer", because a local dev server rarely has TLS at all.
+func (postgresDriver) TLS(cfg ConnConfig) TLSInfo {
+	info := TLSInfo{Mode: cfg.SSLMode}
+	if info.Mode == "" {
+		info.Implicit = true
+		info.Mode = "verify-full"
+		if IsLoopbackHost(cfg.Host) {
+			info.Mode = "prefer"
+		}
+	}
+	switch info.Mode {
+	case "disable":
+		info.Level = TLSPlain
+	case "allow", "prefer":
+		info.Level = TLSPartial
+	case "require":
+		info.Level = TLSEncrypted
+	default:
+		info.Level = TLSVerified
+	}
+	return finishTLS(info, cfg.Host)
 }
 
 func (postgresDriver) QuoteIdent(ident string) string { return quoteWith(`"`, `"`, ident) }

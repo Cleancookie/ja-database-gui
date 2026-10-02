@@ -33,7 +33,11 @@ type Connection struct {
 	User     string      `json:"user,omitempty"`
 	Database string      `json:"database,omitempty"`
 	File     string      `json:"file,omitempty"` // SQLite
-	SSLMode  string      `json:"sslMode,omitempty"`
+	// SSLMode is one of the dialect's Capabilities.SSLModes. Empty means "the
+	// default for this host"; see docs/adr/0008.
+	SSLMode string `json:"sslMode,omitempty"`
+	// TrustServerCertificate skips certificate verification. SQL Server only.
+	TrustServerCertificate bool `json:"trustServerCertificate,omitempty"`
 	// Params is stored in connections.json in plaintext. Never put a secret here.
 	Params map[string]string `json:"params,omitempty"`
 	// AskPassword means the password is never stored anywhere: the UI asks for it
@@ -351,6 +355,8 @@ func (s *Store) DriverConfig(id, asked string) (driver.ConnConfig, error) {
 		File:     c.File,
 		SSLMode:  c.SSLMode,
 		Params:   c.Params,
+
+		TrustServerCertificate: c.TrustServerCertificate,
 	}, nil
 }
 
@@ -371,7 +377,13 @@ func validate(c Connection) error {
 	if c.Host == "" {
 		return fmt.Errorf("%s connections need a host", d.Caps().DisplayName)
 	}
-	return nil
+	if c.TrustServerCertificate && !d.Caps().CanTrustServerCertificate {
+		return fmt.Errorf("%s has no trust-server-certificate switch; pick an SSL mode instead", d.Caps().DisplayName)
+	}
+	return driver.ValidateConn(d, driver.ConnConfig{
+		Kind: c.Kind, Host: c.Host, SSLMode: c.SSLMode,
+		TrustServerCertificate: c.TrustServerCertificate, Params: c.Params,
+	})
 }
 
 func newID() string {

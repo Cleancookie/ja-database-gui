@@ -54,6 +54,10 @@ func (sqliteDriver) DSN(cfg ConnConfig, _ string) (string, error) {
 	return "file:" + cfg.File + "?" + q.Encode(), nil
 }
 
+func (sqliteDriver) TLS(ConnConfig) TLSInfo {
+	return TLSInfo{Level: TLSNotApplicable, Label: "local file, no network"}
+}
+
 func (sqliteDriver) QuoteIdent(ident string) string { return quoteWith(`"`, `"`, ident) }
 
 // capText uses substr, which counts characters on a TEXT value. SQLite is

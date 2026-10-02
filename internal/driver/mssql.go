@@ -25,10 +25,12 @@ func (mssqlDriver) Caps() Capabilities {
 		HasSchemas:           true,
 		// USE works on an open connection, and three-part names let a single
 		// connection read any database on the server.
-		DatabasePerConnection: false,
-		SupportsFunctions:     true,
-		SetToDefault:          true,
-		DefaultPort:           1433,
+		DatabasePerConnection:     false,
+		SupportsFunctions:         true,
+		SetToDefault:              true,
+		DefaultPort:               1433,
+		SSLModes:                  []string{"disable", "false", "true", "strict"},
+		CanTrustServerCertificate: true,
 		CommonTypes: []string{
 			"bigint IDENTITY(1,1)", "int", "bigint", "bit",
 			"nvarchar(255)", "nvarchar(max)", "varchar(255)", "uniqueidentifier",
@@ -57,15 +59,15 @@ func (mssqlDriver) DSN(cfg ConnConfig, database string) (string, error) {
 	if database != "" {
 		q.Set("database", database)
 	}
-	// go-mssqldb defaults to encrypt=true and will refuse a self-signed
-	// certificate, which is what a local or containerised SQL Server has.
-	// Trusting the cert by default matches what every other GUI does; the
-	// user can override via Params.
-	q.Set("encrypt", "true")
-	q.Set("TrustServerCertificate", "true")
-	if cfg.SSLMode != "" {
-		q.Set("encrypt", cfg.SSLMode)
+	if err := checkSSLMode(mssqlDriver{}, cfg.SSLMode); err != nil {
+		return "", err
 	}
+	if err := checkParams(cfg.Params, "encrypt", "TrustServerCertificate"); err != nil {
+		return "", err
+	}
+	info := mssqlDriver{}.TLS(cfg)
+	q.Set("encrypt", info.Mode)
+	q.Set("TrustServerCertificate", strconv.FormatBool(mssqlTrusts(cfg)))
 	for k, v := range cfg.Params {
 		q.Set(k, v)
 	}
@@ -77,6 +79,36 @@ func (mssqlDriver) DSN(cfg ConnConfig, database string) (string, error) {
 		RawQuery: q.Encode(),
 	}
 	return u.String(), nil
+}
+
+// mssqlTrusts reports whether the certificate check is skipped. It is skipped
+// when the user ticked the box, and, for a connection saved before that box
+// existed (no mode chosen), on a loopback host — a local or containerised SQL
+// Server has a self-signed certificate and always worked that way.
+func mssqlTrusts(cfg ConnConfig) bool {
+	return cfg.TrustServerCertificate || (cfg.SSLMode == "" && IsLoopbackHost(cfg.Host))
+}
+
+// TLS: encrypt defaults to "true". The certificate is checked unless
+// mssqlTrusts says otherwise.
+func (mssqlDriver) TLS(cfg ConnConfig) TLSInfo {
+	info := TLSInfo{Mode: cfg.SSLMode}
+	if info.Mode == "" {
+		info.Implicit = true
+		info.Mode = "true"
+	}
+	switch info.Mode {
+	case "disable":
+		info.Level = TLSPlain
+	case "false":
+		info.Level = TLSPartial // login packet only
+	default:
+		info.Level = TLSVerified
+		if mssqlTrusts(cfg) && info.Mode != "strict" {
+			info.Level = TLSEncrypted
+		}
+	}
+	return finishTLS(info, cfg.Host)
 }
 
 func (mssqlDriver) QuoteIdent(ident string) string { return quoteWith("[", "]", ident) }

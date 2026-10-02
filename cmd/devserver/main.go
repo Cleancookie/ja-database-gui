@@ -178,6 +178,9 @@ func routes(s *api.Service) map[string]route {
 		"TestConnection": withReq(func(_ context.Context, r api.SaveConnectionRequest) (any, error) {
 			return nil, s.TestConnection(r)
 		}),
+		"DescribeTLS": withReq(func(_ context.Context, c config.Connection) (any, error) {
+			return s.DescribeTLS(c)
+		}),
 		"SaveSettings": withReq(func(_ context.Context, v config.Settings) (any, error) {
 			return s.SaveSettings(v)
 		}),

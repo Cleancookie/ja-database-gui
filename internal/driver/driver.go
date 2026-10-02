@@ -29,15 +29,18 @@ const (
 // ConnConfig is everything needed to open a connection. Database may be
 // overridden per-request when the dialect supports switching.
 type ConnConfig struct {
-	Kind     Kind              `json:"kind"`
-	Host     string            `json:"host"`
-	Port     int               `json:"port"`
-	User     string            `json:"user"`
-	Password string            `json:"password"`
-	Database string            `json:"database"`
-	File     string            `json:"file"`    // SQLite only
-	SSLMode  string            `json:"sslMode"` // postgres: disable/require/verify-full; mysql: tls param
-	Params   map[string]string `json:"params"`  // escape hatch, appended to the DSN
+	Kind     Kind   `json:"kind"`
+	Host     string `json:"host"`
+	Port     int    `json:"port"`
+	User     string `json:"user"`
+	Password string `json:"password"`
+	Database string `json:"database"`
+	File     string `json:"file"`    // SQLite only
+	SSLMode  string `json:"sslMode"` // one of Capabilities.SSLModes; empty means the default for the host
+	// TrustServerCertificate skips certificate verification (SQL Server only).
+	// It is an explicit opt-in; see docs/adr/0008.
+	TrustServerCertificate bool              `json:"trustServerCertificate"`
+	Params                 map[string]string `json:"params"` // escape hatch, appended to the DSN
 }
 
 // Capabilities lets the UI adapt without switching on Kind.
@@ -53,9 +56,15 @@ type Capabilities struct {
 	// database on an open connection and the engine must dial again.
 	DatabasePerConnection bool `json:"databasePerConnection"`
 	// SupportsFunctions is false for SQLite, which has no catalog of them.
-	SupportsFunctions bool   `json:"supportsFunctions"`
-	DefaultPort       int    `json:"defaultPort"`
-	DisplayName       string `json:"displayName"`
+	SupportsFunctions bool `json:"supportsFunctions"`
+	DefaultPort       int  `json:"defaultPort"`
+	// SSLModes is the allow-list for ConnConfig.SSLMode, weakest first. Empty
+	// for SQLite. The connection form builds its select from it.
+	SSLModes []string `json:"sslModes"`
+	// CanTrustServerCertificate is true where skipping certificate verification
+	// is a separate switch from the mode (SQL Server).
+	CanTrustServerCertificate bool   `json:"canTrustServerCertificate"`
+	DisplayName               string `json:"displayName"`
 
 	// TruncateIsDelete is true for SQLite, which has no TRUNCATE and is emptied
 	// with DELETE FROM instead. The confirmation says which one it is about to
@@ -301,6 +310,9 @@ type Driver interface {
 	// DSN builds a connection string. database overrides cfg.Database when
 	// non-empty, which is how postgres reaches a second database.
 	DSN(cfg ConnConfig, database string) (string, error)
+	// TLS says which TLS mode cfg will really use once defaults are applied.
+	// DSN is built from the same answer, so the two cannot disagree.
+	TLS(cfg ConnConfig) TLSInfo
 
 	ListDatabases(ctx context.Context, db *sql.DB) ([]Database, error)
 	// ListObjects returns tables, views, functions and procedures. database is

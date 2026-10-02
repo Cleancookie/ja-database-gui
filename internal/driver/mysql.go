@@ -29,6 +29,7 @@ func (mysqlDriver) Caps() Capabilities {
 		SupportsFunctions:     true,
 		SetToDefault:          true,
 		DefaultPort:           3306,
+		SSLModes:              []string{"false", "preferred", "skip-verify", "true"},
 		CommonTypes: []string{
 			"bigint AUTO_INCREMENT", "int", "bigint", "tinyint(1)",
 			"varchar(255)", "text", "longtext", "json",
@@ -58,9 +59,13 @@ func (mysqlDriver) DSN(cfg ConnConfig, database string) (string, error) {
 	// so scan.go can format them consistently across dialects.
 	q.Set("parseTime", "true")
 	q.Set("loc", "UTC")
-	if cfg.SSLMode != "" {
-		q.Set("tls", cfg.SSLMode)
+	if err := checkSSLMode(mysqlDriver{}, cfg.SSLMode); err != nil {
+		return "", err
 	}
+	if err := checkParams(cfg.Params, "tls"); err != nil {
+		return "", err
+	}
+	q.Set("tls", mysqlDriver{}.TLS(cfg).Mode)
 	for k, v := range cfg.Params {
 		q.Set(k, v)
 	}
@@ -70,6 +75,31 @@ func (mysqlDriver) DSN(cfg ConnConfig, database string) (string, error) {
 	// and escaping them would corrupt any containing a '%'.
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s",
 		cfg.User, cfg.Password, host, port, database, q.Encode()), nil
+}
+
+// TLS: with no mode chosen, a remote host is verified ("true") and a loopback
+// one uses "preferred" — TLS when the server offers it, unverified, and never
+// worse than the plaintext it replaces.
+func (mysqlDriver) TLS(cfg ConnConfig) TLSInfo {
+	info := TLSInfo{Mode: cfg.SSLMode}
+	if info.Mode == "" {
+		info.Implicit = true
+		info.Mode = "true"
+		if IsLoopbackHost(cfg.Host) {
+			info.Mode = "preferred"
+		}
+	}
+	switch info.Mode {
+	case "false":
+		info.Level = TLSPlain
+	case "preferred":
+		info.Level = TLSPartial
+	case "skip-verify":
+		info.Level = TLSEncrypted
+	default:
+		info.Level = TLSVerified
+	}
+	return finishTLS(info, cfg.Host)
 }
 
 func (mysqlDriver) QuoteIdent(ident string) string { return quoteWith("`", "`", ident) }

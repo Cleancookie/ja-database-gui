@@ -220,10 +220,43 @@ func (s *Service) TestConnection(req SaveConnectionRequest) error {
 	cfg := driver.ConnConfig{
 		Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Password: pw,
 		Database: c.Database, File: c.File, SSLMode: c.SSLMode, Params: c.Params,
+		TrustServerCertificate: c.TrustServerCertificate,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), testConnectionTimeout)
 	defer cancel()
-	return scrub(s.engine.Test(ctx, cfg), pw)
+	return tlsHint(scrub(s.engine.Test(ctx, cfg), pw), cfg)
+}
+
+// DescribeTLS says which TLS mode a connection will use once defaults apply, so
+// the form and the Picker can show it without knowing any dialect's rules.
+func (s *Service) DescribeTLS(c config.Connection) (driver.TLSInfo, error) {
+	d, err := driver.Get(c.Kind)
+	if err != nil {
+		return driver.TLSInfo{}, err
+	}
+	return d.TLS(driver.ConnConfig{
+		Kind: c.Kind, Host: c.Host, SSLMode: c.SSLMode, TrustServerCertificate: c.TrustServerCertificate,
+	}), nil
+}
+
+// tlsHint points a certificate or TLS failure at the setting that controls it.
+// A saved connection with no SSL mode now verifies a remote host, so this is the
+// error an existing connection to a self-signed server will show.
+func tlsHint(err error, cfg driver.ConnConfig) error {
+	if err == nil {
+		return nil
+	}
+	low := strings.ToLower(err.Error())
+	if !strings.Contains(low, "certificate") && !strings.Contains(low, "x509") &&
+		!strings.Contains(low, "tls") && !strings.Contains(low, "ssl") {
+		return err
+	}
+	d, derr := driver.Get(cfg.Kind)
+	if derr != nil {
+		return err
+	}
+	return fmt.Errorf("%w\n(TLS: %s. If you trust this server, change the SSL mode in Edit connection.)",
+		err, d.TLS(cfg).Label)
 }
 
 // ConnectResult is everything the UI needs to populate the sidebar after a
@@ -1218,7 +1251,7 @@ func (s *Service) sessionWith(ctx context.Context, connID, database string, aske
 	// No driver lookup here any more: Acquire does its own, and the dialect no
 	// longer decides which database the session opens against.
 	sess, err := s.engine.Acquire(ctx, connID, cfg, sessionDatabase(database))
-	return sess, scrub(err, pw)
+	return sess, tlsHint(scrub(err, pw), cfg)
 }
 
 // scrub keeps a typed password out of an error on its way to the UI and the log.
