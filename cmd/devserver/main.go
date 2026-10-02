@@ -166,7 +166,7 @@ func routes(s *api.Service) map[string]route {
 		"CancelQuery":       withArgs(func(_ context.Context, a args) (any, error) { s.CancelQuery(a.ID); return nil, nil }),
 		"Disconnect":        withArgs(func(_ context.Context, a args) (any, error) { s.Disconnect(a.ID); return nil, nil }),
 		"DeleteConnection":  withArgs(func(_ context.Context, a args) (any, error) { return nil, s.DeleteConnection(a.ID) }),
-		"LogClient":         withArgs(func(_ context.Context, a args) (any, error) { log.Printf("client: %s", a.Line); return nil, nil }),
+		"LogClient":         withArgs(func(_ context.Context, a args) (any, error) { s.LogClient(a.Line); return nil, nil }),
 		"ListDatabases":     withArgs(func(ctx context.Context, a args) (any, error) { return s.ListDatabases(ctx, a.ID) }),
 		"ListObjects": withArgs(func(ctx context.Context, a args) (any, error) {
 			return s.ListObjects(ctx, a.ID, a.Database)

@@ -50,12 +50,7 @@ func NewApp() (*App, error) {
 	}, nil
 }
 
-// LogClient records a line measured in the webview.
-//
-// Startup timing is only knowable from the frontend — the webview boot and the
-// bundle parse both happen before any Go code runs again — so the numbers have
-// to come back across the binding to reach the log file.
-func (a *App) LogClient(line string) { log.Printf("client: %s", line) }
+func (a *App) LogClient(line string) { a.svc.LogClient(line) }
 
 func (a *App) startup(ctx context.Context) { a.ctx = ctx }
 

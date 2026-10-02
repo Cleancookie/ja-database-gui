@@ -66,7 +66,7 @@ func (s *Service) editFacts(ctx context.Context, sess *engine.Session, connID st
 		facts, err = sess.Driver.EditFacts(qctx, sess.DB, ref)
 		return err
 	}); err != nil {
-		log.Printf("edit facts for %s: %v", qualify(ref), err)
+		log.Printf("edit facts for %s: %s", logText(qualify(ref)), logErr(err))
 		return readOnlyFacts(fmt.Sprintf("could not work out how to identify a row: %v", err))
 	}
 	s.columns.putFacts(connID, ref, facts)

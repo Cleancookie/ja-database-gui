@@ -1461,3 +1461,17 @@ func TestAskPasswordSessionIsReusedWithoutAskingAgain(t *testing.T) {
 		t.Errorf("after disconnect got %v, want ErrPasswordRequired", err)
 	}
 }
+
+func TestLogTextCannotForgeARecordOrLogAWholeRow(t *testing.T) {
+	got := logText("boom\n2026/10/02 query q9 ok in 1ms")
+	if strings.ContainsAny(got, "\n\r") {
+		t.Errorf("newline survived: %s", got)
+	}
+	long := logErr(errors.New(strings.Repeat("x", 5000)))
+	if len(long) > logTextMax+10 {
+		t.Errorf("not capped: %d bytes", len(long))
+	}
+	if logErr(nil) != "<nil>" {
+		t.Error("nil error")
+	}
+}

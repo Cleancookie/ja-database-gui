@@ -61,8 +61,8 @@ func logQuery(e query.Entry) {
 	sql := logSQL(e.Op.SQL)
 	switch {
 	case e.Err != nil:
-		log.Printf("query %s %s db=%q %s failed in %s: %v",
-			e.Op.ID, e.Op.Kind, e.Op.Database, sql, e.Elapsed.Round(time.Millisecond), e.Err)
+		log.Printf("query %s %s db=%q %s failed in %s: %s",
+			e.Op.ID, e.Op.Kind, e.Op.Database, sql, e.Elapsed.Round(time.Millisecond), logErr(e.Err))
 	case e.RowsRead > 0:
 		log.Printf("query %s %s db=%q %s %d rows in %s",
 			e.Op.ID, e.Op.Kind, e.Op.Database, sql, e.RowsRead, e.Elapsed.Round(time.Millisecond))
@@ -71,6 +71,31 @@ func logQuery(e query.Entry) {
 			e.Op.ID, e.Op.Kind, e.Op.Database, sql, e.Elapsed.Round(time.Millisecond))
 	}
 }
+
+// logTextMax caps an error or client line in the log.
+const logTextMax = 300
+
+// logText makes text from outside this process safe to put in a one-line log
+// record: quoted, so a newline in it cannot forge a second record, and capped,
+// so a server error that echoes a row does not copy the row at length.
+func logText(s string) string {
+	if r := []rune(s); len(r) > logTextMax {
+		s = string(r[:logTextMax]) + "…"
+	}
+	return strconv.Quote(s)
+}
+
+func logErr(err error) string {
+	if err == nil {
+		return "<nil>"
+	}
+	return logText(err.Error())
+}
+
+// LogClient records a line measured in the webview. Startup timing is only
+// knowable from the frontend, so the numbers come back across the binding to
+// reach the log file. The line is untrusted: it is quoted and capped.
+func (s *Service) LogClient(line string) { log.Printf("client: %s", logText(line)) }
 
 // logSQLMax caps the statement in the log line. The introspect ops carry short
 // labels ("list objects", "describe foo.bar") and survive whole; a browse
