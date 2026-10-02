@@ -148,6 +148,8 @@ func (a *App) SaveSettings(v config.Settings) (config.Settings, error) {
 	return a.svc.SaveSettings(v)
 }
 
+func (a *App) SecretBackend() config.BackendInfo { return a.svc.SecretBackend() }
+
 func (a *App) Activity() api.ActivityResult { return a.svc.Activity() }
 
 func (a *App) CancelQuery(id string) { a.svc.CancelQuery(id) }

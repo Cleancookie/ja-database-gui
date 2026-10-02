@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -1364,5 +1365,23 @@ func TestCursorAfterRefusesACutSortValue(t *testing.T) {
 	rs.TruncatedCells = []driver.CellRef{{Row: 0, Col: 0}}
 	if cur := cursorAfter(rs, order); cur == nil {
 		t.Error("an earlier cut value should not matter")
+	}
+}
+
+func TestSecretBackendIsReported(t *testing.T) {
+	svc := newService(t, t.TempDir())
+	if got := svc.SecretBackend().Kind; got != config.BackendKeyring {
+		t.Errorf("got %q, want keyring (mocked in TestMain)", got)
+	}
+
+	fallback, err := config.OpenWith(t.TempDir(), nil, errors.New("no secret service"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings, _ := config.OpenSettings(filepath.Join(t.TempDir(), "settings.json"))
+	plain := New(fallback, settings, engine.New(), activity.New())
+	t.Cleanup(plain.Shutdown)
+	if got := plain.SecretBackend(); got.Kind != config.BackendFile || got.Reason == "" {
+		t.Errorf("got %+v, want file with a reason", got)
 	}
 }

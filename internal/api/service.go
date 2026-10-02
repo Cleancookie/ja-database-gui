@@ -101,6 +101,13 @@ func (s *Service) SaveSettings(v config.Settings) (config.Settings, error) {
 	return s.settings.Set(v)
 }
 
+// --- secrets -----------------------------------------------------------------------
+
+// SecretBackend says where saved passwords are kept: "keyring", "file" (plaintext
+// on disk, because no keyring worked) or "unavailable". The UI shows a standing
+// warning for anything but "keyring".
+func (s *Service) SecretBackend() config.BackendInfo { return s.store.Backend() }
+
 // --- activity ----------------------------------------------------------------------
 
 // SessionInfo is one live connection to one database.

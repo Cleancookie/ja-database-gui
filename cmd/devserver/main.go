@@ -153,6 +153,7 @@ func routes(s *api.Service) map[string]route {
 		"ListConnections":   withArgs(func(context.Context, args) (any, error) { return s.ListConnections(), nil }),
 		"ConnectedIDs":      withArgs(func(context.Context, args) (any, error) { return s.ConnectedIDs(), nil }),
 		"GetSettings":       withArgs(func(context.Context, args) (any, error) { return s.GetSettings(), nil }),
+		"SecretBackend":     withArgs(func(context.Context, args) (any, error) { return s.SecretBackend(), nil }),
 		"Activity":          withArgs(func(context.Context, args) (any, error) { return s.Activity(), nil }),
 		"QuerySQL":          withArgs(func(_ context.Context, a args) (any, error) { return s.QuerySQL(a.ID), nil }),
 		"ClearQueryHistory": withArgs(func(context.Context, args) (any, error) { s.ClearQueryHistory(); return nil, nil }),
