@@ -623,10 +623,10 @@ What cancelling the context does on the server, read from the driver source at t
 | --- | --- | --- |
 | SQLite | modernc interrupts the statement. Stops | none |
 | SQL Server | go-mssqldb sends a TDS attention packet; the server aborts the batch. Stops | none. `KILL` needs ALTER ANY CONNECTION and ends the session |
-| PostgreSQL | pgx expires the socket deadline, closes the connection and sends a cancel request from a new socket. Best effort and asynchronous | `pg_cancel_backend(pid)` |
-| MySQL / MariaDB | go-sql-driver only closes the socket. The server keeps running the statement until it next writes | `KILL QUERY <id>` |
+| PostgreSQL | pgx expires the socket deadline, closes the connection and sends a cancel request from a new socket. Best effort and asynchronous. **Live: stopped the server's `pg_sleep` on its own** | `pg_cancel_backend(pid)`, as a deterministic second layer |
+| MySQL / MariaDB | go-sql-driver only closes the socket. The server keeps running the statement until it next writes. **Live: `SLEEP(61)` was still in the process list 2 s after a bare cancel** | `KILL QUERY <id>`; live, the same statement was gone 1 s after Cancel |
 
-Not verified against live servers: the test containers are not running in this WSL. The table is from reading the drivers and from tests against SQLite and fakes.
+Checked live against MySQL 8.4 and PostgreSQL 17 with the opt-in `internal/api/live_test.go` (`JADB_LIVE=mysql|postgres`, see the file header). SQL Server was read from the driver source only, and MariaDB shares the MySQL driver and `KILL QUERY` but was not run.
 
 
 ## Invariants
