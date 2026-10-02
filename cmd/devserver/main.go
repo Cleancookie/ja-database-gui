@@ -169,6 +169,8 @@ func routes(s *api.Service) map[string]route {
 			s.CancelConnectionQueries(a.ID)
 			return nil, nil
 		}),
+		"OpenSample":       withArgs(func(context.Context, args) (any, error) { return s.OpenSample() }),
+		"ResetSample":      withArgs(func(context.Context, args) (any, error) { return s.ResetSample() }),
 		"Disconnect":       withArgs(func(_ context.Context, a args) (any, error) { s.Disconnect(a.ID); return nil, nil }),
 		"DeleteConnection": withArgs(func(_ context.Context, a args) (any, error) { return nil, s.DeleteConnection(a.ID) }),
 		"LogClient":        withArgs(func(_ context.Context, a args) (any, error) { s.LogClient(a.Line); return nil, nil }),

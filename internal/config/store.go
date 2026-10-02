@@ -144,6 +144,9 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+// Dir is the directory holding connections.json.
+func (s *Store) Dir() string { return filepath.Dir(s.path) }
+
 // Backend says where passwords are kept, for the UI to show.
 func (s *Store) Backend() BackendInfo { return s.backend }
 

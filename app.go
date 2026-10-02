@@ -79,6 +79,10 @@ func (a *App) Connect(req api.ConnectRequest) (*api.ConnectResult, error) {
 	return a.svc.Connect(a.ctx, req)
 }
 
+func (a *App) OpenSample() (config.Connection, error) { return a.svc.OpenSample() }
+
+func (a *App) ResetSample() (config.Connection, error) { return a.svc.ResetSample() }
+
 func (a *App) Disconnect(id string) { a.svc.Disconnect(id) }
 
 func (a *App) ConnectedIDs() []string { return a.svc.ConnectedIDs() }

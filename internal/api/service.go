@@ -9,6 +9,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Cleancookie/ja-db/internal/activity"
@@ -35,6 +36,8 @@ type Service struct {
 	// columns memoises column metadata for columnTTL. Metadata only — rows are
 	// never cached. See columncache.go.
 	columns *columnCache
+	// sampleMu keeps two "open the sample" calls from saving two connections.
+	sampleMu sync.Mutex
 }
 
 func New(store *config.Store, settings *config.SettingsStore, eng *engine.Engine, act *activity.Registry) *Service {
