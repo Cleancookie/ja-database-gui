@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { buildActionCommands, buildNavigationCommands, type Command } from '../commands'
 import { matchPositions, rankCandidates, type Scored } from '../fuzzy'
+import { listMove, moveIndex } from '../listNav'
 import { useStore } from '../store'
 import { Highlight } from './Highlight'
 
@@ -82,64 +83,26 @@ export function CommandPalette() {
   if (!open) return null
 
   const onKeyDown = (e: React.KeyboardEvent) => {
-    switch (e.key) {
-      case 'Escape':
-        e.preventDefault()
-        setPalette(null)
-        break
-      case 'ArrowDown':
-        e.preventDefault()
-        setSelected((i) => Math.min(i + 1, results.length - 1))
-        break
-      case 'ArrowUp':
-        e.preventDefault()
-        setSelected((i) => Math.max(i - 1, 0))
-        break
-      case 'Home':
-        e.preventDefault()
-        setSelected(0)
-        break
-      case 'End':
-        e.preventDefault()
-        setSelected(results.length - 1)
-        break
-      case 'Enter':
-        e.preventDefault()
-        run(results[selected]?.item)
-        break
-      // Ctrl+N / Ctrl+P for people who never leave the home row, and Ctrl+J /
-      // Ctrl+K for the same reason the grid moves on hjkl: one movement pair
-      // has to work everywhere, or it is not muscle memory. H and L are left
-      // alone — a palette is one column, so there is nowhere sideways to go.
-      case 'n':
-      case 'N':
-      case 'j':
-      case 'J':
-        if (e.ctrlKey) {
-          e.preventDefault()
-          setSelected((i) => Math.min(i + 1, results.length - 1))
-        }
-        break
-      case 'k':
-      case 'K':
-        if (e.ctrlKey) {
-          e.preventDefault()
-          setSelected((i) => Math.max(i - 1, 0))
-        }
-        break
-      case 'P':
-      case 'p':
-        if (!e.ctrlKey) break
-        e.preventDefault()
-        if (e.shiftKey) {
-          // Switch palettes without closing. Ctrl+P alone cannot do this: it
-          // is the emacs-style move-up binding below, and taking it would
-          // cost more than the symmetry is worth.
-          setPalette(mode === 'go' ? 'do' : 'go')
-        } else {
-          setSelected((i) => Math.max(i - 1, 0))
-        }
-        break
+    // Switch palettes without closing. Ctrl+P alone cannot do this: listMove
+    // takes it as move-up, and taking it back would cost more than the
+    // symmetry is worth.
+    if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'p') {
+      e.preventDefault()
+      setPalette(mode === 'go' ? 'do' : 'go')
+      return
+    }
+    const move = listMove(e, true)
+    if (move) {
+      e.preventDefault()
+      setSelected((i) => moveIndex(move, i, results.length))
+      return
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      setPalette(null)
+    } else if (e.key === 'Enter') {
+      e.preventDefault()
+      run(results[selected]?.item)
     }
   }
 
