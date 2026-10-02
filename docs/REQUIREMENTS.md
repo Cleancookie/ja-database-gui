@@ -578,6 +578,22 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | Visibility | The form shows the resolved mode; the Picker tags each connection `TLS`, `TLS unverified`, `TLS optional` or `no TLS`. Remote plaintext is red |
 
 
+## 2026-10-02 — security audit, the rest of part B
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Dev server | Host and Origin must name this machine, on any port (`localhost`, `127.0.0.1`, `[::1]`). The Vite proxy forwards the browser's Host unchanged, so `make web` still works; a LAN or WSL-IP hostname does not. Body capped at 64 MB; headers must arrive in 10 s. No token |
+| CSV | The **file** export prefixes `'` to a cell starting `= + - @ tab CR`, header names included, bare numbers excepted. The clipboard copy is byte-faithful, so the two now differ for such cells |
+| MySQL DSN | Built with `mysql.Config.FormatDSN` |
+| SQLite | File path escaped in the `file:` URI; `trusted_schema` off. A non-existent path is still created |
+| Logging | Server errors and webview lines are quoted and capped at 300 characters |
+| Result size | A result stops at 256 MB of cell data and reads as truncated, like the row cap |
+| CSP | Header from the Wails asset middleware: same-origin scripts and connections, inline styles allowed |
+| Build | `npm ci` from the lockfile; SQL Server test image pinned by digest; `make vuln` before a release |
+
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
@@ -621,6 +637,8 @@ test — which is the intended speed bump.
 | The file fallback is never silent, and never used after the keyring has worked | `internal/config/secrets_test.go`. A UI warning cannot be dismissed |
 | A connection with no SSL mode verifies TLS on every non-loopback host; skipping the check is only ever an explicit per-connection choice | `docs/adr/0008`. `internal/driver/tls_test.go` |
 | `Params` cannot set a TLS key | Otherwise it sidesteps the allow-list and the warning. `tls_test.go` |
+| `cmd/devserver` rejects a Host or Origin that is not this machine, whatever the port | A DNS-rebinding page would otherwise run SQL on saved connections. `cmd/devserver/main_test.go` |
+| Only the CSV file export defuses formulas; the clipboard is never altered | `frontend/src/selection.test.ts`. Pasting must give the bytes in the grid |
 | `cmd/devserver` binds to loopback only and refuses anything else | It serves stored credentials |
 | Nothing outside `frontend/src/ui/` imports a component library | The swap-out guarantee. A leak silently voids it |
 | The palette matches the object *name* first; schema and keywords only at a discount | Otherwise "user" returns everything in a schema containing those letters |

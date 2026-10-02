@@ -7,6 +7,25 @@ Branch audited: `keyset` @ `9bd44d4`.
 **Reported by sub-audits, not re-checked:** the `file:line` refs in Part B.
 Re-read each location before editing it.
 
+## Status (Part B)
+
+Part A is done (see `docs/adr/0007`). Part B, fixed 2026-10-02. Hashes are in `git log`.
+
+| Id | Status | Commit / reason |
+| --- | --- | --- |
+| B1 | fixed | `4534313` (UI `5707c0e`). Empty mode: verify-full off this machine, `prefer` on loopback; allow-list; `Params` may not carry `sslmode`. `docs/adr/0008` |
+| B2 | fixed | `4534313`. Certificate checked unless the new explicit `trustServerCertificate` box is ticked, or a pre-existing connection with no mode points at loopback |
+| B3 | fixed | `4534313`. Empty mode: `tls=true` off this machine, `preferred` on loopback |
+| B4 | partial | `e60db61`. Host and Origin must name this machine (any port, so the Vite proxy works). **Per-run token rejected**: with the Host check a rebinding page cannot reach the server, a cross-site page is stopped by the JSON preflight and the Origin check, and a token would need plumbing through `vite.config.ts` and the terminal for no further gain. Another local process can already read the config directory |
+| B5 | fixed | `ca7b1b0`. File export only; clipboard unchanged. Bare numeric strings (`-5.25`) are not prefixed, since they are numbers, not formulas |
+| B6 | fixed | `03865c5` |
+| B7 | partial | `33a14b5`. Path escaped, `trusted_schema=0` set. **`mode=rw` rejected**: opening a path that does not exist yet creates the file, which is the only way to start a new SQLite database from the connection form; a typo creating an empty file is a nuisance, not a vulnerability |
+| B8 | fixed | `0462116`. Quoted and capped at 300 characters. Row values inside the first 300 characters of a server error can still reach the log; the log file is local and the activity log already holds the statement text |
+| B9 | partial | `248f973`. 256 MB byte budget per result set. **Statement timeout setting deferred**: Cancel in the activity tray already stops a query, and a default timeout would kill legitimate long reports. A driver still buffers one row whole before the budget sees it |
+| B10 | fixed | `e60db61`. 64 MB body cap, 10 s `ReadHeaderTimeout` |
+| B11 | fixed, unverified | `6f7ace7`. Sent as an HTTP header from the Wails asset middleware, not a `<meta>`, so `make web` (Vite injects inline scripts) is unaffected. Not run in WebView2 |
+| B12 | partial | `6161e32`, `419682c`. SQL Server image pinned to `2022-CU27-ubuntu-22.04@sha256:4402d880…`; `npm ci`; `make vuln` added. **CI not added**: the repo has none. `make vuln` found GO-2026-5970 in `golang.org/x/text`, fixed by `419682c` |
+
 ## Verdict
 
 - No High findings.
