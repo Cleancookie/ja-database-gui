@@ -4,6 +4,8 @@ Just Another DB UI. A keyboard-first database GUI. Go core, React/webview UI, on
 
 Built as a replacement for TablePlus. Supports **MySQL/MariaDB, PostgreSQL, SQL Server and SQLite**.
 
+**Try it:** no database handy? Click "Open the sample database" on the first screen, or press `Ctrl+Shift+P` and run "Open sample database". It is a small shop (customers, orders, a 6,000-row `events` table) built into a SQLite file in the config folder.
+
 ## Why command-palette-first
 
 There is no menu bar to hunt through. `Ctrl+P` opens the palette and everything is

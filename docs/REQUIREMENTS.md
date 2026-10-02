@@ -753,3 +753,25 @@ Running a second query replaced the first run's results. Keep every run as a tab
 ### Security
 
 Results and SQL can contain sensitive data. The history is **in memory only**, per editor tab. It is never written to disk, `localStorage` or settings. Closing the editor tab or the app discards it, and Reopen closed tab restores the editor text but not the runs (`closeTab` strips them before stashing). The activity log keeps its existing, separate record of statements.
+
+## 2026-10-02 — Sample database
+
+### Brief
+
+New users have nothing to play with until they have a database. Ship a sample one.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| What it is | A small invented shop in SQLite: `categories`, `customers`, `products`, `orders`, `order_items` (composite key), view `order_totals`, `events` (6,000 rows for infinite scroll and pagination) and `audit_log` (no primary key, so read-only). Includes NULLs, empty strings, 0/1 booleans, ISO dates, long text and JSON text. Under 2 MB |
+| Source of truth | `internal/sample/seed.sql`, embedded with `go:embed` and run through the normal SQLite driver. Deterministic: no `random()`, no current time. No binary blob is committed |
+| Where the file lives | `sample.sqlite` in the config directory, beside `connections.json`. Built on first use, via a temp file and rename |
+| Connection | A normal saved SQLite connection named "Sample database (SQLite)", found by path so repeat use never duplicates it. No password, so the keyring is not involved |
+| Existing file | Reused as is. Users may edit it; it is theirs |
+| Reset | "Reset sample database" (palette) asks first, closes any open session on it, rebuilds the file from the seed and reconnects. Edits are lost |
+| Entry points | "Open the sample database" button in the picker when there are no connections; palette commands "Open sample database" and "Reset sample database". One API capability (`OpenSample`, `ResetSample`) on both Wails and the dev server; opening uses the normal connect flow |
+
+### Security
+
+The API takes no path. The only file ever written is the fixed sample file in the config directory (plus its temp file there), created 0600 like the other config files. The seed is embedded and trusted, and runs through the SQLite driver, never a shell. Building the file happens before any connection exists, so it is not a user query and does not appear in the activity log; everything after that goes through the normal middleware chain.
