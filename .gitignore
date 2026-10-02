@@ -10,7 +10,7 @@ ja-db.exe
 /frontend/wailsjs/
 
 # Frontend
-/frontend/node_modules/
+node_modules/
 /frontend/dist/*
 # main.go embeds frontend/dist, so the directory must exist in a fresh clone
 # or `go build ./...` fails before the frontend has ever been built.
