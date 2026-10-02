@@ -20,9 +20,11 @@ import { Paginator } from './Paginator'
 import { Picker } from './Picker'
 import { ReviewChangesDialog } from './ReviewChangesDialog'
 import { SettingsDialog } from './SettingsDialog'
+import { PasswordDialog } from './PasswordDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { SqlEditor } from './SqlEditor'
 import { TabStrip } from './TabStrip'
+import { StorageNotice } from './StorageNotice'
 import { Toasts } from './Toasts'
 
 export function App() {
@@ -60,6 +62,7 @@ export function App() {
 
   return (
     <div className="flex h-full flex-col">
+      <StorageNotice className="m-2 mb-0" />
 
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         <TabStrip open={!tabStripHidden} />
@@ -105,6 +108,13 @@ export function App() {
 
       <CommandPalette />
       {dialog.kind === 'connection' && <ConnectionDialog existing={dialog.connection} />}
+      {dialog.kind === 'password' && (
+        <PasswordDialog
+          connection={dialog.connection}
+          database={dialog.database}
+          error={dialog.error}
+        />
+      )}
       {dialog.kind === 'shortcuts' && <ShortcutsDialog />}
       {dialog.kind === 'settings' && <SettingsDialog />}
       {dialog.kind === 'cell' && <CellDialog cell={dialog.cell} />}

@@ -43,9 +43,11 @@ import type {
   ObjectType,
   ResultSet,
   SchemaObject,
+  SecretBackend,
   Settings,
   Sort,
 } from './types'
+import { isPasswordRequired, needsPasswordPrompt } from './secrets'
 
 export const PAGE_SIZES = [50, 100, 200, 500, 1000] as const
 
@@ -84,6 +86,8 @@ export type DialogState =
   | { kind: 'none' }
   | { kind: 'connection'; connection: Connection | null }
   | { kind: 'shortcuts' }
+  /** Asks for an ask-every-time connection's password. `error` is why the last try failed. */
+  | { kind: 'password'; connection: Connection; database: string; error?: string }
   | { kind: 'settings' }
   | { kind: 'confirmDelete'; connection: Connection }
   | { kind: 'cell'; cell: CellTarget }
@@ -238,6 +242,7 @@ export interface State extends EditState, EditActions {
    *  wherever a grid is on screen. */
   transposed: boolean
   settings: Settings
+  secretBackend: SecretBackend | null
   activity: ActivityResult
   /** When the activity snapshot was taken, so the tray can tick its timers on
    *  between polls. See frontend/src/activity.ts. */
@@ -255,7 +260,12 @@ export interface State extends EditState, EditActions {
   // actions
   init: () => Promise<void>
   refreshConnections: () => Promise<void>
-  connect: (id: string) => Promise<void>
+  /**
+   * An ask-every-time connection that is not open opens the password dialog
+   * instead, which calls back here with what was typed. The password is passed
+   * on and not kept.
+   */
+  connect: (id: string, password?: string | null, database?: string) => Promise<void>
   disconnect: (id: string) => Promise<void>
   selectDatabase: (name: string) => Promise<void>
   openObject: (o: SchemaObject) => Promise<void>
@@ -677,6 +687,7 @@ export const useStore = create<State>((set, get) => {
     selection: null,
     view: 'data',
     transposed: false,
+    secretBackend: null,
     settings: DEFAULT_SETTINGS,
     activity: { queries: [], sessions: [] },
     activityPolledAt: 0,
@@ -690,13 +701,16 @@ export const useStore = create<State>((set, get) => {
     async init() {
       guardUnload(get)
       try {
-        const [drivers, connections, connectedIds, settings] = await Promise.all([
+        const [drivers, connections, connectedIds, settings, secretBackend] = await Promise.all([
           api.drivers(),
           api.listConnections(),
           api.connectedIds(),
           api.getSettings(),
+          // Never worth blocking startup on: no answer just means no banner.
+          api.secretBackend().catch(() => null),
         ])
         set({
+          secretBackend,
           drivers,
           connections,
           connectedIds: connectedIds ?? [],
@@ -731,11 +745,16 @@ export const useStore = create<State>((set, get) => {
       }
     },
 
-    async connect(id) {
+    async connect(id, password = null, database = '') {
+      const conn = get().connections.find((c) => c.id === id)
+      if (needsPasswordPrompt(conn, get().connectedIds.includes(id), password)) {
+        set({ dialog: { kind: 'password', connection: conn!, database } })
+        return
+      }
       const tabId = get().activeTabId
       set({ busy: true })
       try {
-        const res = await tracked(() => api.connect(id))
+        const res = await tracked(() => api.connect(id, password, database))
         const databases = res.databases.map((d) => d.name)
         const active = res.defaultDatabase || databases[0] || ''
         const connectedIds = Array.from(new Set([...get().connectedIds, id]))
@@ -763,6 +782,12 @@ export const useStore = create<State>((set, get) => {
         if (active) await get().selectDatabase(active)
       } catch (e) {
         set({ busy: false })
+        // A typed password that did not work: ask again, with the reason, rather
+        // than making the user find the connection again.
+        if (conn?.askPassword && password !== null) {
+          set({ dialog: { kind: 'password', connection: conn, database, error: errorMessage(e) } })
+          return
+        }
         get().pushToast('error', errorMessage(e))
       }
     },
@@ -811,6 +836,12 @@ export const useStore = create<State>((set, get) => {
         set({ objects, busy: false })
       } catch (e) {
         set({ busy: false })
+        // Each database of an ask-every-time connection is its own session.
+        const conn = get().connections.find((c) => c.id === id)
+        if (conn && isPasswordRequired(errorMessage(e))) {
+          set({ dialog: { kind: 'password', connection: conn, database: name } })
+          return
+        }
         get().pushToast('error', errorMessage(e))
       }
     },

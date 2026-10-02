@@ -14,6 +14,7 @@ import { objectBias, orderByRecency, refKey } from './recency'
 import { rectOf, rectSize } from './selection'
 import { runSqlFromEditor } from './sqlEditorRun'
 import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
+import { storageWarning } from './secrets'
 import { tabTitle } from './tabs'
 import { THEMES } from './themes'
 import type { ObjectType, SchemaObject } from './types'
@@ -258,6 +259,24 @@ export function buildActionCommands(s: Store): Command[] {
       keywords: 'add create database server mysql postgres mssql sqlite',
     },
     run: () => s.setDialog({ kind: 'connection', connection: null }),
+  })
+
+  cmds.push({
+    id: 'connection:password-storage',
+    title: 'Show where passwords are stored',
+    subtitle: 'OS keyring, or plain text if none is available',
+    group: 'Connections',
+    candidate: {
+      name: 'Where passwords are stored',
+      keywords: 'password secret credential keyring plaintext security storage',
+    },
+    run: () => {
+      const w = storageWarning(s.secretBackend)
+      s.pushToast(
+        w?.level === 'error' ? 'error' : 'info',
+        w ? `${w.headline}. ${w.detail}` : 'Saved passwords are in the OS keyring.',
+      )
+    },
   })
 
   if (s.activeConnectionId) {

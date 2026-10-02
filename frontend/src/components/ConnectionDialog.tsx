@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
 import { api, errorMessage } from '../api'
 import { useStore } from '../store'
+import { PARAMS_WARNING } from '../secrets'
 import { dialogButton, FormDialog } from '../ui'
+import { StorageNotice } from './StorageNotice'
 import type { Connection, Kind } from '../types'
 
 const KIND_ORDER: Kind[] = ['postgres', 'mysql', 'mssql', 'sqlite']
@@ -106,6 +108,8 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
     >
 
         <div className="grid grid-cols-2 gap-3 p-4">
+          <StorageNotice className="col-span-2" />
+
           <Field label="Name" className="col-span-2">
             <input
               autoFocus
@@ -172,7 +176,7 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
                   className={inputClass}
                 />
               </Field>
-              <Field label="Password">
+              <Field label={conn.askPassword ? 'Password (for Test only)' : 'Password'}>
                 <input
                   type="password"
                   value={password ?? ''}
@@ -180,11 +184,23 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
                     setPassword(e.target.value)
                     setTest({ state: 'idle' })
                   }}
-                  placeholder={password === null ? '••••••• unchanged' : ''}
+                  placeholder={password === null && !conn.askPassword ? '••••••• unchanged' : ''}
                   autoComplete="off"
                   className={inputClass}
                 />
               </Field>
+              <label className="col-span-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={!!conn.askPassword}
+                  onChange={(e) => {
+                    patch({ askPassword: e.target.checked })
+                    // Typed under "ask" it is for Test only; never carry it into a save.
+                    setPassword(e.target.checked ? '' : existing && !existing.askPassword ? null : '')
+                  }}
+                />
+                <span>Ask for the password every time (never stored)</span>
+              </label>
               <Field label="Database" className="col-span-2">
                 <input
                   value={conn.database ?? ''}
@@ -198,6 +214,11 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
           )}
         </div>
 
+        {conn.params && Object.keys(conn.params).length > 0 && (
+          <p className="mx-4 mb-3 rounded-lg border border-[var(--color-warn)] bg-[var(--color-warn-dim)] px-3 py-2">
+            {PARAMS_WARNING}
+          </p>
+        )}
         {test.state === 'failed' && (
           <p className="mx-4 mb-3 rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger-dim)] px-3 py-2 font-[var(--font-mono)] break-words text-[var(--color-danger)]">
             {test.message}
