@@ -564,6 +564,20 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | Where it is used | Infinite scroll's append only. Paged mode still counts pages: a page number is a position the user chose |
 | Full-value fetch | `ReadCell` finds the row by its key when the table has one, falling back to the offset. An offset names a position, and positions move; infinite scroll also made the old arithmetic wrong, since `page` there counts what is loaded |
 
+## 2026-10-02 — TLS defaults (security audit B1-B3)
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Default for a connection with no SSL mode | Off this machine: verified (`verify-full` / `tls=true` / `encrypt=true` with the certificate checked). On loopback: the old behaviour or better (`prefer` / `preferred` / SQL Server trusting its own certificate). `docs/adr/0008` |
+| **Existing saved connections** | All have an empty mode, so a **remote** one now verifies. Self-signed or TLS-less remote servers fail to connect until an SSL mode is picked (and, on SQL Server, the trust box ticked). Nothing is rewritten on disk; the error names the setting. Loopback connections are unaffected |
+| Allowed modes | An allow-list per dialect in `Capabilities.SSLModes`, enforced in `DSN` and on save |
+| `Params` | May not carry `sslmode`, `tls`, `encrypt` or `TrustServerCertificate` (any case) |
+| Skipping certificate checks | SQL Server only, `trustServerCertificate`, an explicit checkbox with a warning |
+| Visibility | The form shows the resolved mode; the Picker tags each connection `TLS`, `TLS unverified`, `TLS optional` or `no TLS`. Remote plaintext is red |
+
+
 ## Invariants
 
 Things that are true on purpose. Breaking one should be a decision, not an
@@ -605,6 +619,8 @@ test — which is the intended speed bump.
 | Passwords never live on the `Connection` struct; they go through `SecretStore` | `docs/adr/0007`. The default is the OS keyring |
 | Nothing outside `internal/config` retains a password beyond the call that uses it. An ask-every-time password lives in the request and the dialog's state only, and appears in no log, error or activity entry | `docs/adr/0007`. `internal/api/service_test.go`, `internal/config/secrets_test.go`. The driver's pool holds it for the life of the session, which ja-db cannot prevent |
 | The file fallback is never silent, and never used after the keyring has worked | `internal/config/secrets_test.go`. A UI warning cannot be dismissed |
+| A connection with no SSL mode verifies TLS on every non-loopback host; skipping the check is only ever an explicit per-connection choice | `docs/adr/0008`. `internal/driver/tls_test.go` |
+| `Params` cannot set a TLS key | Otherwise it sidesteps the allow-list and the warning. `tls_test.go` |
 | `cmd/devserver` binds to loopback only and refuses anything else | It serves stored credentials |
 | Nothing outside `frontend/src/ui/` imports a component library | The swap-out guarantee. A leak silently voids it |
 | The palette matches the object *name* first; schema and keywords only at a discount | Otherwise "user" returns everything in a schema containing those letters |
