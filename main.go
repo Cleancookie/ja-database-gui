@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"log"
+	"net/http"
 	"time"
 
 	"github.com/wailsapp/wails/v2"
@@ -42,7 +43,8 @@ func main() {
 		MinWidth:  900,
 		MinHeight: 560,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:     assets,
+			Middleware: func(next http.Handler) http.Handler { return withCSP(next) },
 		},
 		OnStartup: func(ctx context.Context) {
 			// The gap between this and the config line above is the webview
