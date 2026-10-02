@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -92,7 +93,7 @@ func seed(t *testing.T, svc *Service, id string, rows int) {
 
 func TestConnectListsTheSQLiteFileAsOneDatabase(t *testing.T) {
 	svc, id := newTestService(t)
-	res, err := svc.Connect(context.Background(), id)
+	res, err := svc.Connect(context.Background(), ConnectRequest{ConnectionID: id})
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
@@ -1383,5 +1384,80 @@ func TestSecretBackendIsReported(t *testing.T) {
 	t.Cleanup(plain.Shutdown)
 	if got := plain.SecretBackend(); got.Kind != config.BackendFile || got.Reason == "" {
 		t.Errorf("got %+v, want file with a reason", got)
+	}
+}
+
+// --- ask-every-time connections -----------------------------------------------------
+
+func TestAskPasswordConnectNeedsAPasswordAndKeepsNone(t *testing.T) {
+	dir := t.TempDir()
+	svc := newService(t, dir)
+	c, err := svc.SaveConnection(SaveConnectionRequest{
+		Connection: config.Connection{Name: "ask", Kind: driver.KindMySQL, Host: "127.0.0.1", Port: 1, AskPassword: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = svc.Connect(context.Background(), ConnectRequest{ConnectionID: c.ID})
+	if !errors.Is(err, ErrPasswordRequired) {
+		t.Fatalf("got %v, want ErrPasswordRequired", err)
+	}
+	if _, err := svc.ListObjects(context.Background(), c.ID, "x"); !errors.Is(err, ErrPasswordRequired) {
+		t.Fatalf("browsing without a session: got %v, want ErrPasswordRequired", err)
+	}
+
+	// The dial fails (nothing listens on port 1); the typed password must not
+	// come back in the error or the log.
+	pw := "s3cr3t-typed"
+	_, err = svc.Connect(context.Background(), ConnectRequest{ConnectionID: c.ID, Password: &pw})
+	if err == nil {
+		t.Fatal("expected a dial failure")
+	}
+	if strings.Contains(err.Error(), pw) {
+		t.Errorf("error leaks the password: %v", err)
+	}
+	for _, q := range svc.Activity().Queries {
+		if strings.Contains(q.SQL, pw) || strings.Contains(q.Error, pw) {
+			t.Errorf("activity log leaks the password: %+v", q)
+		}
+	}
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		b, _ := os.ReadFile(filepath.Join(dir, e.Name()))
+		if strings.Contains(string(b), pw) {
+			t.Errorf("%s contains the password", e.Name())
+		}
+	}
+}
+
+func TestScrubRemovesTheSecret(t *testing.T) {
+	got := scrub(errors.New("dial user:hunter2@host failed"), "hunter2")
+	if strings.Contains(got.Error(), "hunter2") {
+		t.Errorf("got %v", got)
+	}
+	if scrub(nil, "x") != nil {
+		t.Error("nil must stay nil")
+	}
+}
+
+func TestAskPasswordSessionIsReusedWithoutAskingAgain(t *testing.T) {
+	svc := newService(t, t.TempDir())
+	c, err := svc.SaveConnection(SaveConnectionRequest{
+		Connection: config.Connection{Name: "ask", Kind: driver.KindSQLite, File: filepath.Join(t.TempDir(), "a.db"), AskPassword: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	empty := ""
+	if _, err := svc.Connect(context.Background(), ConnectRequest{ConnectionID: c.ID, Password: &empty}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.ListObjects(context.Background(), c.ID, ""); err != nil {
+		t.Errorf("live session should be reused without a password: %v", err)
+	}
+	svc.Disconnect(c.ID)
+	if _, err := svc.ListObjects(context.Background(), c.ID, ""); !errors.Is(err, ErrPasswordRequired) {
+		t.Errorf("after disconnect got %v, want ErrPasswordRequired", err)
 	}
 }

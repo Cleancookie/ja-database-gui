@@ -80,7 +80,9 @@ func (a *App) TestConnection(req api.SaveConnectionRequest) error {
 	return a.svc.TestConnection(req)
 }
 
-func (a *App) Connect(id string) (*api.ConnectResult, error) { return a.svc.Connect(a.ctx, id) }
+func (a *App) Connect(req api.ConnectRequest) (*api.ConnectResult, error) {
+	return a.svc.Connect(a.ctx, req)
+}
 
 func (a *App) Disconnect(id string) { a.svc.Disconnect(id) }
 

@@ -161,7 +161,6 @@ func routes(s *api.Service) map[string]route {
 		"Disconnect":        withArgs(func(_ context.Context, a args) (any, error) { s.Disconnect(a.ID); return nil, nil }),
 		"DeleteConnection":  withArgs(func(_ context.Context, a args) (any, error) { return nil, s.DeleteConnection(a.ID) }),
 		"LogClient":         withArgs(func(_ context.Context, a args) (any, error) { log.Printf("client: %s", a.Line); return nil, nil }),
-		"Connect":           withArgs(func(ctx context.Context, a args) (any, error) { return s.Connect(ctx, a.ID) }),
 		"ListDatabases":     withArgs(func(ctx context.Context, a args) (any, error) { return s.ListDatabases(ctx, a.ID) }),
 		"ListObjects": withArgs(func(ctx context.Context, a args) (any, error) {
 			return s.ListObjects(ctx, a.ID, a.Database)
@@ -186,6 +185,7 @@ func routes(s *api.Service) map[string]route {
 			return s.PreviewCreateTable(r)
 		}),
 
+		"Connect":        withReq(s.Connect),
 		"ReadRows":       withReq(s.ReadRows),
 		"ReadCell":       withReq(s.ReadCell),
 		"CountRows":      withReq(s.CountRows),

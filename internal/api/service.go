@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -208,7 +209,7 @@ func (s *Service) TestConnection(req SaveConnectionRequest) error {
 	pw := ""
 	if req.Password != nil {
 		pw = *req.Password
-	} else if c.ID != "" {
+	} else if c.ID != "" && !c.AskPassword {
 		// Editing an existing connection without retyping the password.
 		stored, err := s.store.Password(c.ID)
 		if err != nil {
@@ -222,7 +223,7 @@ func (s *Service) TestConnection(req SaveConnectionRequest) error {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), testConnectionTimeout)
 	defer cancel()
-	return s.engine.Test(ctx, cfg)
+	return scrub(s.engine.Test(ctx, cfg), pw)
 }
 
 // ConnectResult is everything the UI needs to populate the sidebar after a
@@ -233,10 +234,29 @@ type ConnectResult struct {
 	DefaultDatabase string              `json:"defaultDatabase"`
 }
 
-func (s *Service) Connect(ctx context.Context, connID string) (*ConnectResult, error) {
+// ErrPasswordRequired is returned for an ask-every-time connection that has no
+// live session to reuse. The UI keys on the PASSWORD_REQUIRED prefix to open its
+// password prompt.
+var ErrPasswordRequired = errors.New("PASSWORD_REQUIRED: this connection asks for its password every time")
+
+// ConnectRequest opens a connection. Password is only read for a connection
+// saved with AskPassword; it is used for this call and not kept. Database
+// overrides the saved default, which is how the UI reaches a second database of
+// an ask-every-time connection.
+type ConnectRequest struct {
+	ConnectionID string  `json:"connectionId"`
+	Password     *string `json:"password"`
+	Database     string  `json:"database"`
+}
+
+func (s *Service) Connect(ctx context.Context, req ConnectRequest) (*ConnectResult, error) {
+	connID := req.ConnectionID
 	conn, err := s.store.Get(connID)
 	if err != nil {
 		return nil, err
+	}
+	if req.Database != "" {
+		conn.Database = req.Database
 	}
 	d, err := driver.Get(conn.Kind)
 	if err != nil {
@@ -244,7 +264,7 @@ func (s *Service) Connect(ctx context.Context, connID string) (*ConnectResult, e
 	}
 	caps := d.Caps()
 
-	sess, err := s.session(ctx, connID, conn.Database)
+	sess, err := s.sessionWith(ctx, connID, conn.Database, req.Password)
 	if err != nil {
 		return nil, err
 	}
@@ -906,7 +926,7 @@ func (s *Service) CreateTable(ctx context.Context, req CreateTableRequest) (*dri
 // deliberately does not go through the runner, since nothing is executed and an
 // activity entry per keystroke would bury the log.
 func (s *Service) PreviewCreateTable(req CreateTableRequest) (string, error) {
-	cfg, err := s.store.DriverConfig(req.ConnectionID)
+	cfg, err := s.store.DriverConfig(req.ConnectionID, "")
 	if err != nil {
 		return "", err
 	}
@@ -1166,11 +1186,45 @@ func sessionDatabase(database string) string {
 
 // session resolves a live connection.
 func (s *Service) session(ctx context.Context, connID, database string) (*engine.Session, error) {
-	cfg, err := s.store.DriverConfig(connID)
+	return s.sessionWith(ctx, connID, database, nil)
+}
+
+// sessionWith is session for a caller that may hold a typed password. asked is
+// read only for an ask-every-time connection, and only to open a new session:
+// an existing one is reused without it. Without one, there is nothing to dial
+// with, so it fails with ErrPasswordRequired rather than trying an empty password.
+func (s *Service) sessionWith(ctx context.Context, connID, database string, asked *string) (*engine.Session, error) {
+	conn, err := s.store.Get(connID)
+	if err != nil {
+		return nil, err
+	}
+	pw := ""
+	if conn.AskPassword {
+		if database == "" {
+			database = conn.Database
+		}
+		if asked == nil {
+			if !s.engine.Has(connID, sessionDatabase(database)) {
+				return nil, ErrPasswordRequired
+			}
+		} else {
+			pw = *asked
+		}
+	}
+	cfg, err := s.store.DriverConfig(connID, pw)
 	if err != nil {
 		return nil, err
 	}
 	// No driver lookup here any more: Acquire does its own, and the dialect no
 	// longer decides which database the session opens against.
-	return s.engine.Acquire(ctx, connID, cfg, sessionDatabase(database))
+	sess, err := s.engine.Acquire(ctx, connID, cfg, sessionDatabase(database))
+	return sess, scrub(err, pw)
+}
+
+// scrub keeps a typed password out of an error on its way to the UI and the log.
+func scrub(err error, secret string) error {
+	if err == nil || secret == "" || !strings.Contains(err.Error(), secret) {
+		return err
+	}
+	return errors.New(strings.ReplaceAll(err.Error(), secret, "***"))
 }

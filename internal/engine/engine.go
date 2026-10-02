@@ -60,6 +60,15 @@ func key(connID, database string, _ driver.Capabilities) string {
 	return connID + "\x00" + database
 }
 
+// Has reports whether a session is already open for this connection and
+// database.
+func (e *Engine) Has(connID, database string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	_, ok := e.sessions[key(connID, database, driver.Capabilities{})]
+	return ok
+}
+
 // Acquire returns a live session, opening one if necessary. database may be
 // empty, meaning the connection's configured default.
 func (e *Engine) Acquire(ctx context.Context, connID string, cfg driver.ConnConfig, database string) (*Session, error) {

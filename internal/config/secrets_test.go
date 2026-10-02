@@ -312,3 +312,51 @@ func TestKeyringSecretsAndProbe(t *testing.T) {
 	}
 	keyring.MockInit()
 }
+
+func TestAskPasswordNeverTouchesTheSecretStore(t *testing.T) {
+	kr := newFake()
+	s, _ := OpenWith(t.TempDir(), kr, nil)
+	kr.calls = nil
+
+	c, err := s.Create(Connection{Name: "n", Kind: driver.KindMySQL, Host: "h", AskPassword: true}, "must-not-be-kept")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Update(c, ptr("also-ignored")); err != nil {
+		t.Fatal(err)
+	}
+	if pw, err := s.Password(c.ID); pw != "" || err != nil {
+		t.Fatalf("Password = %q, %v", pw, err)
+	}
+	cfg, err := s.DriverConfig(c.ID, "typed-now")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Password != "typed-now" {
+		t.Errorf("driver config password = %q, want the one passed in", cfg.Password)
+	}
+	if err := s.Delete(c.ID); err != nil {
+		t.Fatal(err)
+	}
+	if len(kr.calls) != 0 || len(kr.values) != 0 {
+		t.Errorf("secret store was used: calls=%v values=%v", kr.calls, kr.values)
+	}
+}
+
+func TestSwitchingToAskRemovesTheStoredPassword(t *testing.T) {
+	kr := newFake()
+	s, _ := OpenWith(t.TempDir(), kr, nil)
+	c, _ := s.Create(Connection{Name: "n", Kind: driver.KindMySQL, Host: "h"}, "stored")
+	if kr.values[c.ID] != "stored" {
+		t.Fatal("setup: password not stored")
+	}
+	c.AskPassword = true
+	if _, err := s.Update(c, ptr("ignored")); err != nil {
+		t.Fatal(err)
+	}
+	if len(kr.values) != 0 {
+		t.Errorf("stored password survived the switch: %v", kr.values)
+	}
+}
+
+func ptr(s string) *string { return &s }

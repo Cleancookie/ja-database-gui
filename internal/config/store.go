@@ -25,16 +25,20 @@ const fileVersion = 1
 
 // Connection is a saved connection, without its password.
 type Connection struct {
-	ID       string            `json:"id"`
-	Name     string            `json:"name"`
-	Kind     driver.Kind       `json:"kind"`
-	Host     string            `json:"host,omitempty"`
-	Port     int               `json:"port,omitempty"`
-	User     string            `json:"user,omitempty"`
-	Database string            `json:"database,omitempty"`
-	File     string            `json:"file,omitempty"` // SQLite
-	SSLMode  string            `json:"sslMode,omitempty"`
-	Params   map[string]string `json:"params,omitempty"`
+	ID       string      `json:"id"`
+	Name     string      `json:"name"`
+	Kind     driver.Kind `json:"kind"`
+	Host     string      `json:"host,omitempty"`
+	Port     int         `json:"port,omitempty"`
+	User     string      `json:"user,omitempty"`
+	Database string      `json:"database,omitempty"`
+	File     string      `json:"file,omitempty"` // SQLite
+	SSLMode  string      `json:"sslMode,omitempty"`
+	// Params is stored in connections.json in plaintext. Never put a secret here.
+	Params map[string]string `json:"params,omitempty"`
+	// AskPassword means the password is never stored anywhere: the UI asks for it
+	// on every connect and it travels in that one request.
+	AskPassword bool `json:"askPassword,omitempty"`
 	// Colour is a UI accent, used to make production connections obvious.
 	Colour    string    `json:"colour,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
@@ -208,8 +212,8 @@ func (s *Store) Create(c Connection, password string) (Connection, error) {
 		s.conns = s.conns[:len(s.conns)-1] // keep memory consistent with disk
 		return Connection{}, err
 	}
-	if password != "" {
-		if err := s.secrets.Set(c.ID, password); err != nil {
+	if password != "" && !c.AskPassword {
+		if err := s.setSecret(c.ID, password); err != nil {
 			return c, fmt.Errorf("connection saved but password was not: %w", err)
 		}
 	}
@@ -245,8 +249,15 @@ func (s *Store) Update(c Connection, password *string) (Connection, error) {
 		s.conns[idx] = prev
 		return Connection{}, err
 	}
-	if password != nil {
-		if err := s.secrets.Set(c.ID, *password); err != nil {
+	switch {
+	case c.AskPassword && !prev.AskPassword:
+		// Switching to ask-every-time: the stored copy must not outlive the choice.
+		if err := s.deleteSecret(c.ID); err != nil {
+			return c, fmt.Errorf("connection saved but the stored password was not removed: %w", err)
+		}
+	case c.AskPassword:
+	case password != nil:
+		if err := s.setSecret(c.ID, *password); err != nil {
 			return c, fmt.Errorf("connection saved but password was not: %w", err)
 		}
 	}
@@ -269,6 +280,7 @@ func (s *Store) Delete(id string) error {
 		return fmt.Errorf("no connection with id %q", id)
 	}
 
+	c := s.conns[idx]
 	prev := s.conns
 	s.conns = append(append([]Connection{}, s.conns[:idx]...), s.conns[idx+1:]...)
 	if err := s.persist(); err != nil {
@@ -277,6 +289,13 @@ func (s *Store) Delete(id string) error {
 	}
 	// A leftover secret is harmless but is still a credential on disk, so a
 	// failure here is reported rather than swallowed.
+	if c.AskPassword {
+		return nil // nothing was ever stored
+	}
+	return s.deleteSecret(id)
+}
+
+func (s *Store) deleteSecret(id string) error {
 	if s.legacy != nil {
 		_ = s.legacy.Delete(id)
 	}
@@ -295,8 +314,12 @@ func (s *Store) setSecret(id, password string) error {
 	return nil
 }
 
-// Password returns the stored password for a connection, or "" if none.
+// Password returns the stored password for a connection, or "" if none. An
+// ask-every-time connection has none and the store is not consulted.
 func (s *Store) Password(id string) (string, error) {
+	if c, err := s.Get(id); err == nil && c.AskPassword {
+		return "", nil
+	}
 	pw, err := s.secrets.Get(id)
 	if err != nil || pw != "" || s.legacy == nil {
 		return pw, err
@@ -305,15 +328,18 @@ func (s *Store) Password(id string) (string, error) {
 }
 
 // DriverConfig assembles the full connection config, password included, ready
-// to hand to a driver.
-func (s *Store) DriverConfig(id string) (driver.ConnConfig, error) {
+// to hand to a driver. asked is the password the user just typed; it is used
+// only for an ask-every-time connection and is not kept.
+func (s *Store) DriverConfig(id, asked string) (driver.ConnConfig, error) {
 	c, err := s.Get(id)
 	if err != nil {
 		return driver.ConnConfig{}, err
 	}
-	pw, err := s.Password(id)
-	if err != nil {
-		return driver.ConnConfig{}, err
+	pw := asked
+	if !c.AskPassword {
+		if pw, err = s.Password(id); err != nil {
+			return driver.ConnConfig{}, err
+		}
 	}
 	return driver.ConnConfig{
 		Kind:     c.Kind,

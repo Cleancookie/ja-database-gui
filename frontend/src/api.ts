@@ -29,6 +29,7 @@ import type {
   RunSQLResult,
   ResultSet,
   SaveConnectionRequest,
+  SecretBackend,
   SchemaObject,
   Settings,
   Sort,
@@ -115,7 +116,14 @@ export const api = {
 
   testConnection: (req: SaveConnectionRequest) => call<void>('TestConnection', [req], req),
 
-  connect: (id: string) => call<ConnectResult>('Connect', [id], { id }),
+  /**
+   * `password` is read only for an ask-every-time connection and is used for
+   * this call alone. `database` overrides the saved default.
+   */
+  connect: (id: string, password: string | null = null, database = '') => {
+    const req = { connectionId: id, password, database }
+    return call<ConnectResult>('Connect', [req], req)
+  },
 
   disconnect: (id: string) => call<void>('Disconnect', [id], { id }),
 
@@ -194,6 +202,8 @@ export const api = {
   getSettings: () => call<Settings>('GetSettings', [], {}),
 
   saveSettings: (s: Settings) => call<Settings>('SaveSettings', [s], s),
+
+  secretBackend: () => call<SecretBackend>('SecretBackend', [], {}),
 
   activity: () => call<ActivityResult>('Activity', [], {}),
 

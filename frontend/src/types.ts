@@ -33,7 +33,10 @@ export interface Connection {
   database?: string
   file?: string
   sslMode?: string
+  /** Stored in plaintext. Never put a secret here. */
   params?: Record<string, string>
+  /** The password is never stored: it is asked for on every connect. */
+  askPassword?: boolean
   colour?: string
   createdAt?: string
   updatedAt?: string
@@ -311,6 +314,12 @@ export interface ConnectResult {
   capabilities: Capabilities
   databases: { name: string }[]
   defaultDatabase: string
+}
+
+/** Where saved passwords live. Anything but `keyring` gets a standing warning. */
+export interface SecretBackend {
+  kind: 'keyring' | 'file' | 'unavailable'
+  reason?: string
 }
 
 export interface SaveConnectionRequest {
