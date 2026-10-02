@@ -75,7 +75,7 @@ services:
   # Profiled off by default: it wants ~2GB of RAM, which is a lot to spend if
   # you only wanted a MySQL box.
   mssql:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04@sha256:4402d880dd4c34bfa7d8705e56a86cd6c88da80a1f6bbbe741f999e76264a090
     container_name: jadb-mssql
     profiles: ['mssql']
     environment:
@@ -100,7 +100,7 @@ services:
   # The SQL Server image has no docker-entrypoint-initdb.d, so seeding is a
   # one-shot container that runs once the server reports healthy.
   mssql-init:
-    image: mcr.microsoft.com/mssql/server:2022-latest
+    image: mcr.microsoft.com/mssql/server:2022-CU27-ubuntu-22.04@sha256:4402d880dd4c34bfa7d8705e56a86cd6c88da80a1f6bbbe741f999e76264a090
     container_name: jadb-mssql-init
     profiles: ['mssql']
     depends_on:

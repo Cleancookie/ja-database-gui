@@ -24,6 +24,7 @@ help:
 	@echo '  make windows      cross-compile $(EXE)'
 	@echo '  make open         build, then launch $(EXE) in the background'
 	@echo '  make check        fmt + vet + typecheck + all tests'
+	@echo '  make vuln         govulncheck + npm audit (needs network)'
 	@echo
 	@echo '  make dev          run the API dev server (pair with: make web)'
 	@echo '  make web          run the Vite dev server on :5173'
@@ -54,7 +55,7 @@ $(DIST): $(NODE_MODS) $(WEB_SRC)
 	@touch $(DIST)
 
 $(NODE_MODS): $(FRONTEND)/package-lock.json
-	cd $(FRONTEND) && npm install
+	cd $(FRONTEND) && npm ci
 	@touch $(NODE_MODS)
 
 # --- development -------------------------------------------------------------------
@@ -77,6 +78,14 @@ check: $(NODE_MODS)
 	go test ./...
 	cd $(FRONTEND) && npx vitest run
 	@echo "all checks passed"
+
+# Known-vulnerability scan of both dependency trees. Needs the network and is
+# not part of `check`, so an advisory published today cannot fail an unrelated
+# commit. Run before a release.
+.PHONY: vuln
+vuln: $(NODE_MODS)
+	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+	cd $(FRONTEND) && npm audit --omit=dev
 
 # --- housekeeping ------------------------------------------------------------------
 
