@@ -33,6 +33,7 @@ import type {
   SchemaObject,
   Settings,
   Sort,
+  TlsInfo,
 } from './types'
 
 type Bindings = Record<string, (...args: unknown[]) => Promise<unknown>>
@@ -202,6 +203,9 @@ export const api = {
   getSettings: () => call<Settings>('GetSettings', [], {}),
 
   saveSettings: (s: Settings) => call<Settings>('SaveSettings', [s], s),
+
+  /** The TLS mode `c` will use once defaults apply. Needs no saved connection. */
+  describeTLS: (c: Connection) => call<TlsInfo>('DescribeTLS', [c], c),
 
   secretBackend: () => call<SecretBackend>('SecretBackend', [], {}),
 

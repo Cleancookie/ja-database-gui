@@ -53,3 +53,6 @@ export function storageWarning(b: SecretBackend | null): StorageWarning | null {
 
 export const PARAMS_WARNING =
   'Extra parameters are saved as plain text in connections.json. Do not put passwords or tokens in them.'
+
+export const TRUST_WARNING =
+  'Anyone who can intercept the connection can impersonate this server and read the login and every query. Use only for a server you control, such as a local or containerised one.'

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
 import { api, errorMessage } from '../api'
 import { useStore } from '../store'
-import { PARAMS_WARNING } from '../secrets'
+import { PARAMS_WARNING, TRUST_WARNING } from '../secrets'
 import { dialogButton, FormDialog } from '../ui'
 import { StorageNotice } from './StorageNotice'
+import { useTls } from '../tls'
 import type { Connection, Kind } from '../types'
 
 const KIND_ORDER: Kind[] = ['postgres', 'mysql', 'mssql', 'sqlite']
@@ -33,6 +34,7 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
   const [test, setTest] = useState<TestState>({ state: 'idle' })
 
   const caps = drivers?.[conn.kind]
+  const tls = useTls(conn)
   const isFileBased = !caps?.serverHostsDatabases
 
   // Changing dialect should move the port to that dialect's default, but must
@@ -126,7 +128,7 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
                 <button
                   key={k}
                   type="button"
-                  onClick={() => patch({ kind: k })}
+                  onClick={() => patch({ kind: k, sslMode: '', trustServerCertificate: false })}
                   className={`flex-1 rounded-lg border px-2 py-1.5 ${
                     conn.kind === k
                       ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/40'
@@ -210,6 +212,48 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
                   className={inputClass}
                 />
               </Field>
+              <Field label="SSL mode" className="col-span-2">
+                <select
+                  value={conn.sslMode ?? ''}
+                  onChange={(e) => patch({ sslMode: e.target.value })}
+                  className={inputClass}
+                >
+                  <option value="">Default for this host</option>
+                  {(caps?.sslModes ?? []).map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+                {tls && (
+                  <span
+                    data-testid="tls-effective"
+                    className={`mt-1 block ${
+                      tls.warn ? 'text-[var(--color-danger)]' : 'text-[var(--color-faint)]'
+                    }`}
+                  >
+                    {tls.implicit ? 'Default: ' : ''}
+                    {tls.label}
+                    {tls.warn && ' - this host is not on this machine'}
+                  </span>
+                )}
+              </Field>
+              {caps?.canTrustServerCertificate && (
+                <label className="col-span-2 flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!conn.trustServerCertificate}
+                    onChange={(e) => patch({ trustServerCertificate: e.target.checked })}
+                    className="mt-1"
+                  />
+                  <span>
+                    Trust the server certificate without checking it
+                    {conn.trustServerCertificate && (
+                      <span className="block text-[var(--color-danger)]">{TRUST_WARNING}</span>
+                    )}
+                  </span>
+                </label>
+              )}
             </>
           )}
         </div>

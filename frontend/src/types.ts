@@ -11,6 +11,10 @@ export interface Capabilities {
   supportsFunctions: boolean
   defaultPort: number
   displayName: string
+  /** Allow-list for a connection's sslMode, weakest first. Empty on SQLite. */
+  sslModes: string[]
+  /** SQL Server only: skipping certificate verification is a separate switch. */
+  canTrustServerCertificate: boolean
   /** SQLite has no TRUNCATE and is emptied with DELETE FROM; the confirmation
    *  says which, because they are not the same statement. */
   truncateIsDelete: boolean
@@ -23,6 +27,16 @@ export interface Capabilities {
   setToDefault: boolean
 }
 
+/** The TLS mode a connection really uses once defaults apply. */
+export interface TlsInfo {
+  mode: string
+  level: 'na' | 'plain' | 'partial' | 'encrypted' | 'verified'
+  implicit: boolean
+  label: string
+  /** Remote host left short of verified TLS. */
+  warn: boolean
+}
+
 export interface Connection {
   id: string
   name: string
@@ -32,7 +46,10 @@ export interface Connection {
   user?: string
   database?: string
   file?: string
+  /** One of the dialect's sslModes. Empty means the default for the host. */
   sslMode?: string
+  /** Skip certificate verification. SQL Server only; an explicit opt-in. */
+  trustServerCertificate?: boolean
   /** Stored in plaintext. Never put a secret here. */
   params?: Record<string, string>
   /** The password is never stored: it is asked for on every connect. */

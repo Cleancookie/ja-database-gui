@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
+import { TlsTag } from './TlsTag'
 import { describeConnection, formatCount, objectCandidate, OBJECT_ICON, qualifiedName } from '../commands'
 import { tableKey } from '../edits'
 import { rankCandidates } from '../fuzzy'
@@ -247,6 +248,7 @@ export const Picker = memo(function Picker() {
                             {pending === c.id && busy
                               ? 'Connecting…'
                               : describeConnection(c.kind, c.host, c.file)}
+                            <TlsTag conn={c} />
                           </span>
                         </span>
                       </button>
