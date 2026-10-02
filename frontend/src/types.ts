@@ -25,6 +25,9 @@ export interface Capabilities {
    *  to default" there. An insert may still carry a `default` cell — the
    *  column is simply left out. */
   setToDefault: boolean
+  /** The isolation levels the SQL editor may run at, besides the driver default.
+   *  Empty on SQLite, where the dropdown is hidden. */
+  isolationLevels: string[]
 }
 
 /** The TLS mode a connection really uses once defaults apply. */

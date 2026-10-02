@@ -8,6 +8,7 @@
  */
 
 import type { Candidate } from './fuzzy'
+import { effectiveIsolation, isolationChoices } from './isolation'
 import { perf } from './perf'
 import { reportText } from './startup'
 import { objectBias, orderByRecency, refKey } from './recency'
@@ -323,6 +324,28 @@ export function buildActionCommands(s: Store): Command[] {
       },
       run: () => void runSqlFromEditor(),
     })
+  }
+
+  // One command per level, so the palette reaches it as readily as the
+  // dropdown. Only in the editor and only where the dialect offers any; the
+  // title says what Enter will do, and the subtitle carries the transaction
+  // warning.
+  if (s.view === 'sql' && s.capabilities && s.capabilities.isolationLevels.length > 0) {
+    const current = effectiveIsolation(s.capabilities.isolationLevels, s.sqlIsolation)
+    for (const c of isolationChoices(s.capabilities.isolationLevels)) {
+      cmds.push({
+        id: `sql:isolation:${c.value || 'default'}`,
+        title: `Isolation level: ${c.label}${c.value === current ? ' (current)' : ''}`,
+        subtitle: c.value ? 'Wraps each run in a transaction' : 'No transaction around a run',
+        group: 'Query',
+        candidate: {
+          name: `Isolation level ${c.label}`,
+          keywords: 'transaction isolation level read committed serializable snapshot repeatable uncommitted',
+          bias: c.value === current ? -0.5 : 0,
+        },
+        run: () => s.setSqlIsolation(c.value),
+      })
+    }
   }
 
   // Offered only while something is running, in the editor or not: a run goes

@@ -181,7 +181,14 @@ export const api = {
    *  a change that does not fit the table rejects like previewChanges does. */
   applyChanges: (req: ChangesRequest) => call<ApplyResult>('ApplyChanges', [req], req),
 
-  runSql: (req: { connectionId: string; database: string; sql: string; maxRows: number }) =>
+  runSql: (req: {
+    connectionId: string
+    database: string
+    sql: string
+    maxRows: number
+    /** One of capabilities.isolationLevels, or '' for the driver default. */
+    isolation: string
+  }) =>
     call<RunSQLResult>('RunSQL', [req], req),
 
   /** Empties a table — a DELETE on SQLite. See capabilities.truncateIsDelete. */

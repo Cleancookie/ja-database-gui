@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { editorCandidates, tokenAt } from '../completion'
+import { effectiveIsolation, ISOLATION_WARNING, isolationChoices } from '../isolation'
 import { focusEditorFromPane, runSqlFromEditor, sqlEditorHandle } from '../sqlEditorRun'
 import { activeSqlResult, useActiveKind, useHasSchemas, useStore } from '../store'
 import { DatabasePicker } from './DatabasePicker'
@@ -29,6 +30,9 @@ export function SqlEditor() {
   const sqlResult = useStore(activeSqlResult)
   const busy = useStore((s) => s.busy)
   const sqlRun = useStore((s) => s.sqlRun)
+  const isolationLevels = useStore((s) => s.capabilities?.isolationLevels)
+  const isolation = useStore((s) => s.sqlIsolation)
+  const setIsolation = useStore((s) => s.setSqlIsolation)
   const cancelSql = useStore((s) => s.cancelSql)
   const setView = useStore((s) => s.setView)
   const openCell = useStore((s) => s.openCell)
@@ -75,6 +79,27 @@ export function SqlEditor() {
           {hasSelection ? 'Run selection' : 'Run'}{' '}
           <span className="text-[var(--color-faint)]">Ctrl+Enter</span>
         </button>
+        {/* Hidden where the dialect has nothing to choose (SQLite). Lit when a
+            level is set, because from then on every run is a transaction. */}
+        {isolationLevels && isolationLevels.length > 0 && (
+          <select
+            aria-label="Transaction isolation level"
+            title={`Isolation level for runs in this tab. ${ISOLATION_WARNING}`}
+            value={effectiveIsolation(isolationLevels, isolation)}
+            onChange={(e) => setIsolation(e.target.value)}
+            className={`rounded-full border bg-[var(--color-elevated)] px-2 py-0.5 ${
+              effectiveIsolation(isolationLevels, isolation)
+                ? 'border-[var(--color-warn)] text-[var(--color-warn)]'
+                : 'border-[var(--color-border-strong)] text-[var(--color-muted)]'
+            }`}
+          >
+            {isolationChoices(isolationLevels).map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.value ? `Tx: ${c.label}` : c.label}
+              </option>
+            ))}
+          </select>
+        )}
         {/* Separate from Run, not a toggle of it: Run stays where it was so the
             next press is never a stop by accident. */}
         {sqlRun && (

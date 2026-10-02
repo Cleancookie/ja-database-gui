@@ -1036,6 +1036,10 @@ type RunSQLRequest struct {
 	SQL          string `json:"sql"`
 	// MaxRows caps the result; 0 uses driver.HardRowCap.
 	MaxRows int `json:"maxRows"`
+	// Isolation is one of the dialect's Capabilities.IsolationLevels, or empty
+	// for the driver default. Anything else is refused. A level wraps the run in
+	// a transaction; see runEditor.
+	Isolation string `json:"isolation"`
 }
 
 // RunSQLResult is what one run of the editor produced. A list because a batch
@@ -1070,6 +1074,11 @@ func (s *Service) RunSQL(ctx context.Context, req RunSQLRequest) (*RunSQLResult,
 	// guessing which tables a statement touched is not worth being wrong about.
 	defer s.columns.invalidateConnection(req.ConnectionID)
 
+	level, err := driver.IsolationFor(sess.Driver.Caps(), req.Isolation)
+	if err != nil {
+		return nil, err
+	}
+
 	settings := s.settings.Get()
 	maxRows := req.MaxRows
 	if maxRows <= 0 {
@@ -1083,7 +1092,7 @@ func (s *Service) RunSQL(ctx context.Context, req RunSQLRequest) (*RunSQLResult,
 		Kind:         activity.KindQuery,
 		SQL:          stmt,
 	}, func(qctx context.Context) error {
-		return runEditor(qctx, sess, stmt, driver.QueryOptions{
+		return runEditor(qctx, sess, stmt, level, driver.QueryOptions{
 			RowCap:  maxRows,
 			TextCap: settings.TextCapChars,
 		}, out)

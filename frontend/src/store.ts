@@ -1,3 +1,4 @@
+import { effectiveIsolation } from './isolation'
 import { endRun, markCancelled, startRun, wasCancelled, type SqlRun } from './sqlRunState'
 import { create } from 'zustand'
 import { reuseUnchanged } from './activity'
@@ -210,6 +211,13 @@ export interface State extends EditState, EditActions {
    */
   sqlHasSelection: boolean
   /**
+   * The isolation level the editor runs at: one of the dialect's
+   * Capabilities.isolationLevels, or '' for the driver default. Tab state, and
+   * not persisted across restarts, so a level chosen once cannot silently wrap
+   * tomorrow's session in transactions.
+   */
+  sqlIsolation: string
+  /**
    * Every result set the last run produced, in order. A batch is one round
    * trip that can answer several times over — `use other_db; select …` — and
    * the editor puts a tab on each. Empty until something has been run.
@@ -359,6 +367,7 @@ export interface State extends EditState, EditActions {
   setTrayOpen: (open: boolean) => void
   setSqlText: (t: string) => void
   setSqlHasSelection: (has: boolean) => void
+  setSqlIsolation: (level: string) => void
   /** Runs `text` when given — the trimmed selection — else the whole buffer. */
   runSql: (text?: string) => Promise<void>
   /** Switches result tabs. The selection goes with the old one. */
@@ -690,6 +699,7 @@ export const useStore = create<State>((set, get) => {
     totalCount: null,
     sqlText: '',
     sqlHasSelection: false,
+    sqlIsolation: '',
     sqlResults: [],
     sqlResultIndex: 0,
     moreSqlResults: false,
@@ -1297,6 +1307,10 @@ export const useStore = create<State>((set, get) => {
       set({ sqlText })
     },
 
+    setSqlIsolation(level) {
+      set({ sqlIsolation: effectiveIsolation(get().capabilities?.isolationLevels, level) })
+    },
+
     setSqlHasSelection(sqlHasSelection) {
       if (get().sqlHasSelection !== sqlHasSelection) set({ sqlHasSelection })
     },
@@ -1322,6 +1336,7 @@ export const useStore = create<State>((set, get) => {
             database: s.activeDatabase,
             sql,
             maxRows: 0,
+            isolation: effectiveIsolation(s.capabilities?.isolationLevels, s.sqlIsolation),
           }),
         )
         set({

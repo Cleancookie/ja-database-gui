@@ -78,6 +78,12 @@ type Capabilities struct {
 	// SetToDefault is false for SQLite, which has no DEFAULT keyword to put in an
 	// UPDATE. A grid offering "reset to default" hides it where this is false.
 	SetToDefault bool `json:"setToDefault"`
+	// IsolationLevels is the allow-list of transaction isolation levels the SQL
+	// editor may ask for, in the order the dropdown shows them. Names come from
+	// isolationNames. Empty where the dialect has nothing to choose (SQLite), and
+	// the dropdown is hidden. The driver default is always available and is not
+	// listed.
+	IsolationLevels []string `json:"isolationLevels"`
 }
 
 type Database struct {

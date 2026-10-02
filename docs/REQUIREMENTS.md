@@ -593,12 +593,13 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | CSP | Header from the Wails asset middleware: same-origin scripts and connections, inline styles allowed |
 | Build | `npm ci` from the lockfile; SQL Server test image pinned by digest; `make vuln` before a release |
 
-## 2026-10-02 — SQL editor: click area, cancel
+## 2026-10-02 — SQL editor: click area, cancel, isolation level
 
 ### Brief
 
 1. Clicking the empty part of the editor pane did nothing; only the placeholder line took focus.
 2. A Cancel separate from Run, working on every dialect.
+3. A DataGrip-style isolation level dropdown.
 
 ### Decided: click area
 
@@ -627,6 +628,18 @@ What cancelling the context does on the server, read from the driver source at t
 | MySQL / MariaDB | go-sql-driver only closes the socket. The server keeps running the statement until it next writes. **Live: `SLEEP(61)` was still in the process list 2 s after a bare cancel** | `KILL QUERY <id>`; live, the same statement was gone 1 s after Cancel |
 
 Checked live against MySQL 8.4 and PostgreSQL 17 with the opt-in `internal/api/live_test.go` (`JADB_LIVE=mysql|postgres`, see the file header). SQL Server was read from the driver source only, and MariaDB shares the MySQL driver and `KILL QUERY` but was not run.
+
+### Decided: isolation level
+
+| Question | Choice |
+| --- | --- |
+| Levels | Driver default (the default), read uncommitted, read committed, repeatable read, serializable, and snapshot on SQL Server. `Capabilities.IsolationLevels` per dialect; empty on SQLite, which hides the dropdown |
+| Mechanism | A non-default level runs the editor statement on the pinned connection inside `BeginTx(ctx, {Isolation})`. Commit at the end of the run, rollback on error. Driver default keeps the untransacted path. `SET SESSION` is not used: a pool makes it unreliable |
+| Allow-list | The request carries a name. `driver.IsolationFor` maps it to a Go constant and refuses anything not in that dialect's list. The name never reaches SQL |
+| Scope | Per tab (`TAB_FIELDS`), not persisted |
+| Verified live | MySQL 8.4 and PostgreSQL 17 report the requested level inside the run (`TestLiveIsolationLevelsApply`), the session level is untouched afterwards, and PostgreSQL `VACUUM` is refused inside a run and works on the default path. SQL Server was not run; its driver maps the same constants, `snapshot` included |
+| Warning | The tooltip says each run is wrapped in a transaction, so statements that cannot run in one (PostgreSQL `VACUUM`, `CREATE DATABASE`) will error |
+| Not built | Manual-commit mode. See the wishlist |
 
 
 ## Invariants
@@ -704,6 +717,7 @@ test — which is the intended speed bump.
 | Truncate and drop are decided in the store action, never at the call site | `runTruncate` / `runDrop` skip the confirmation by design; anything but a confirmation dialog calling them is a destructive statement with no prompt |
 | No DDL builder emits `CASCADE` | The engine refusing is the useful answer. `CASCADE` would act on objects the user never named |
 | Cancel kills a session only by an id captured on a connection the app pinned for that tracked query, and disarms it before the connection is released | `registry_test.go`, `editor.go`. A pid or thread id outlives the statement; a late kill would hit whatever the pool ran next |
+| An isolation level reaches the server only as a Go constant looked up from a name in the dialect's `Capabilities.IsolationLevels` | `isolation_test.go`, `editor_test.go`. No SQL is built from the request for it; an unlisted name is refused before anything is tracked or run |
 | Cancel runs the kill before cancelling the context | `registry_test.go`. MySQL's driver answers a cancelled context by closing the socket, after which the server keeps going and the kill has nothing to reach |
 | `Capabilities.TruncateIsDelete` matches what `BuildTruncate` actually returns | `ddl_test.go`. The confirmation wording is derived from it, and it must not describe a statement other than the one that runs |
 

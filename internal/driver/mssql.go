@@ -20,6 +20,7 @@ func (mssqlDriver) Kind() Kind { return KindMSSQL }
 
 func (mssqlDriver) Caps() Capabilities {
 	return Capabilities{
+		IsolationLevels:      []string{"read uncommitted", "read committed", "repeatable read", "snapshot", "serializable"},
 		DisplayName:          "SQL Server",
 		ServerHostsDatabases: true,
 		HasSchemas:           true,

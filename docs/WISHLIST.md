@@ -83,6 +83,23 @@ is in the palette before it is in a menu.
 
 ---
 
+## 3. Manual-commit mode in the SQL editor
+
+Asked for alongside the isolation level dropdown, and left out on purpose: a
+non-default isolation level wraps each editor run in its own transaction and
+commits when the run ends (rollback on error). Real manual commit, as in
+DataGrip, would hold a transaction open across runs, with Commit and Rollback
+buttons.
+
+That needs a connection pinned to the **tab** for as long as the transaction is
+open, not to one run — a held pool slot (the pool is 4), a lifecycle when the
+tab closes, the app disconnects or the server drops the session, and an
+unmissable "uncommitted changes" indicator that survives tab switches and
+blocks closing. Cancel would then also have to decide whether to roll back.
+Worth doing only when someone needs a multi-statement edit session across runs.
+
+---
+
 ## Built since
 
 - **Manual page size** — a free-text page size beside the presets, as a one-off

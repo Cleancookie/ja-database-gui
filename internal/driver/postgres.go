@@ -20,6 +20,7 @@ func (postgresDriver) Kind() Kind { return KindPostgres }
 
 func (postgresDriver) Caps() Capabilities {
 	return Capabilities{
+		IsolationLevels:      []string{"read uncommitted", "read committed", "repeatable read", "serializable"},
 		DisplayName:          "PostgreSQL",
 		ServerHostsDatabases: true,
 		HasSchemas:           true,

@@ -18,7 +18,10 @@ func (sqliteDriver) Kind() Kind { return KindSQLite }
 
 func (sqliteDriver) Caps() Capabilities {
 	return Capabilities{
-		DisplayName: "SQLite",
+		// Transactions in SQLite are always serializable and modernc takes no
+		// isolation option, so there is nothing to offer.
+		IsolationLevels: []string{},
+		DisplayName:     "SQLite",
 		// A SQLite connection *is* the database — there is no server hosting
 		// a list of them, so the UI skips the database level entirely.
 		ServerHostsDatabases: false,

@@ -142,3 +142,69 @@ func errString(err error) string {
 	}
 	return err.Error()
 }
+
+// Every level the dialect offers must actually be in force inside the run, and
+// a statement that cannot run in a transaction must say so.
+func TestLiveIsolationLevelsApply(t *testing.T) {
+	kind := driver.Kind(os.Getenv("JADB_LIVE"))
+	port, _ := strconv.Atoi(os.Getenv("JADB_LIVE_PORT"))
+	pw := os.Getenv("JADB_LIVE_PASSWORD")
+	conn := config.Connection{Name: "live", Kind: kind, Host: "127.0.0.1", Port: port}
+	var show string
+	switch kind {
+	case driver.KindMySQL:
+		// @@transaction_isolation is the session setting and does not show the
+		// one-off level of the transaction in progress; the performance schema
+		// does. (information_schema.innodb_trx is cached per connection.)
+		conn.User, conn.Database, conn.SSLMode = "root", "shop", "false"
+		show = "SELECT ISOLATION_LEVEL FROM performance_schema.events_transactions_current WHERE THREAD_ID = (SELECT THREAD_ID FROM performance_schema.threads WHERE PROCESSLIST_ID = CONNECTION_ID())"
+	case driver.KindPostgres:
+		conn.User, conn.Database, conn.SSLMode, show = "postgres", "postgres", "disable", "SHOW transaction_isolation"
+	default:
+		t.Skip("set JADB_LIVE=mysql|postgres")
+	}
+	svc := newService(t, t.TempDir())
+	saved, err := svc.SaveConnection(SaveConnectionRequest{Connection: conn, Password: &pw})
+	if err != nil {
+		t.Fatal(err)
+	}
+	d, _ := driver.Get(kind)
+	run := func(level, text string) (*RunSQLResult, error) {
+		return svc.RunSQL(context.Background(), RunSQLRequest{ConnectionID: saved.ID, Database: conn.Database, SQL: text, Isolation: level})
+	}
+	for _, level := range d.Caps().IsolationLevels {
+		res, err := run(level, show)
+		if err != nil {
+			t.Fatalf("%s: %v", level, err)
+		}
+		last := res.Results[0]
+		if len(last.Rows) == 0 {
+			t.Fatalf("%s: the server shows no transaction in progress", level)
+		}
+		got := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(last.Rows[0][0].(string)), "-", " "))
+		if got != level {
+			t.Errorf("asked for %q, the server reports %q", level, got)
+		}
+	}
+	// The default path must not have been left in a level by the runs above.
+	session, want := "SHOW transaction_isolation", "read committed"
+	if kind == driver.KindMySQL {
+		session, want = "SELECT @@session.transaction_isolation", "REPEATABLE-READ"
+	}
+	res, err := run("", session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := res.Results[0].Rows[0][0]; got != want {
+		t.Errorf("default path after the runs above: level %v, want the server default %v", got, want)
+	}
+
+	if kind == driver.KindPostgres {
+		if _, err := run("read committed", "VACUUM"); err == nil {
+			t.Error("VACUUM inside a transaction should be refused by the server")
+		}
+		if _, err := run("", "VACUUM"); err != nil {
+			t.Errorf("VACUUM on the default path should work: %v", err)
+		}
+	}
+}

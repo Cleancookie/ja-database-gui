@@ -22,6 +22,7 @@ func (mysqlDriver) Kind() Kind { return KindMySQL }
 
 func (mysqlDriver) Caps() Capabilities {
 	return Capabilities{
+		IsolationLevels:      []string{"read uncommitted", "read committed", "repeatable read", "serializable"},
 		DisplayName:          "MySQL / MariaDB",
 		ServerHostsDatabases: true,
 		// MySQL uses "schema" and "database" interchangeably — there is no
