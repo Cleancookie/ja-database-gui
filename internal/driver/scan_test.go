@@ -1,8 +1,11 @@
 package driver
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"math"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -122,5 +125,40 @@ func TestNormalisedValuesAreAlwaysJSONEncodable(t *testing.T) {
 		if _, err := json.Marshal(normalise(in, "")); err != nil {
 			t.Errorf("normalise(%T) is not encodable: %v", in, err)
 		}
+	}
+}
+
+func TestResultStopsAtTheByteBudget(t *testing.T) {
+	db, err := sql.Open("sqlite", "file:"+filepath.Join(t.TempDir(), "b.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if _, err := db.Exec(`CREATE TABLE t(id INTEGER, s TEXT);
+		WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i+1 FROM n WHERE i < 50)
+		INSERT INTO t SELECT i, printf('%.1000c', 'x') FROM n`); err != nil {
+		t.Fatal(err)
+	}
+	// 1000-byte strings plus an id: about 1008 bytes a row.
+	rs, err := RunQuery(context.Background(), db, `SELECT id, s FROM t ORDER BY id`, QueryOptions{ByteCap: 10_000})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !rs.Truncated {
+		t.Error("a result over the byte budget must be marked truncated")
+	}
+	if n := len(rs.Rows); n < 5 || n > 10 {
+		t.Errorf("kept %d rows, want about 9", n)
+	}
+
+	all, err := RunQuery(context.Background(), db, `SELECT id, s FROM t`, QueryOptions{})
+	if err != nil || all.Truncated || len(all.Rows) != 50 {
+		t.Errorf("default budget cut a small result: %d rows, truncated %v, %v", len(all.Rows), all.Truncated, err)
+	}
+
+	// One row bigger than the budget is still returned: it has been read.
+	one, err := RunQuery(context.Background(), db, `SELECT s FROM t`, QueryOptions{ByteCap: 10})
+	if err != nil || len(one.Rows) != 1 || !one.Truncated {
+		t.Errorf("want exactly the first row, truncated: %d rows, %v", len(one.Rows), err)
 	}
 }

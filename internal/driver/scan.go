@@ -46,7 +46,16 @@ type QueryOptions struct {
 	// SQL from the editor, whose select list we must not rewrite, and tables
 	// whose column metadata could not be read.
 	TextCap int
+	// ByteCap bounds the bytes of cell data kept for one result set; 0 means
+	// MaxResultBytes. The row cap alone does not: 100,000 rows of a 10 MB
+	// column is a terabyte.
+	ByteCap int64
 }
+
+// MaxResultBytes is the default ByteCap. It counts the text and binary preview
+// kept, not the wire size, and cannot stop a driver from buffering one row
+// whole before this sees it.
+const MaxResultBytes = 256 << 20
 
 // rowReportInterval is how often the row counter shown in the activity tray is
 // updated while streaming.
@@ -159,6 +168,12 @@ func scanResultSet(ctx context.Context, rows *sql.Rows, query string, opts Query
 		TruncatedCells: []CellRef{},
 	}
 
+	byteCap := opts.ByteCap
+	if byteCap <= 0 {
+		byteCap = MaxResultBytes
+	}
+	var kept int64
+
 	vals := make([]any, len(cols))
 	ptrs := make([]any, len(cols))
 	for i := range vals {
@@ -187,6 +202,20 @@ func scanResultSet(ctx context.Context, rows *sql.Rows, query string, opts Query
 				}
 			}
 		}
+		var rowBytes int64
+		for _, c := range row {
+			rowBytes += cellBytes(c)
+		}
+		if kept+rowBytes > byteCap && len(out.Rows) > 0 {
+			// Same flag as the row cap: the result is a prefix, and says so.
+			out.Truncated = true
+			// The cut-cell refs of the row being dropped point past the end.
+			for len(out.TruncatedCells) > 0 && out.TruncatedCells[len(out.TruncatedCells)-1].Row >= len(out.Rows) {
+				out.TruncatedCells = out.TruncatedCells[:len(out.TruncatedCells)-1]
+			}
+			break
+		}
+		kept += rowBytes
 		out.Rows = append(out.Rows, row)
 		// Reported in batches: the tray redraws a few times a second, so a
 		// context lookup per row would buy nothing.
@@ -199,6 +228,13 @@ func scanResultSet(ctx context.Context, rows *sql.Rows, query string, opts Query
 	}
 	activity.AddRows(ctx, int64(len(out.Rows)%rowReportInterval))
 	return out, nil
+}
+
+func cellBytes(v any) int64 {
+	if s, ok := v.(string); ok {
+		return int64(len(s))
+	}
+	return 8
 }
 
 // Exec runs a statement that returns no rows and reports the affected count.
