@@ -4,10 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"net/url"
+	"net"
+	"strconv"
 	"strings"
+	"time"
 
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 )
 
 func init() { register(mysqlDriver{}) }
@@ -54,27 +56,30 @@ func (mysqlDriver) DSN(cfg ConnConfig, database string) (string, error) {
 		port = 3306
 	}
 
-	q := url.Values{}
-	// parseTime makes DATE/DATETIME arrive as time.Time rather than []byte,
-	// so scan.go can format them consistently across dialects.
-	q.Set("parseTime", "true")
-	q.Set("loc", "UTC")
 	if err := checkSSLMode(mysqlDriver{}, cfg.SSLMode); err != nil {
 		return "", err
 	}
 	if err := checkParams(cfg.Params, "tls"); err != nil {
 		return "", err
 	}
-	q.Set("tls", mysqlDriver{}.TLS(cfg).Mode)
-	for k, v := range cfg.Params {
-		q.Set(k, v)
-	}
 
-	// The password is not URL-escaped here: go-sql-driver parses the DSN by
-	// splitting on the last '@' before the address, so raw passwords are fine
-	// and escaping them would corrupt any containing a '%'.
-	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?%s",
-		cfg.User, cfg.Password, host, port, database, q.Encode()), nil
+	// FormatDSN escapes the database name and every parameter, so a name such as
+	// "a?multiStatements=true" stays a name. The password is written raw, which
+	// is what the driver's parser expects: it splits on the last '@' before the
+	// address, and escaping would corrupt a password containing '%'.
+	c := mysql.NewConfig()
+	c.User = cfg.User
+	c.Passwd = cfg.Password
+	c.Net = "tcp"
+	c.Addr = net.JoinHostPort(host, strconv.Itoa(port))
+	c.DBName = database
+	// parseTime makes DATE/DATETIME arrive as time.Time rather than []byte,
+	// so scan.go can format them consistently across dialects.
+	c.ParseTime = true
+	c.Loc = time.UTC
+	c.TLSConfig = mysqlDriver{}.TLS(cfg).Mode
+	c.Params = cfg.Params
+	return c.FormatDSN(), nil
 }
 
 // TLS: with no mode chosen, a remote host is verified ("true") and a loopback

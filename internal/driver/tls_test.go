@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"github.com/go-sql-driver/mysql"
 	"net/url"
 	"strings"
 	"testing"
@@ -132,5 +133,27 @@ func TestTLSWarnsOnlyForRemoteHosts(t *testing.T) {
 	}
 	if d.TLS(ConnConfig{Host: "db.example.com"}).Warn {
 		t.Error("remote default is verified")
+	}
+}
+
+func TestMySQLDSNKeepsADatabaseNameInert(t *testing.T) {
+	d, _ := Get(KindMySQL)
+	dsn, err := d.DSN(ConnConfig{Kind: KindMySQL, Host: "127.0.0.1", User: "u", Password: "p%w@rd"},
+		"app?multiStatements=true&tls=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := mysql.ParseDSN(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.DBName != "app?multiStatements=true&tls=false" {
+		t.Errorf("database name was split: %q", cfg.DBName)
+	}
+	if cfg.MultiStatements || cfg.Passwd != "p%w@rd" || !cfg.ParseTime || cfg.Addr != "127.0.0.1:3306" {
+		t.Errorf("unexpected config: %+v", cfg)
+	}
+	if cfg.TLSConfig != "preferred" {
+		t.Errorf("tls = %q", cfg.TLSConfig)
 	}
 }
