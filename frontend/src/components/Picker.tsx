@@ -2,6 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { describeConnection, formatCount, objectCandidate, OBJECT_ICON, qualifiedName } from '../commands'
 import { tableKey } from '../edits'
 import { rankCandidates } from '../fuzzy'
+import { listMove, moveIndex } from '../listNav'
 import { useStore } from '../store'
 import type { ObjectType, SchemaObject } from '../types'
 import { ConnectionMenu } from './ConnectionMenu'
@@ -111,32 +112,85 @@ export const Picker = memo(function Picker() {
     [databases, dbQuery],
   )
 
+  // The objects in the order they are drawn, which is the order the keys walk.
+  const objectOrder = useMemo(() => GROUP_ORDER.flatMap((t) => grouped.get(t) ?? []), [grouped])
+  const objectIndex = useMemo(() => new Map(objectOrder.map((o, i) => [o, i])), [objectOrder])
+
+  // One highlight for whichever step is open; it restarts when the step or
+  // its filter changes, since the list under it is a different list.
+  const [selected, setSelected] = useState(0)
+
+  const root = useRef<HTMLDivElement>(null)
   const tableFilter = useRef<HTMLInputElement>(null)
   const dbFilter = useRef<HTMLInputElement>(null)
   useEffect(() => {
+    setSelected(
+      step === 'connection'
+        ? Math.max(0, connections.findIndex((c) => c.id === activeConnectionId))
+        : step === 'database'
+          ? Math.max(0, databases.indexOf(activeDatabase))
+          : 0,
+    )
     // After the step has started opening, so the field exists and is on screen.
+    // A step with no filter field (connections, a short database list) focuses
+    // the root, so the movement keys still have somewhere to land.
     const id = requestAnimationFrame(() => {
-      if (step === 'table') tableFilter.current?.focus()
-      if (step === 'database') dbFilter.current?.focus()
+      const field = step === 'table' ? tableFilter.current : step === 'database' ? dbFilter.current : null
+      ;(field ?? root.current)?.focus()
     })
     return () => cancelAnimationFrame(id)
+    // Only on a step change: a refresh of the lists must not yank the highlight.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step])
 
-  // Enter in a filter takes the best match, so a path is reachable without
-  // leaving the keyboard: type a few letters, Enter.
-  const openFirst = () => {
-    const first = matched.find((o) => o.type === 'table' || o.type === 'view')
-    if (first) void openObject(first)
+  useEffect(() => {
+    root.current?.querySelector('[data-highlight]')?.scrollIntoView({ block: 'nearest' })
+  }, [selected, step])
+
+  const pickConnection = (id: string) => {
+    setPending(id)
+    void connect(id)
   }
   const pickDatabase = (d: string) => {
     void selectDatabase(d)
     setStep('table')
   }
 
+  // Enter takes the highlighted row, so a path is reachable without leaving the
+  // keyboard: type a few letters, Enter. A focused button is left to activate
+  // itself — it is what the user is looking at.
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const count =
+      step === 'connection' ? connections.length : step === 'database' ? visibleDatabases.length : objectOrder.length
+    const move = listMove(e)
+    if (move) {
+      e.preventDefault()
+      setSelected((i) => moveIndex(move, i, count))
+      return
+    }
+    if (e.key !== 'Enter' || (e.target as HTMLElement).closest('button')) return
+    e.preventDefault()
+    if (step === 'connection') {
+      const c = connections[selected]
+      if (c) pickConnection(c.id)
+    } else if (step === 'database') {
+      const d = visibleDatabases[selected]
+      if (d) pickDatabase(d)
+    } else {
+      const o = objectOrder[selected]
+      if (o) void openObject(o)
+    }
+  }
+
   const activeConnection = connections.find((c) => c.id === activeConnectionId)
 
   return (
-    <div className="chrome flex h-full min-h-0 flex-col items-center overflow-y-auto px-4 pt-[8vh] pb-8">
+    <div
+      ref={root}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      className="chrome flex h-full min-h-0 flex-col items-center overflow-y-auto px-4 pt-[8vh] pb-8 outline-none focus-visible:outline-none"
+    >
       <div className="flex w-full max-w-xl flex-col gap-5">
         <header className="text-center">
           <h1 className="font-bold text-[var(--color-text)]">{HEADLINE[step]}</h1>
@@ -163,22 +217,19 @@ export const Picker = memo(function Picker() {
                   No connections yet. Add one to get started.
                 </p>
               )}
-              {connections.map((c) => {
+              {connections.map((c, i) => {
                 const active = c.id === activeConnectionId
                 const connected = connectedIds.includes(c.id)
                 return (
                   <ConnectionMenu key={c.id} connection={c}>
                     <div
-                      data-highlight={active || undefined}
+                      data-highlight={i === selected || undefined}
                       className={`group relative flex items-center gap-1 rounded-xl ${
                         active ? 'font-bold' : 'hover:bg-[var(--color-panel)]'
                       }`}
                     >
                       <button
-                        onClick={() => {
-                          setPending(c.id)
-                          void connect(c.id)
-                        }}
+                        onClick={() => pickConnection(c.id)}
                         className="relative flex min-w-0 flex-1 items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left"
                       >
                         <span
@@ -245,14 +296,11 @@ export const Picker = memo(function Picker() {
                   <input
                     ref={dbFilter}
                     value={dbQuery}
-                    onChange={(e) => setDbQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && visibleDatabases[0]) {
-                        e.preventDefault()
-                        pickDatabase(visibleDatabases[0])
-                      }
+                    onChange={(e) => {
+                      setDbQuery(e.target.value)
+                      setSelected(0)
                     }}
-                    placeholder="Filter databases…  (Enter picks the first)"
+                    placeholder="Filter databases…  (Enter picks the highlighted one)"
                     spellCheck={false}
                     aria-label="Filter databases"
                     className={INPUT}
@@ -260,12 +308,12 @@ export const Picker = memo(function Picker() {
                 </div>
               )}
               <Highlight className="max-h-[min(22rem,45vh)] overflow-y-auto px-1.5 pb-1.5" pillClassName={PILL}>
-                {visibleDatabases.map((d) => (
+                {visibleDatabases.map((d, i) => (
                   <button
                     key={d}
                     onClick={() => pickDatabase(d)}
                     title={d}
-                    data-highlight={d === activeDatabase || undefined}
+                    data-highlight={i === selected || undefined}
                     className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left ${
                       d === activeDatabase ? 'font-bold' : 'hover:bg-[var(--color-panel)]'
                     }`}
@@ -297,14 +345,11 @@ export const Picker = memo(function Picker() {
                   <input
                     ref={tableFilter}
                     value={objectQuery}
-                    onChange={(e) => setObjectQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        openFirst()
-                      }
+                    onChange={(e) => {
+                      setObjectQuery(e.target.value)
+                      setSelected(0)
                     }}
-                    placeholder="Filter objects…  (Enter opens the first match)"
+                    placeholder="Filter objects…  (Enter opens the highlighted one)"
                     spellCheck={false}
                     aria-label="Filter objects"
                     className={INPUT}
@@ -342,6 +387,7 @@ export const Picker = memo(function Picker() {
                                 onClick={() => openObject(o)}
                                 title={qualified}
                                 data-object={objectKey(o)}
+                                data-highlight={objectIndex.get(o) === selected || undefined}
                                 className="relative flex w-full items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left hover:bg-[var(--color-panel)]"
                               >
                                 <span className="shrink-0 text-[var(--color-faint)]">
