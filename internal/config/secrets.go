@@ -9,8 +9,8 @@ import (
 
 // SecretStore holds connection passwords, keyed by connection ID.
 //
-// This is the seam for moving passwords into the OS keyring. Swapping
-// FileSecrets for a keyring-backed implementation requires no change anywhere
+// KeyringSecrets is the default implementation and FileSecrets the fallback.
+// Swapping one for the other needs no change anywhere
 // else, because nothing outside this package ever holds a password by value
 // for longer than a single call.
 type SecretStore interface {
@@ -20,7 +20,8 @@ type SecretStore interface {
 }
 
 // FileSecrets keeps passwords in a mode-0600 JSON file. This is plaintext on
-// disk and is a known, documented gap — see docs/adr/0003-credential-storage.md.
+// disk and is a known, documented gap, used only when no OS keyring works — see
+// docs/adr/0007-credential-storage.md.
 type FileSecrets struct {
 	mu     sync.RWMutex
 	path   string

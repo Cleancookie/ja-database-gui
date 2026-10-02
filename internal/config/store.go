@@ -2,7 +2,7 @@
 //
 // Connection metadata and passwords are kept in separate files so the secret
 // half can be swapped for an OS keyring without touching the rest — see
-// docs/adr/0003-credential-storage.md. A Connection never carries its own
+// docs/adr/0007-credential-storage.md. A Connection never carries its own
 // password; it refers to one by ID through a SecretStore.
 package config
 
@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sort"
@@ -51,6 +52,11 @@ type Store struct {
 	path    string
 	secrets SecretStore
 	conns   []Connection
+	backend BackendInfo
+	// legacy holds secrets.json entries a migration could not move. It is read
+	// as a fallback and never written, so the keyring stays the one place a
+	// saved password goes.
+	legacy *FileSecrets
 }
 
 // DefaultDir is where ja-db keeps its state: %AppData%\ja-db on Windows,
@@ -63,24 +69,75 @@ func DefaultDir() (string, error) {
 	return filepath.Join(base, "ja-db"), nil
 }
 
-// Open loads the store from dir, creating it if absent.
+// Open loads the store from dir, creating it if absent. Passwords go to the OS
+// keyring when one works; see OpenWith for what happens when it does not.
 func Open(dir string) (*Store, error) {
+	if err := ProbeKeyring(); err != nil {
+		return OpenWith(dir, nil, err)
+	}
+	return OpenWith(dir, KeyringSecrets{}, nil)
+}
+
+// OpenWith is Open with the keyring chosen by the caller. A nil kr means none
+// is usable and keyringErr says why.
+//
+// With no keyring, passwords fall back to the plaintext secrets.json — unless
+// this directory has used a keyring before, in which case the passwords it
+// holds would silently stop being found. That case refuses to read or write
+// passwords at all rather than split them across two places.
+func OpenWith(dir string, kr SecretStore, keyringErr error) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return nil, fmt.Errorf("creating config dir: %w", err)
 	}
-	secrets, err := NewFileSecrets(filepath.Join(dir, "secrets.json"))
-	if err != nil {
-		return nil, err
+	if err := tightenDir(dir); err != nil {
+		return nil, fmt.Errorf("securing config dir: %w", err)
 	}
-	s := &Store{
-		path:    filepath.Join(dir, "connections.json"),
-		secrets: secrets,
+	s := &Store{path: filepath.Join(dir, "connections.json")}
+	secretsPath := filepath.Join(dir, "secrets.json")
+	marker := filepath.Join(dir, keyringMarker)
+
+	switch {
+	case kr != nil:
+		s.secrets = kr
+		s.backend = BackendInfo{Kind: BackendKeyring}
+		if err := os.WriteFile(marker, nil, 0o600); err != nil {
+			return nil, fmt.Errorf("recording keyring use: %w", err)
+		}
+		s.legacy = migrateFileSecrets(secretsPath, kr)
+	case fileExists(marker):
+		s.secrets = unavailableSecrets{err: keyringErr}
+		s.backend = BackendInfo{Kind: BackendUnavailable, Reason: reasonOf(keyringErr)}
+		log.Printf("ja-db: WARNING the OS keyring is unavailable (%s) but earlier passwords are stored in it; "+
+			"passwords cannot be read or saved until it is back", reasonOf(keyringErr))
+	default:
+		f, err := NewFileSecrets(secretsPath)
+		if err != nil {
+			return nil, err
+		}
+		s.secrets = f
+		s.backend = BackendInfo{Kind: BackendFile, Reason: reasonOf(keyringErr)}
+		log.Printf("ja-db: WARNING no OS keyring (%s); saved passwords are stored in PLAINTEXT in %s", reasonOf(keyringErr), secretsPath)
 	}
 	if err := s.load(); err != nil {
 		return nil, err
 	}
 	return s, nil
 }
+
+func reasonOf(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// Backend says where passwords are kept, for the UI to show.
+func (s *Store) Backend() BackendInfo { return s.backend }
 
 func (s *Store) load() error {
 	b, err := os.ReadFile(s.path)
@@ -220,12 +277,31 @@ func (s *Store) Delete(id string) error {
 	}
 	// A leftover secret is harmless but is still a credential on disk, so a
 	// failure here is reported rather than swallowed.
+	if s.legacy != nil {
+		_ = s.legacy.Delete(id)
+	}
 	return s.secrets.Delete(id)
+}
+
+// setSecret writes to the keyring and then drops any stale legacy copy, so a
+// later migration retry cannot overwrite the new password with the old one.
+func (s *Store) setSecret(id, password string) error {
+	if err := s.secrets.Set(id, password); err != nil {
+		return err
+	}
+	if s.legacy != nil {
+		_ = s.legacy.Delete(id)
+	}
+	return nil
 }
 
 // Password returns the stored password for a connection, or "" if none.
 func (s *Store) Password(id string) (string, error) {
-	return s.secrets.Get(id)
+	pw, err := s.secrets.Get(id)
+	if err != nil || pw != "" || s.legacy == nil {
+		return pw, err
+	}
+	return s.legacy.Get(id)
 }
 
 // DriverConfig assembles the full connection config, password included, ready
