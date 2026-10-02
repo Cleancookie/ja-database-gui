@@ -528,7 +528,7 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | What a tab is | A table with its filter, sort, page and selection, plus the tab's own SQL editor and details page. Activity stays a global tray |
 | Picker | A centred accordion: connection, then database (skipped for SQLite), then table. Choosing collapses the step to a summary and opens the next; a finished step reopens from its header. Connections have visible edit and remove buttons and a New connection row. Enter in a filter takes the first match |
 | `Ctrl+P` | Retargets the current tab. Open tabs are listed in the same palette to jump to |
-| Keys | `Ctrl+T` new, `Ctrl+W` close, `Ctrl+Tab` / `Ctrl+Shift+Tab` and `Ctrl+PageDown` / `PageUp` cycle. All in the action palette too |
+| Keys | `Ctrl+T` new, `Ctrl+W` close, `Ctrl+Shift+T` reopens the last ten closed (not bare pickers), `Ctrl+Tab` / `Ctrl+Shift+Tab` and `Ctrl+PageDown` / `PageUp` cycle. All in the action palette too |
 | Pages | The main panel shows picker, table, SQL editor, details or activity. Every change of page, including a tab switch, is recorded (up to 100) by a store subscription |
 | Mouse | Back / forward walk those pages across tabs, restoring a table's filter, sort and page. With Shift they cycle tabs |
 | Tab strip | `Ctrl+B` hides or shows it; persisted as `tabStripHidden` |

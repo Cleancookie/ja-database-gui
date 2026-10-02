@@ -203,6 +203,14 @@ export function buildActionCommands(s: Store): Command[] {
     candidate: { name: 'Close tab', keywords: 'remove' },
     run: () => s.closeTab(),
   })
+  cmds.push({
+    id: 'tab:reopen',
+    title: 'Reopen closed tab',
+    group: 'Tabs',
+    shortcut: 'Ctrl+Shift+T',
+    candidate: { name: 'Reopen closed tab', keywords: 'restore undo close' },
+    run: () => s.reopenTab(),
+  })
   if (s.tabs.length > 1) {
     cmds.push({
       id: 'tab:next',

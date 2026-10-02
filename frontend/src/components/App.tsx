@@ -240,6 +240,11 @@ function useGlobalHotkeys() {
         s.newTab()
         return
       }
+      if (mod && e.shiftKey && e.key.toLowerCase() === 't') {
+        e.preventDefault()
+        s.reopenTab()
+        return
+      }
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'w') {
         e.preventDefault()
         s.closeTab()

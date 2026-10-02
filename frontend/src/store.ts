@@ -27,6 +27,7 @@ import {
   type Controls,
   type Page,
   type Tab,
+  type TabFields,
 } from './tabs'
 import type {
   ActivityResult,
@@ -265,6 +266,8 @@ export interface State extends EditState, EditActions {
   newTab: () => void
   /** Closes a tab, the active one by default. Closing the last leaves a blank one. */
   closeTab: (id?: number) => void
+  /** Brings back the most recently closed tab, as a new tab. */
+  reopenTab: () => void
   switchTab: (id: number) => void
   /** Moves to the next (+1) or previous (-1) tab, wrapping. */
   cycleTab: (delta: number) => void
@@ -379,6 +382,14 @@ export function isInfinite(s: { settings: Settings; paginationEnabled: boolean }
 let requestSeq = 0
 let toastSeq = 0
 let tabSeq = 1
+/** Closed tabs, newest last, for Ctrl+Shift+T. Not state: nothing renders it. */
+let closedTabs: TabFields[] = []
+const CLOSED_TABS_LIMIT = 10
+
+/** A tab showing the bare picker is not worth bringing back. */
+function worthReopening(f: TabFields): boolean {
+  return !!f.activeRef || !!f.sqlText || f.view !== 'data'
+}
 
 /** The table-shaped fields of a tab with nothing open: what the picker shows over. */
 const NO_TABLE = {
@@ -832,6 +843,10 @@ export const useStore = create<State>((set, get) => {
       const target = id ?? s.activeTabId
       const at = s.tabs.findIndex((t) => t.id === target)
       if (at < 0) return
+      const closing = stashed()[at].saved
+      if (closing && worthReopening(closing)) {
+        closedTabs = [...closedTabs, closing].slice(-CLOSED_TABS_LIMIT)
+      }
       if (s.tabs.length === 1) {
         const fresh = makeTab(++tabSeq, blank())
         enter(fresh, [fresh])
@@ -844,6 +859,13 @@ export const useStore = create<State>((set, get) => {
       }
       // The tab being closed is dropped, not stashed.
       enter(rest[Math.min(at, rest.length - 1)], rest)
+    },
+
+    reopenTab() {
+      const saved = closedTabs.pop()
+      if (!saved) return
+      const tab = { ...makeTab(++tabSeq, saved), needsLoad: !!saved.activeRef }
+      enter(tab, [...stashed(), tab])
     },
 
     showPicker() {

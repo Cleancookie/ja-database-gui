@@ -110,6 +110,30 @@ describe('store tabs', () => {
     expect(s().tabs).toHaveLength(1)
     expect(s().activeRef).toBeNull()
   })
+
+  it('reopens closed tabs newest first, and ignores bare pickers', async () => {
+    vi.resetModules()
+    vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+    const { useStore } = await import('./store')
+    const s = () => useStore.getState()
+
+    useStore.setState({ activeRef: ref('a') })
+    s().newTab()
+    useStore.setState({ activeRef: ref('b') })
+    s().newTab()
+    s().closeTab()
+    s().closeTab()
+    s().closeTab()
+    expect(s().activeRef).toBeNull()
+
+    s().reopenTab()
+    expect(s().activeRef?.name).toBe('a')
+    s().reopenTab()
+    expect(s().activeRef?.name).toBe('b')
+    expect(s().tabs).toHaveLength(3)
+    s().reopenTab()
+    expect(s().tabs).toHaveLength(3)
+  })
 })
 
 describe('store routes', () => {

@@ -7,6 +7,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+,', 'Settings'],
   ['Ctrl+B', 'Show / hide the tab strip'],
   ['Ctrl+T  /  Ctrl+W', 'New tab (the picker) / close the tab'],
+  ['Ctrl+Shift+T', 'Reopen the last closed tab'],
   ['Ctrl+Tab  /  Ctrl+Shift+Tab', 'Next / previous tab — Ctrl+PageDown / PageUp work too'],
   ['Mouse back / forward', 'Previous / next page in the main panel, across tabs — hold Shift to change tab instead'],
   ['Ctrl+=  /  Ctrl+-  /  Ctrl+0', 'Increase / decrease / reset the font size'],
