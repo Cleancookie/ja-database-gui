@@ -602,7 +602,9 @@ test — which is the intended speed bump.
 | --- | --- |
 | The `Ctrl+F` filter is raw, uninterpreted SQL | The whole point of it. `docs/adr/0002`. It must never be fed anything that did not come from a keystroke |
 | `internal/api.Service` knows nothing about Wails; both transports are pure pass-through | `docs/adr/0001`. Logic in a binding is a bug — the other binding would not have it |
-| Passwords never live on the `Connection` struct; they go through `SecretStore` | `docs/adr/0003`. That seam is what makes the keyring migration cheap |
+| Passwords never live on the `Connection` struct; they go through `SecretStore` | `docs/adr/0007`. The default is the OS keyring |
+| Nothing outside `internal/config` retains a password beyond the call that uses it. An ask-every-time password lives in the request and the dialog's state only, and appears in no log, error or activity entry | `docs/adr/0007`. `internal/api/service_test.go`, `internal/config/secrets_test.go`. The driver's pool holds it for the life of the session, which ja-db cannot prevent |
+| The file fallback is never silent, and never used after the keyring has worked | `internal/config/secrets_test.go`. A UI warning cannot be dismissed |
 | `cmd/devserver` binds to loopback only and refuses anything else | It serves stored credentials |
 | Nothing outside `frontend/src/ui/` imports a component library | The swap-out guarantee. A leak silently voids it |
 | The palette matches the object *name* first; schema and keywords only at a discount | Otherwise "user" returns everything in a schema containing those letters |
@@ -636,7 +638,7 @@ test — which is the intended speed bump.
 
 ### Known gaps, accepted for now
 
-- **Passwords are plaintext on disk.** `docs/adr/0003`. Must not ship to anyone else's machine as-is.
+- **Passwords are plaintext on disk only when no OS keyring works** (`secrets.json`, with a standing UI warning), and `Connection.Params` is always plaintext. `docs/adr/0007`. The keyring protects against other users, not malware running as the same user.
 - **The filter is a SQL injection sink by construction.** Safe only while the input comes from the keyboard of whoever already holds the credentials.
 - **No read-only mode.** A user can type a destructive statement into the filter or the editor and mean it. Row edits are the one write path with guards of their own (`ApplyChanges`: key-only, one row, one transaction); a connection-level read-only switch would still have to refuse those too. Enforcing otherwise belongs at the session level, not in string parsing. Truncate and drop being two clicks away in the object menu raises the stakes on this: the only guard is `confirmDestructive`, which the user can turn off.
 - **No `ALTER`.** Columns can be added to a new table but not to an existing one, and nothing can be renamed or retyped. The SQL editor is the route for now — see the wishlist.

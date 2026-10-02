@@ -1,7 +1,10 @@
 # 3. Credential storage — file now, OS keyring next
 
 Date: 2026-08-16
-Status: Accepted, with a known gap
+Status: Superseded by [0007](0007-credential-storage.md)
+
+The audit found this ADR wrong: passwords were never in `connections.json`, they
+were in a separate `secrets.json`. Kept as history.
 
 ## Context
 

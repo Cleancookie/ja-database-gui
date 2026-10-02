@@ -107,6 +107,16 @@ Rationale, and the reason ✨ is major rather than minor, in
 
 ## Credential storage
 
-Passwords currently live in `connections.json` (mode `0600`) under your user config
-directory. This is not good enough and is the first thing to fix — see
-`docs/adr/0003-credential-storage.md`.
+Passwords go in the OS keyring: Windows Credential Manager, macOS Keychain or the
+Linux Secret Service. That protects them from other users of the machine. It does
+not protect them from malware running as you.
+
+**If no keyring is available** (often WSL or a bare Linux box) passwords fall back to
+plain text in `secrets.json` under your user config directory. ja-db says so in a
+banner that stays up. On a throwaway dev machine that may be fine; anywhere else,
+tick "Ask for the password every time" on the connection and nothing is stored.
+
+`connections.json` (hosts, users, database names) and a connection's extra `params`
+are always plain text. Do not put secrets in `params`.
+
+See `docs/adr/0007-credential-storage.md`.
