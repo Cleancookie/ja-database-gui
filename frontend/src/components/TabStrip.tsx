@@ -150,17 +150,20 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
             <div className="max-h-[30%] shrink-0 overflow-y-auto">{before.map(row)}</div>
           )}
           {live && (
-            <section className="flex min-h-0 flex-1 flex-col">
+            // One card, sized to what it holds: a database with three tables
+            // leaves the tabs below it in view rather than at the far bottom.
+            // Past the space there is, the table list scrolls inside it.
+            <section className="my-1 flex min-h-0 flex-initial flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)] p-1 shadow-xs">
               {row(live)}
-              {bound ? (
-                <ObjectList active={false} className="flex-1">
-                  {WORKSPACE_EXTRAS}
-                </ObjectList>
-              ) : (
-                <p className="px-3 pt-2 text-[var(--color-faint)]">
-                  Choose the server and database in the main panel
-                </p>
-              )}
+              <div className="mt-1 ml-2.5 flex min-h-0 flex-col border-l-2 border-[var(--color-accent)]/35">
+                {bound ? (
+                  <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
+                ) : (
+                  <p className="px-3 py-1.5 text-[var(--color-faint)]">
+                    Choose the server and database in the main panel
+                  </p>
+                )}
+              </div>
             </section>
           )}
           {after.length > 0 && (
