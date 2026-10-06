@@ -118,17 +118,6 @@ export function buildNavigationCommands(s: Store): Command[] {
     }
   }
 
-  if (s.view !== 'data' || s.activeRef) {
-    cmds.push({
-      id: 'page:picker',
-      title: 'Connections, databases and tables',
-      subtitle: 'The picker page',
-      group: 'Pages',
-      candidate: { name: 'Picker', keywords: 'browse connections databases tables home server choose' },
-      run: () => s.showPicker(),
-    })
-  }
-
   // Jump to a tab that is already open, rather than retargeting this one.
   const names = new Map(s.connections.map((c) => [c.id, c.name]))
   for (const t of s.tabs) {
@@ -194,7 +183,7 @@ export function buildActionCommands(s: Store): Command[] {
     title: 'New tab',
     group: 'Tabs',
     shortcut: 'Ctrl+T',
-    candidate: { name: 'New tab', keywords: 'open picker' },
+    candidate: { name: 'New tab', keywords: 'open workspace connection database' },
     run: () => s.newTab(),
   })
   cmds.push({

@@ -67,7 +67,7 @@ export function snapshot(s: State): TabFields {
   return out as unknown as TabFields
 }
 
-/** A tab that has not been pointed at anything: the picker. */
+/** A tab that has not been pointed at anything. */
 export function blankFields(pageSize: number, paginationEnabled: boolean): TabFields {
   return {
     activeConnectionId: null,
@@ -176,7 +176,7 @@ export function tabTitle(
 /**
  * Pages.
  *
- * The main panel shows one page at a time — the picker, a table, the SQL
+ * The main panel shows one page at a time — nothing yet, a table, the SQL
  * editor, a table's details, the activity log — and every change of page is a
  * route: it is recorded, and the mouse back / forward buttons walk the record.
  * Switching to another tab is a route too, since it changes what the panel
@@ -185,7 +185,7 @@ export function tabTitle(
  * Nothing is pushed by hand. `store.ts` watches `pageOf` and records whenever it
  * changes, so a new way of reaching a page is recorded without being told to.
  */
-export type PageKind = 'picker' | 'table' | 'sql' | 'details' | 'activity'
+export type PageKind = 'empty' | 'table' | 'sql' | 'details' | 'activity'
 
 /** What a table page needs to be shown as it was left. */
 export interface Controls {
@@ -217,7 +217,7 @@ type PageSource = Pick<
 
 export function pageOf(s: PageSource): Page {
   const kind: PageKind =
-    s.view === 'data' ? (s.activeRef ? 'table' : 'picker') : s.view
+    s.view === 'data' ? (s.activeRef ? 'table' : 'empty') : s.view
   const onTable = kind === 'table' || kind === 'details'
   return {
     tabId: s.activeTabId,
@@ -272,7 +272,7 @@ export interface TabVisit {
 
 /**
  * Where a tab has been, newest first: its pages up to the current entry, each
- * place once, without the one it is on now. The bare picker is left out — it
+ * place once, without the one it is on now. The empty page is left out — it
  * is a step on the way to somewhere, not a place to go back to.
  */
 export function tabHistory(nav: Page[], at: number, tabId: number): TabVisit[] {
@@ -282,7 +282,7 @@ export function tabHistory(nav: Page[], at: number, tabId: number): TabVisit[] {
     const page = nav[i]
     if (page.tabId !== tabId || seen.some((p) => samePage(p, page))) continue
     seen.push(page)
-    if (seen.length > 1 && page.kind !== 'picker') visits.push({ page, at: i })
+    if (seen.length > 1 && page.kind !== 'empty') visits.push({ page, at: i })
   }
   return visits
 }
@@ -297,7 +297,7 @@ export function pageTitle(p: Page): string {
       return 'SQL'
     case 'activity':
       return 'Activity'
-    case 'picker':
-      return 'New tab'
+    case 'empty':
+      return 'Nothing open'
   }
 }

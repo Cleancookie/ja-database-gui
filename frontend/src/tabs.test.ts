@@ -45,16 +45,16 @@ describe('recordPage', () => {
   })
 
   it('writes the page left and the page reached', () => {
-    const r = recordPage([], -1, page(1, 'picker'), page(1, 'table', 'a'))
-    expect(r.nav.map((p) => p.kind)).toEqual(['picker', 'table'])
+    const r = recordPage([], -1, page(1, 'empty'), page(1, 'table', 'a'))
+    expect(r.nav.map((p) => p.kind)).toEqual(['empty', 'table'])
     expect(r.at).toBe(1)
   })
   it('drops what was ahead after going back', () => {
-    let r = recordPage([], -1, page(1, 'picker'), page(1, 'table', 'a'))
+    let r = recordPage([], -1, page(1, 'empty'), page(1, 'table', 'a'))
     r = recordPage(r.nav, r.at, page(1, 'table', 'a'), page(1, 'table', 'b'))
     r = { nav: r.nav, at: 1 }
     r = recordPage(r.nav, r.at, page(1, 'table', 'a'), page(1, 'sql'))
-    expect(r.nav.map((p) => p.kind)).toEqual(['picker', 'table', 'sql'])
+    expect(r.nav.map((p) => p.kind)).toEqual(['empty', 'table', 'sql'])
   })
   it('refreshes the page being left so it keeps its filter', () => {
     const left = { ...page(1, 'table', 'a'), controls: { filter: 'id > 3', orderBy: [], sortChosen: false, page: 2 } }
@@ -75,7 +75,7 @@ describe('samePage', () => {
     expect(samePage(a, { ...a, controls: null })).toBe(true)
   })
   it('tells tabs apart', () => {
-    const a: Page = { tabId: 1, kind: 'picker', connectionId: null, ref: null, controls: null }
+    const a: Page = { tabId: 1, kind: 'empty', connectionId: null, ref: null, controls: null }
     expect(samePage(a, { ...a, tabId: 2 })).toBe(false)
   })
 })
@@ -194,7 +194,7 @@ describe('store routes', () => {
   }
   const table = (name: string) => ({ schema: '', name, type: 'table' as const })
 
-  it('goes back from a table to the picker, and forward again', async () => {
+  it('goes back from a table to the empty page, and forward again', async () => {
     const useStore = await fresh()
     await useStore.getState().openObject(table('users'))
     expect(useStore.getState().activeRef?.name).toBe('users')
@@ -254,8 +254,8 @@ describe('tabHistory', () => {
   const names = (nav: Page[], at: number, tabId: number) =>
     tabHistory(nav, at, tabId).map((v) => v.page.ref?.name ?? v.page.kind)
 
-  it('lists earlier pages newest first, without the current one or the picker', () => {
-    const nav = [page(1, 'picker'), page(1, 'table', 'a'), page(1, 'table', 'b'), page(1, 'sql')]
+  it('lists earlier pages newest first, without the current one or the empty page', () => {
+    const nav = [page(1, 'empty'), page(1, 'table', 'a'), page(1, 'table', 'b'), page(1, 'sql')]
     expect(names(nav, 3, 1)).toEqual(['b', 'a'])
   })
   it('keeps to its own tab', () => {

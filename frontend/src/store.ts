@@ -330,7 +330,7 @@ export interface State extends EditState, EditActions {
   reload: () => Promise<void>
   /** Infinite scroll: appends the next page below the rows on screen. */
   loadMore: () => Promise<void>
-  /** Opens a blank tab (the picker) and switches to it. */
+  /** Opens a blank tab and switches to it. */
   newTab: () => void
   /** Closes a tab, the active one by default. Closing the last leaves a blank one. */
   closeTab: (id?: number) => void
@@ -344,8 +344,6 @@ export interface State extends EditState, EditActions {
   /** Mouse back / forward: walks the pages the main panel has shown, across tabs. */
   stepHistory: (delta: number) => Promise<void>
   setTabStrip: (open: boolean) => Promise<void>
-  /** Shows the picker in the current tab, keeping the connection and database chosen. */
-  showPicker: () => void
   setFilter: (f: string) => void
   applyFilter: (f: string) => Promise<void>
   setPage: (p: number) => Promise<void>
@@ -482,7 +480,7 @@ function controlsOf(s: Pick<State, 'filter' | 'orderBy' | 'sortChosen' | 'page'>
   return { filter: s.filter, orderBy: s.orderBy, sortChosen: s.sortChosen, page: s.page }
 }
 
-/** The table-shaped fields of a tab with nothing open: what the picker shows over. */
+/** The table-shaped fields of a tab with no table on screen. */
 const NO_TABLE = {
   activeRef: null,
   columns: [],
@@ -713,7 +711,7 @@ export const useStore = create<State>((set, get) => {
       if (samePage(pageOf(get()), p)) return
       const tabId = p.tabId
       switch (p.kind) {
-        case 'picker':
+        case 'empty':
           set(NO_TABLE)
           return
         case 'sql':
@@ -1073,10 +1071,6 @@ export const useStore = create<State>((set, get) => {
       enter(tab, [...stashed(), tab])
     },
 
-    showPicker() {
-      set(NO_TABLE)
-    },
-
     async setTabStrip(open) {
       const { settings, saveSettings } = get()
       if (settings.tabStripHidden === !open) return
@@ -1191,7 +1185,7 @@ export const useStore = create<State>((set, get) => {
         s.pushToast('error', errorMessage(e))
         return
       }
-      // The row count in the picker is now wrong, and so is the grid if this is
+      // The row count in the sidebar is now wrong, and so is the grid if this is
       // the table on screen.
       await get().selectDatabase(get().activeDatabase)
       // The rows the staged edits point at are gone. The confirmation that got

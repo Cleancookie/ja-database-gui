@@ -47,15 +47,9 @@ export function ConnectionList({ active = false, className = '' }: { active?: bo
     <div ref={root} tabIndex={-1} onKeyDown={onKeyDown} className="outline-none focus-visible:outline-none">
       <Highlight className={`overflow-y-auto px-1.5 pb-1.5 ${className}`} pillClassName={PILL}>
         {connections.length === 0 && (
-          <div className="flex flex-col items-start gap-2 px-2 py-3 leading-relaxed text-[var(--color-faint)]">
-            <p>No connections yet. Add one to get started, or look around first.</p>
-            <button
-              onClick={() => void openSample()}
-              className="rounded-lg bg-[var(--color-accent-dim)] px-3 py-1.5 font-bold text-[var(--color-text)] hover:brightness-95"
-            >
-              Open the sample database
-            </button>
-          </div>
+          <p className="px-2 py-3 leading-relaxed text-[var(--color-faint)]">
+            No connections yet. Add one to get started, or look around the sample database first.
+          </p>
         )}
         {connections.map((c, i) => {
           const current = c.id === activeConnectionId
@@ -115,6 +109,13 @@ export function ConnectionList({ active = false, className = '' }: { active?: bo
         >
           <span className="w-2.5 shrink-0 text-center font-bold">+</span>
           New connection…
+        </button>
+        <button
+          onClick={() => void openSample()}
+          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[var(--color-muted)] hover:bg-[var(--color-panel)] hover:text-[var(--color-accent)]"
+        >
+          <span className="w-2.5 shrink-0 text-center">▤</span>
+          Open the sample database
         </button>
       </div>
     </div>

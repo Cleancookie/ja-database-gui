@@ -14,11 +14,11 @@ import { ConfirmDeleteDialog } from './ConnectionMenu'
 import { ConfirmResetSampleDialog } from './ConfirmResetSampleDialog'
 import { ConnectionDialog } from './ConnectionDialog'
 import { DataGrid } from './DataGrid'
+import { EmptyPanel } from './EmptyPanel'
 import { FilterBar } from './FilterBar'
 import { NewTableDialog } from './NewTableDialog'
 import { ConfirmDropDialog, ConfirmTruncateDialog } from './ObjectMenu'
 import { Paginator } from './Paginator'
-import { Picker } from './Picker'
 import { ReviewChangesDialog } from './ReviewChangesDialog'
 import { SettingsDialog } from './SettingsDialog'
 import { PasswordDialog } from './PasswordDialog'
@@ -98,7 +98,7 @@ export function App() {
               <Paginator />
             </>
           ) : (
-            <Picker />
+            <EmptyPanel />
           )}
         </main>
       </div>
@@ -333,8 +333,7 @@ function useGlobalHotkeys() {
 
       // Alt+arrows are the browser's back and forward, and the keyboard twin of
       // the mouse buttons. Left alone inside the SQL editor, which uses them to
-      // move by syntax; a plain <input> has no use for them, and the picker
-      // focuses one as soon as it opens.
+      // move by syntax; a plain <input> has no use for them.
       if (!target?.isContentEditable && e.altKey && !mod && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
         e.preventDefault()
         void s.stepHistory(e.key === 'ArrowLeft' ? -1 : 1)
