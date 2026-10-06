@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { PAGE_SIZES, useStore } from '../store'
 import { applyTheme, THEMES } from '../themes'
 import { dialogButton, FormDialog } from '../ui'
@@ -17,6 +17,29 @@ export function SettingsDialog() {
   const setDialog = useStore((s) => s.setDialog)
 
   const [draft, setDraft] = useState<Settings>(saved)
+  const [active, setActive] = useState<string>(SECTIONS[0])
+  const body = useRef<HTMLDivElement>(null)
+
+  const sections = () => [...(body.current?.querySelectorAll<HTMLElement>('section[data-group]') ?? [])]
+
+  // Highlight the last section whose top has scrolled past the pane's top;
+  // at the very bottom, the last one, since a short final section never reaches the top.
+  const onScroll = () => {
+    const el = body.current
+    if (!el) return
+    const all = sections()
+    const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 2
+    const current = atBottom
+      ? all.at(-1)
+      : all.filter((s) => s.offsetTop <= el.scrollTop + 8).at(-1)
+    if (current?.dataset.group) setActive(current.dataset.group)
+  }
+
+  const jumpTo = (label: string) => {
+    sections()
+      .find((s) => s.dataset.group === label)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
 
   const patch = (p: Partial<Settings>) => {
     const next = { ...draft, ...p }
@@ -41,7 +64,7 @@ export function SettingsDialog() {
       open
       onClose={cancel}
       title="Settings"
-      widthClass="w-[min(34rem,92vw)]"
+      widthClass="w-[min(46rem,94vw)]"
       onSubmit={() => {
         void saveSettings(draft)
         setDialog({ kind: 'none' })
@@ -57,13 +80,34 @@ export function SettingsDialog() {
         </>
       }
     >
+      <div className="flex h-[min(32rem,65vh)]">
+        <nav className="flex w-36 shrink-0 flex-col gap-0.5 border-r border-[var(--color-border)] bg-[var(--color-panel)] p-2">
+          {SECTIONS.map((label) => (
+            <button
+              key={label}
+              type="button"
+              aria-current={active === label}
+              onClick={() => jumpTo(label)}
+              className={`rounded-lg px-2.5 py-1.5 text-left ${
+                active === label
+                  ? 'bg-[var(--color-accent-dim)]/40 font-semibold text-[var(--color-text)]'
+                  : 'text-[var(--color-muted)] hover:bg-[var(--color-accent-dim)]/20'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+        <div ref={body} onScroll={onScroll} className="relative min-w-0 flex-1 overflow-y-auto">
 
         <Group label="Appearance">
           {/* Not a Row: a theme is chosen by looking, so this is a grid of
               swatches rather than a label with a select bolted to the right. */}
           <fieldset className="min-w-0">
             <legend className="mb-2">Theme</legend>
-            <div className="grid grid-cols-2 gap-2">
+            {/* Three rows tall, then its own scrollbar, so adding themes never
+                pushes the rest of the settings out of reach. */}
+            <div className="grid max-h-[10.5rem] grid-cols-3 gap-2 overflow-y-auto p-0.5">
               {THEMES.map((t) => {
                 const active = draft.theme === t.id
                 return (
@@ -252,6 +296,8 @@ export function SettingsDialog() {
           />
         </Group>
 
+        </div>
+      </div>
     </FormDialog>
   )
 }
@@ -261,12 +307,14 @@ function setDrawerDuration(ms: number) {
   document.documentElement.style.setProperty('--drawer-duration', `${Math.max(0, ms || 0)}ms`)
 }
 
+const SECTIONS = ['Appearance', 'Behaviour', 'Browsing', 'Catalogue', 'Safety'] as const
+
 const selectClass =
   'rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-panel)] px-2 py-1 outline-none'
 
-function Group({ label, children }: { label: string; children: React.ReactNode }) {
+function Group({ label, children }: { label: (typeof SECTIONS)[number]; children: React.ReactNode }) {
   return (
-    <section className="border-b border-[var(--color-border)] px-4 py-3 last:border-b-0">
+    <section data-group={label} className="border-b border-[var(--color-border)] px-4 py-3 last:border-b-0">
       <h3 className="mb-2 font-semibold tracking-wider text-[var(--color-faint)] uppercase">
         {label}
       </h3>
