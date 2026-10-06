@@ -147,15 +147,17 @@ export function buildNavigationCommands(s: Store): Command[] {
     })
   }
 
-  if (s.capabilities?.serverHostsDatabases) {
+  const connectionId = s.activeConnectionId
+  if (connectionId && s.capabilities?.serverHostsDatabases) {
     for (const db of s.databases) {
       if (db === s.activeDatabase) continue
       cmds.push({
         id: `database:${db}`,
         title: `Use database ${db}`,
+        subtitle: s.activeDatabase ? 'In a new tab' : undefined,
         group: 'Databases',
         candidate: { name: db, keywords: 'use database switch catalog', bias: -0.05 },
-        run: () => s.selectDatabase(db),
+        run: () => s.openWorkspace(connectionId, db),
       })
     }
   }
@@ -171,7 +173,7 @@ export function buildNavigationCommands(s: Store): Command[] {
         name: c.name,
         keywords: `connect connection ${c.kind} ${c.host ?? ''} ${c.file ?? ''}`,
       },
-      run: () => s.connect(c.id),
+      run: () => s.openWorkspace(c.id),
     })
   }
 

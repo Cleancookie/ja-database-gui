@@ -16,7 +16,7 @@ export function ConnectionMenu({
   children: React.ReactNode
 }) {
   const connectedIds = useStore((s) => s.connectedIds)
-  const connect = useStore((s) => s.connect)
+  const openWorkspace = useStore((s) => s.openWorkspace)
   const disconnect = useStore((s) => s.disconnect)
   const removeConnection = useStore((s) => s.removeConnection)
   const setDialog = useStore((s) => s.setDialog)
@@ -26,7 +26,7 @@ export function ConnectionMenu({
   const items: MenuItem[] = [
     {
       label: isConnected ? 'Switch to this connection' : 'Connect',
-      onSelect: () => void connect(connection.id),
+      onSelect: () => void openWorkspace(connection.id),
     },
     {
       label: 'Disconnect',

@@ -147,3 +147,51 @@ describe('open tables', () => {
     expect(s().openTables).toEqual([])
   })
 })
+
+describe('openWorkspace', () => {
+  async function server() {
+    vi.resetModules()
+    const api = {
+      connect: async (_id: string, _pw: string | null, database: string) => ({
+        capabilities: { serverHostsDatabases: true },
+        databases: [{ name: 'one' }, { name: 'two' }],
+        defaultDatabase: database || 'one',
+      }),
+      listObjects: async () => [],
+    }
+    vi.doMock('./api', () => ({
+      api: new Proxy(api, { get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? (async () => ({})) }),
+      errorMessage: String,
+      transportName: 'test',
+    }))
+    const { useStore } = await import('./store')
+    useStore.setState({ connections: [{ id: 'c', name: 'C', kind: 'postgres' }] })
+    return useStore
+  }
+
+  it('uses the current tab while it has no database', async () => {
+    const useStore = await server()
+    const s = () => useStore.getState()
+    await s().openWorkspace('c')
+    expect(s().tabs).toHaveLength(1)
+    expect(s().activeConnectionId).toBe('c')
+    expect(s().activeDatabase).toBe('')
+    await s().openWorkspace('c', 'two')
+    expect(s().tabs).toHaveLength(1)
+    expect(s().activeDatabase).toBe('two')
+  })
+
+  it('opens a new tab for another database once the tab has one', async () => {
+    const useStore = await server()
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    const first = s().activeTabId
+    await s().openWorkspace('c', 'one')
+    expect(s().tabs).toHaveLength(1)
+    await s().openWorkspace('c', 'two')
+    expect(s().tabs).toHaveLength(2)
+    expect(s().activeTabId).not.toBe(first)
+    expect(s().activeDatabase).toBe('two')
+    expect(s().tabs.find((t) => t.id === first)?.saved?.activeDatabase).toBe('one')
+  })
+})

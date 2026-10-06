@@ -15,7 +15,7 @@ export function ConnectionList({ active = false, className = '' }: { active?: bo
   const connectedIds = useStore((s) => s.connectedIds)
   const activeConnectionId = useStore((s) => s.activeConnectionId)
   const busy = useStore((s) => s.busy)
-  const connect = useStore((s) => s.connect)
+  const openWorkspace = useStore((s) => s.openWorkspace)
   const removeConnection = useStore((s) => s.removeConnection)
   const setDialog = useStore((s) => s.setDialog)
   const openSample = useStore((s) => s.openSample)
@@ -28,7 +28,7 @@ export function ConnectionList({ active = false, className = '' }: { active?: bo
 
   const pick = (id: string) => {
     setPending(id)
-    void connect(id)
+    void openWorkspace(id)
   }
 
   const root = useRef<HTMLDivElement>(null)

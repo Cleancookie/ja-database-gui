@@ -315,6 +315,12 @@ export interface State extends EditState, EditActions {
   /** Rebuilds the sample database, then reconnects. Call after the user confirmed. */
   resetSample: () => Promise<void>
   selectDatabase: (name: string) => Promise<void>
+  /**
+   * Points a tab at a connection and database: this one while it is not yet
+   * pointed at a database, a new one otherwise. `database` '' leaves the choice
+   * to the connection's saved default, or to the user.
+   */
+  openWorkspace: (connectionId: string, database?: string) => Promise<void>
   openObject: (o: SchemaObject) => Promise<void>
   /**
    * Closes one of the tab's open tables, the one on screen by default, and
@@ -836,7 +842,7 @@ export const useStore = create<State>((set, get) => {
       try {
         const conn = await api.openSample()
         await get().refreshConnections()
-        await get().connect(conn.id)
+        await get().openWorkspace(conn.id)
         get().setView('data')
       } catch (e) {
         get().pushToast('error', errorMessage(e))
@@ -868,7 +874,10 @@ export const useStore = create<State>((set, get) => {
       try {
         const res = await tracked(() => api.connect(id, password, database))
         const databases = res.databases.map((d) => d.name)
-        const active = res.defaultDatabase || databases[0] || ''
+        // A server with several databases and none named anywhere leaves the
+        // choice to the user rather than guessing the first.
+        const chosen = !!database || !!conn?.database || !res.capabilities.serverHostsDatabases
+        const active = chosen ? res.defaultDatabase || databases[0] || '' : ''
         const connectedIds = Array.from(new Set([...get().connectedIds, id]))
         // The user moved to another tab while this was connecting: the
         // connection is open, but the tab they are looking at is not its to change.
@@ -960,6 +969,18 @@ export const useStore = create<State>((set, get) => {
         }
         get().pushToast('error', errorMessage(e))
       }
+    },
+
+    async openWorkspace(connectionId, database = '') {
+      const s = get()
+      if (s.activeConnectionId === connectionId && (!database || database === s.activeDatabase)) return
+      if (s.activeConnectionId && s.activeDatabase) {
+        get().newTab()
+        // Choosing a database from the editor is asking to write SQL against it.
+        if (s.view === 'sql') set({ view: 'sql' })
+      }
+      if (get().activeConnectionId === connectionId) await get().selectDatabase(database)
+      else await get().connect(connectionId, null, database)
     },
 
     async openObject(o) {

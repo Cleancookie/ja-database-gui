@@ -18,8 +18,7 @@ export function DatabasePicker() {
   const capabilities = useStore((s) => s.capabilities)
   const databases = useStore((s) => s.databases)
   const activeDatabase = useStore((s) => s.activeDatabase)
-  const connect = useStore((s) => s.connect)
-  const selectDatabase = useStore((s) => s.selectDatabase)
+  const openWorkspace = useStore((s) => s.openWorkspace)
   const setDialog = useStore((s) => s.setDialog)
 
   const model = pickerModel({
@@ -73,9 +72,7 @@ export function DatabasePicker() {
       onChange={(e) => {
         const v = e.target.value
         if (v === '') return
-        // Connecting auto-selects a database (store.connect), which is what
-        // makes picking a connection here enough to start running SQL.
-        void (onDatabases ? selectDatabase(v) : connect(v))
+        void (onDatabases && activeConnectionId ? openWorkspace(activeConnectionId, v) : openWorkspace(v))
       }}
       className={`max-w-[14rem] rounded-lg border border-[var(--color-border)] bg-[var(--color-elevated)] px-1.5 py-0.5 font-[var(--font-mono)] shadow-xs outline-none ${
         model.value === '' ? 'text-[var(--color-warn)]' : 'text-[var(--color-muted)]'

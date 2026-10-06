@@ -16,7 +16,8 @@ export function DatabaseList({
 }) {
   const databases = useStore((s) => s.databases)
   const activeDatabase = useStore((s) => s.activeDatabase)
-  const selectDatabase = useStore((s) => s.selectDatabase)
+  const activeConnectionId = useStore((s) => s.activeConnectionId)
+  const openWorkspace = useStore((s) => s.openWorkspace)
 
   const [query, setQuery] = useState('')
   const visible = useMemo(
@@ -25,7 +26,7 @@ export function DatabaseList({
   )
 
   const pick = (d: string) => {
-    void selectDatabase(d)
+    if (activeConnectionId) void openWorkspace(activeConnectionId, d)
     onPicked?.()
   }
 
