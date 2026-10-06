@@ -16,7 +16,7 @@ import { rectOf, rectSize } from './selection'
 import { runSqlFromEditor } from './sqlEditorRun'
 import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
 import { storageWarning } from './secrets'
-import { pageTitle, tabHistory, tabTitle } from './tabs'
+import { openTableKeys, pageTitle, tabHistory, tabTitle } from './tabs'
 import { THEMES } from './themes'
 import type { ObjectType, SchemaObject } from './types'
 
@@ -103,6 +103,7 @@ export function buildNavigationCommands(s: Store): Command[] {
     // wants it, and so does the command built from it.
     const position = new Map(s.objects.map((o) => [o, lookup(o)]))
     const indexOf = (o: SchemaObject) => position.get(o) ?? -1
+    const openHere = openTableKeys(s.openTables)
 
     for (const o of orderByRecency(s.objects, indexOf)) {
       const i = indexOf(o)
@@ -111,7 +112,11 @@ export function buildNavigationCommands(s: Store): Command[] {
         id: `object:${qualified}:${o.type}`,
         title: qualified,
         subtitle: o.type + (o.rowEstimate != null ? ` · ~${formatCount(o.rowEstimate)} rows` : ''),
-        group: i >= 0 ? 'Recent' : 'Open',
+        group: openHere.has(refKey(s.activeDatabase, o.schema, o.name))
+          ? 'Open in this tab'
+          : i >= 0
+            ? 'Recent'
+            : 'Open',
         candidate: objectCandidate(o, i),
         run: () => s.openObject(o),
       })
@@ -218,6 +223,46 @@ export function buildActionCommands(s: Store): Command[] {
       shortcut: 'Ctrl+Shift+Tab',
       candidate: { name: 'Previous tab', keywords: 'switch left up' },
       run: () => s.cycleTab(-1),
+    })
+  }
+  if (s.activeRef) {
+    cmds.push({
+      id: 'table:close',
+      title: 'Close table',
+      subtitle: s.activeRef.name,
+      group: 'Tables',
+      shortcut: 'Alt+W',
+      candidate: { name: 'Close table', keywords: 'open tables remove sidebar' },
+      run: () => s.closeOpenTable(),
+    })
+  }
+  if (s.openTables.length > 1) {
+    cmds.push({
+      id: 'table:next',
+      title: 'Next open table',
+      group: 'Tables',
+      shortcut: 'Alt+PageDown',
+      candidate: { name: 'Next open table', keywords: 'switch cycle down sidebar' },
+      run: () => s.cycleOpenTable(1),
+    })
+    cmds.push({
+      id: 'table:previous',
+      title: 'Previous open table',
+      group: 'Tables',
+      shortcut: 'Alt+PageUp',
+      candidate: { name: 'Previous open table', keywords: 'switch cycle up sidebar' },
+      run: () => s.cycleOpenTable(-1),
+    })
+  }
+  if (s.activeConnectionId) {
+    cmds.push({
+      id: 'table:search',
+      title: 'Search tables',
+      subtitle: 'The table search in the sidebar',
+      group: 'Tables',
+      shortcut: '/',
+      candidate: { name: 'Search tables', keywords: 'find filter sidebar focus list' },
+      run: () => focusTableSearch(s),
     })
   }
   cmds.push({
@@ -966,6 +1011,19 @@ export function registerFilterFocus(fn: (() => void) | null) {
 
 export function focusFilter() {
   filterFocus?.()
+}
+
+/** The sidebar's table search owns this id — see components/sidebar/ObjectList.tsx. */
+export const TABLE_SEARCH_ID = 'table-search'
+
+/** Focuses the sidebar's table search, showing the sidebar first if it is hidden. */
+export async function focusTableSearch(s: Store) {
+  if (s.settings.tabStripHidden) await s.setTabStrip(true)
+  requestAnimationFrame(() => {
+    const el = document.getElementById(TABLE_SEARCH_ID) as HTMLInputElement | null
+    el?.focus()
+    el?.select()
+  })
 }
 
 /** The editor's database picker owns this id — see components/DatabasePicker.tsx. */

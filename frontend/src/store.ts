@@ -327,6 +327,8 @@ export interface State extends EditState, EditActions {
    * shows its neighbour. Asks first when the table has staged edits.
    */
   closeOpenTable: (ref?: ObjectRef) => Promise<void>
+  /** Shows the next (1) or previous (-1) of the tab's open tables, wrapping. */
+  cycleOpenTable: (delta: number) => Promise<void>
   reload: () => Promise<void>
   /** Infinite scroll: appends the next page below the rows on screen. */
   loadMore: () => Promise<void>
@@ -1018,6 +1020,16 @@ export const useStore = create<State>((set, get) => {
       }
       set({ openTables })
       await openObjectAt(objectFor(next.ref), next.controls)
+    },
+
+    async cycleOpenTable(delta) {
+      const { openTables, activeRef } = get()
+      const n = openTables.length
+      if (n === 0) return
+      const i = activeRef ? openTables.findIndex((t) => sameRef(t.ref, activeRef)) : -1
+      const next = openTables[i < 0 ? (delta > 0 ? 0 : n - 1) : (i + delta + n) % n]
+      if (sameRef(activeRef, next.ref) && get().view === 'data') return
+      await openObjectAt(objectFor(next.ref))
     },
 
     newTab() {

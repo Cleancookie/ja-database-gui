@@ -49,6 +49,18 @@ describe('open tables', () => {
     expect(s().openTables).toEqual([])
   })
 
+  it('cycles through the open tables, wrapping at either end', async () => {
+    const useStore = await fresh()
+    const s = () => useStore.getState()
+    for (const n of ['a', 'b', 'c']) await s().openObject(table(n))
+    await s().cycleOpenTable(1)
+    expect(s().activeRef?.name).toBe('a')
+    await s().cycleOpenTable(-1)
+    expect(s().activeRef?.name).toBe('c')
+    await s().cycleOpenTable(-1)
+    expect(s().activeRef?.name).toBe('b')
+  })
+
   it('closes a table that is not on screen without leaving the one that is', async () => {
     const useStore = await fresh()
     const s = () => useStore.getState()

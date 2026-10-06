@@ -1,6 +1,6 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { formatCount, objectCandidate, OBJECT_ICON, qualifiedName } from '../../commands'
+import { formatCount, objectCandidate, OBJECT_ICON, qualifiedName, TABLE_SEARCH_ID } from '../../commands'
 import { tableKey } from '../../edits'
 import { rankCandidates } from '../../fuzzy'
 import { useStore } from '../../store'
@@ -113,14 +113,15 @@ export const ObjectList = memo(function ObjectList({
       <div className="px-3 py-1">
         <input
           ref={field}
+          id={TABLE_SEARCH_ID}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
             setSelected(0)
           }}
-          placeholder="Filter objects…  (Enter opens the highlighted one)"
+          placeholder="Search tables…  ( / )"
           spellCheck={false}
-          aria-label="Filter objects"
+          aria-label="Search tables"
           className={INPUT}
         />
       </div>

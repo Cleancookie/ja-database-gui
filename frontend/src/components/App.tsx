@@ -1,5 +1,5 @@
 import { useCallback, useEffect } from 'react'
-import { focusFilter } from '../commands'
+import { focusFilter, focusTableSearch } from '../commands'
 import { isTypingTarget } from '../dom'
 import { activeSqlResult, isInfinite, useStore } from '../store'
 import { ActivityPage } from './ActivityPage'
@@ -331,6 +331,20 @@ function useGlobalHotkeys() {
         return
       }
 
+      // The tab's open tables: Alt+W closes the one on screen, Alt+PageUp /
+      // PageDown move between them. e.code, since some layouts type a
+      // character on Alt+W.
+      if (e.altKey && !mod && !e.shiftKey && e.code === 'KeyW') {
+        e.preventDefault()
+        void s.closeOpenTable()
+        return
+      }
+      if (e.altKey && !mod && !e.shiftKey && (e.key === 'PageUp' || e.key === 'PageDown')) {
+        e.preventDefault()
+        void s.cycleOpenTable(e.key === 'PageUp' ? -1 : 1)
+        return
+      }
+
       // Alt+arrows are the browser's back and forward, and the keyboard twin of
       // the mouse buttons. Left alone inside the SQL editor, which uses them to
       // move by syntax; a plain <input> has no use for them.
@@ -364,10 +378,10 @@ function useGlobalHotkeys() {
         return
       }
 
-      // Bare "/" jumps to the filter, as in vim and every pager.
+      // Bare "/" jumps to the table search, as in vim and every pager.
       if (!typing && !mod && e.key === '/') {
         e.preventDefault()
-        focusFilter()
+        void focusTableSearch(s)
       }
     }
 
