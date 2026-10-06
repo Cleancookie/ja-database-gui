@@ -318,6 +318,8 @@ export interface State extends EditState, EditActions {
   switchTab: (id: number) => void
   /** Moves to the next (+1) or previous (-1) tab, wrapping. */
   cycleTab: (delta: number) => void
+  /** Jumps straight to entry `at` of the page record, as a run of back / forward steps would. */
+  goToVisit: (at: number) => Promise<void>
   /** Mouse back / forward: walks the pages the main panel has shown, across tabs. */
   stepHistory: (delta: number) => Promise<void>
   setTabStrip: (open: boolean) => Promise<void>
@@ -997,12 +999,17 @@ export const useStore = create<State>((set, get) => {
       let i = s.navAt + delta
       // Pages of tabs that have since been closed are skipped.
       while (s.nav[i] && !s.tabs.some((t) => t.id === s.nav[i].tabId)) i += delta
-      if (i < 0 || i >= s.nav.length) return
+      await get().goToVisit(i)
+    },
+
+    async goToVisit(at) {
+      const s = get()
+      if (at < 0 || at >= s.nav.length) return
       // The page being left is refreshed first, so coming back finds its
       // filter, sort and page as they were.
       const nav = s.nav.map((p, j) => (j === s.navAt ? pageOf(s) : p))
-      set({ nav, navAt: i })
-      await goToPage(nav[i])
+      set({ nav, navAt: at })
+      await goToPage(nav[at])
     },
 
     async reload() {

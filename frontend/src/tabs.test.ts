@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { blankFields, recordPage, samePage, tabTitle, type Page } from './tabs'
+import { blankFields, recordPage, samePage, tabHistory, tabTitle, type Page } from './tabs'
 
 const ref = (name: string) => ({ database: 'db', schema: '', name })
 
@@ -192,5 +192,36 @@ describe('store routes', () => {
     await useStore.getState().stepHistory(-1)
     expect(useStore.getState().tabs.some((t) => t.id === useStore.getState().activeTabId)).toBe(true)
     expect(useStore.getState().navAt).toBeLessThan(before)
+  })
+})
+
+describe('tabHistory', () => {
+  const page = (tabId: number, kind: Page['kind'], name?: string): Page => ({
+    tabId,
+    kind,
+    connectionId: name ? 'c' : null,
+    ref: name ? ref(name) : null,
+    controls: null,
+  })
+  const names = (nav: Page[], at: number, tabId: number) =>
+    tabHistory(nav, at, tabId).map((v) => v.page.ref?.name ?? v.page.kind)
+
+  it('lists earlier pages newest first, without the current one or the picker', () => {
+    const nav = [page(1, 'picker'), page(1, 'table', 'a'), page(1, 'table', 'b'), page(1, 'sql')]
+    expect(names(nav, 3, 1)).toEqual(['b', 'a'])
+  })
+  it('keeps to its own tab', () => {
+    const nav = [page(1, 'table', 'a'), page(2, 'table', 'x'), page(1, 'table', 'b'), page(2, 'table', 'y')]
+    expect(names(nav, 3, 1)).toEqual(['a'])
+    expect(names(nav, 3, 2)).toEqual(['x'])
+  })
+  it('names each place once, at its latest visit', () => {
+    const nav = [page(1, 'table', 'a'), page(1, 'table', 'b'), page(1, 'table', 'a'), page(1, 'sql')]
+    const h = tabHistory(nav, 3, 1)
+    expect(h.map((v) => [v.page.ref?.name, v.at])).toEqual([['a', 2], ['b', 1]])
+  })
+  it('ignores what is ahead after going back', () => {
+    const nav = [page(1, 'table', 'a'), page(1, 'table', 'b'), page(1, 'table', 'c')]
+    expect(names(nav, 1, 1)).toEqual(['a'])
   })
 })

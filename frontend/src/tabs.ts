@@ -203,3 +203,41 @@ export function recordPage(
 }
 
 const NAV_LIMIT = 100
+
+/** One of a tab's earlier pages, with where it sits in the record. */
+export interface TabVisit {
+  page: Page
+  at: number
+}
+
+/**
+ * Where a tab has been, newest first: its pages up to the current entry, each
+ * place once, without the one it is on now. The bare picker is left out — it
+ * is a step on the way to somewhere, not a place to go back to.
+ */
+export function tabHistory(nav: Page[], at: number, tabId: number): TabVisit[] {
+  const seen: Page[] = []
+  const visits: TabVisit[] = []
+  for (let i = Math.min(at, nav.length - 1); i >= 0; i--) {
+    const page = nav[i]
+    if (page.tabId !== tabId || seen.some((p) => samePage(p, page))) continue
+    seen.push(page)
+    if (seen.length > 1 && page.kind !== 'picker') visits.push({ page, at: i })
+  }
+  return visits
+}
+
+export function pageTitle(p: Page): string {
+  switch (p.kind) {
+    case 'table':
+      return p.ref?.name ?? 'Table'
+    case 'details':
+      return `${p.ref?.name ?? 'Table'} · details`
+    case 'sql':
+      return 'SQL'
+    case 'activity':
+      return 'Activity'
+    case 'picker':
+      return 'New tab'
+  }
+}
