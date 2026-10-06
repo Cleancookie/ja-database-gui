@@ -7,29 +7,31 @@ import { useStore } from '../../store'
 import type { ObjectType, SchemaObject } from '../../types'
 import { Highlight } from '../Highlight'
 import { ObjectListMenu, objectKey } from '../ObjectMenu'
+import { refKey } from '../../recency'
+import { openTableKeys } from '../../tabs'
+import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
 import { INPUT, PILL, useFocusWhen, useListKeys } from './listKit'
 
-const GROUP_ORDER: ObjectType[] = ['table', 'view', 'function', 'procedure']
+/** Only what has rows to browse; functions and procedures are reached from the palette. */
+type Browsable = 'table' | 'view'
+const GROUP_ORDER: Browsable[] = ['table', 'view']
 /** One pastel per object kind, so the groups are told apart at a glance. */
-const GROUP_TINT: Record<ObjectType, string> = {
+const GROUP_TINT: Record<Browsable, string> = {
   table: 'var(--color-mint)',
   view: 'var(--color-sky)',
-  function: 'var(--color-lemon)',
-  procedure: 'var(--color-peach)',
 }
-const GROUP_LABEL: Record<ObjectType, string> = {
+const GROUP_LABEL: Record<Browsable, string> = {
   table: 'Tables',
   view: 'Views',
-  function: 'Functions',
-  procedure: 'Procedures',
 }
 
-type Row = { kind: 'head'; type: ObjectType; count: number } | { kind: 'object'; o: SchemaObject; index: number }
+type Row = { kind: 'head'; type: Browsable; count: number } | { kind: 'object'; o: SchemaObject; index: number }
 
 /**
- * Every object in the tab's database, grouped by kind, under a filter field.
- * Enter in the field opens the highlighted one.
+ * Every table and view in the tab's database, grouped by kind, under a filter
+ * field. Enter in the field opens the highlighted one. `children` sit between
+ * the field and the list; pass a stable element, or the memo is lost.
  *
  * Virtualised and memoised: it is always on screen, a database can hold
  * thousands of tables, and none of its cost should be the reason a parent
@@ -38,15 +40,19 @@ type Row = { kind: 'head'; type: ObjectType; count: number } | { kind: 'object';
 export const ObjectList = memo(function ObjectList({
   active = false,
   className = '',
+  children,
 }: {
   active?: boolean
   className?: string
+  children?: React.ReactNode
 }) {
   const activeConnectionId = useStore((s) => s.activeConnectionId)
   const activeDatabase = useStore((s) => s.activeDatabase)
   const objects = useStore((s) => s.objects)
   const busy = useStore((s) => s.busy)
   const openObject = useStore((s) => s.openObject)
+  const openTables = useStore((s) => s.openTables)
+  const open = useMemo(() => openTableKeys(openTables), [openTables])
 
   const [query, setQuery] = useState('')
   const matched = useMemo(
@@ -118,6 +124,7 @@ export const ObjectList = memo(function ObjectList({
           className={INPUT}
         />
       </div>
+      {children}
       <div ref={scroller} className={`min-h-0 overflow-y-auto ${className}`}>
         <Highlight className="px-1.5 pb-2" pillClassName={PILL}>
           {objects.length === 0 && (
@@ -149,6 +156,7 @@ export const ObjectList = memo(function ObjectList({
                       <ObjectRow
                         o={row.o}
                         highlighted={row.index === selected}
+                        open={open.has(refKey(activeDatabase, row.o.schema, row.o.name))}
                         connectionId={activeConnectionId}
                         database={activeDatabase}
                         onOpen={openObject}
@@ -168,12 +176,14 @@ export const ObjectList = memo(function ObjectList({
 function ObjectRow({
   o,
   highlighted,
+  open,
   connectionId,
   database,
   onOpen,
 }: {
   o: SchemaObject
   highlighted: boolean
+  open: boolean
   connectionId: string
   database: string
   onOpen: (o: SchemaObject) => void
@@ -189,6 +199,7 @@ function ObjectRow({
     >
       <span className="shrink-0 text-[var(--color-faint)]">{OBJECT_ICON[o.type]}</span>
       <span className="min-w-0 flex-1 truncate">{qualified}</span>
+      {open && <OpenDot />}
       {o.type === 'table' && (
         <TableMark tableKey={tableKey(connectionId, { database, schema: o.schema, name: o.name })} />
       )}

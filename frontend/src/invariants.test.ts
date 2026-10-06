@@ -46,3 +46,17 @@ describe('writing rows', () => {
     expect(review).not.toMatch(/applyStaged|applyChanges/)
   })
 })
+
+describe('the sidebar', () => {
+  it('never subscribes to the grid selection, the rows or the staged edits', () => {
+    // A click in the grid or a keystroke in a cell must not re-render the
+    // always-mounted sidebar. Dirty dots go through boolean selectors instead.
+    const sidebar = files.filter(
+      (f) => f.name.startsWith('components/sidebar/') || f.name === 'components/TabStrip.tsx',
+    )
+    expect(sidebar.length).toBeGreaterThan(3)
+    for (const f of sidebar) {
+      expect(f.code, f.name).not.toMatch(/=>\s*s\.(selection|result|staged|stagedSummary|dirtyTables|editing)\b/)
+    }
+  })
+})

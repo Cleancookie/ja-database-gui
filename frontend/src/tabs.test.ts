@@ -12,22 +12,26 @@ import {
   tabTitle,
   upsertOpen,
   type Page,
+  type TabFields,
 } from './tabs'
 import { refKey } from './recency'
 
 const ref = (name: string) => ({ database: 'db', schema: '', name })
 
 describe('tabTitle', () => {
-  const base = { view: 'data' as const, activeRef: null, activeDatabase: '' }
-  it('names the table on screen', () => {
-    expect(tabTitle({ ...base, activeRef: ref('users') })).toBe('users')
+  const server = { serverHostsDatabases: true } as TabFields['capabilities']
+  const file = { serverHostsDatabases: false } as TabFields['capabilities']
+  it('names the connection and database', () => {
+    expect(tabTitle({ activeConnectionId: 'c', activeDatabase: 'shop', capabilities: server }, 'Prod')).toBe('Prod / shop')
+  })
+  it('names a file connection alone', () => {
+    expect(tabTitle({ activeConnectionId: 'c', activeDatabase: 'main', capabilities: file }, 'Sample')).toBe('Sample')
+  })
+  it('names a connection with no database chosen yet alone', () => {
+    expect(tabTitle({ activeConnectionId: 'c', activeDatabase: '', capabilities: server }, 'Prod')).toBe('Prod')
   })
   it('calls an unpointed tab New tab', () => {
-    expect(tabTitle(base)).toBe('New tab')
-  })
-  it('names the SQL editor after its database', () => {
-    expect(tabTitle({ ...base, view: 'sql', activeDatabase: 'shop' })).toBe('SQL · shop')
-    expect(tabTitle({ ...base, view: 'sql' })).toBe('SQL')
+    expect(tabTitle({ activeConnectionId: null, activeDatabase: '', capabilities: null }, undefined)).toBe('New tab')
   })
 })
 

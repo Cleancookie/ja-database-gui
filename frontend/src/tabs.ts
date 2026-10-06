@@ -158,12 +158,19 @@ export function openTableKeys(list: OpenTable[]): Set<string> {
   return new Set(list.map((t) => refKey(t.ref.database, t.ref.schema, t.ref.name)))
 }
 
-/** What the strip calls a tab. Takes only the fields it needs so it can be fed from either copy. */
-export function tabTitle(f: Pick<TabFields, 'view' | 'activeRef' | 'activeDatabase'>): string {
-  if (f.view === 'sql') return f.activeDatabase ? `SQL · ${f.activeDatabase}` : 'SQL'
-  if (f.view === 'activity') return 'Activity'
-  if (f.activeRef) return f.activeRef.name
-  return 'New tab'
+/**
+ * What the strip calls a tab: its connection and database. Takes only the
+ * fields it needs so it can be fed from either copy.
+ */
+export function tabTitle(
+  f: Pick<TabFields, 'activeConnectionId' | 'activeDatabase' | 'capabilities'>,
+  connectionName: string | undefined,
+): string {
+  if (!f.activeConnectionId) return 'New tab'
+  const name = connectionName ?? 'Connection'
+  // A SQLite file is its one database; naming "main" after it says nothing.
+  if (!f.capabilities?.serverHostsDatabases || !f.activeDatabase) return name
+  return `${name} / ${f.activeDatabase}`
 }
 
 /**

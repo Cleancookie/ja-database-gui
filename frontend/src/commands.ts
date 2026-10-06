@@ -133,16 +133,14 @@ export function buildNavigationCommands(s: Store): Command[] {
   const names = new Map(s.connections.map((c) => [c.id, c.name]))
   for (const t of s.tabs) {
     if (t.id === s.activeTabId || !t.saved) continue
-    const title = tabTitle(t.saved)
-    const where = [names.get(t.saved.activeConnectionId ?? ''), t.saved.activeDatabase]
-      .filter(Boolean)
-      .join(' · ')
+    const title = tabTitle(t.saved, names.get(t.saved.activeConnectionId ?? ''))
+    const open = t.saved.openTables.map((o) => o.ref.name)
     cmds.push({
       id: `tab:${t.id}`,
       title: `Tab: ${title}`,
-      subtitle: where || undefined,
+      subtitle: open.length ? `${open.length} open: ${open.join(', ')}` : undefined,
       group: 'Tabs',
-      candidate: { name: title, keywords: `tab switch open ${where}`, bias: -0.1 },
+      candidate: { name: title, keywords: `tab switch open ${open.join(' ')}`, bias: -0.1 },
       run: () => s.switchTab(t.id),
     })
   }
