@@ -1,73 +1,58 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { rankCandidates } from "../fuzzy";
-import { useStore } from "../store";
-import { Highlight } from "./Highlight";
-import { INPUT, PILL, useFocusWhen, useListKeys } from "./sidebar/listKit";
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { rankCandidates } from '../fuzzy'
+import { useStore } from '../store'
+import { Highlight } from './Highlight'
+import { INPUT, PILL, useFocusWhen, useListKeys } from './sidebar/listKit'
 
 /** The databases on the tab's server, with a filter once there are more than a few. */
 export function DatabaseList({
   active = false,
   onPicked,
-  className = "",
+  className = '',
 }: {
-  active?: boolean;
-  onPicked?: () => void;
-  className?: string;
+  active?: boolean
+  onPicked?: () => void
+  className?: string
 }) {
-  const databases = useStore((s) => s.databases);
-  const activeDatabase = useStore((s) => s.activeDatabase);
-  const activeConnectionId = useStore((s) => s.activeConnectionId);
-  const openWorkspace = useStore((s) => s.openWorkspace);
+  const databases = useStore((s) => s.databases)
+  const activeDatabase = useStore((s) => s.activeDatabase)
+  const activeConnectionId = useStore((s) => s.activeConnectionId)
+  const openWorkspace = useStore((s) => s.openWorkspace)
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState('')
   const visible = useMemo(
-    () =>
-      query
-        ? rankCandidates(query, databases, (d) => ({ name: d })).map(
-            (r) => r.item,
-          )
-        : databases,
+    () => (query ? rankCandidates(query, databases, (d) => ({ name: d })).map((r) => r.item) : databases),
     [databases, query],
-  );
+  )
 
   const pick = (d: string) => {
-    if (activeConnectionId) void openWorkspace(activeConnectionId, d);
-    onPicked?.();
-  };
+    if (activeConnectionId) void openWorkspace(activeConnectionId, d)
+    onPicked?.()
+  }
 
-  const root = useRef<HTMLDivElement>(null);
-  const field = useRef<HTMLInputElement>(null);
-  const { selected, setSelected, onKeyDown } = useListKeys(
-    visible.length,
-    (i) => pick(visible[i]),
-  );
+  const root = useRef<HTMLDivElement>(null)
+  const field = useRef<HTMLInputElement>(null)
+  const { selected, setSelected, onKeyDown } = useListKeys(visible.length, (i) => pick(visible[i]))
   useEffect(() => {
-    if (active) setSelected(Math.max(0, databases.indexOf(activeDatabase)));
+    if (active) setSelected(Math.max(0, databases.indexOf(activeDatabase)))
     // Only on activation: a refresh of the list must not yank the highlight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
-  useFocusWhen(active, () => field.current ?? root.current);
+  }, [active])
+  useFocusWhen(active, () => field.current ?? root.current)
   useEffect(() => {
-    root.current
-      ?.querySelector("[data-highlight]")
-      ?.scrollIntoView({ block: "nearest" });
-  }, [selected]);
+    root.current?.querySelector('[data-highlight]')?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
 
   return (
-    <div
-      ref={root}
-      tabIndex={-1}
-      onKeyDown={onKeyDown}
-      className="outline-none focus-visible:outline-none"
-    >
+    <div ref={root} tabIndex={-1} onKeyDown={onKeyDown} className="outline-none focus-visible:outline-none">
       {databases.length > 8 && (
         <div className="px-3 py-1">
           <input
             ref={field}
             value={query}
             onChange={(e) => {
-              setQuery(e.target.value);
-              setSelected(0);
+              setQuery(e.target.value)
+              setSelected(0)
             }}
             placeholder="Filter databases…  (Enter picks the highlighted one)"
             spellCheck={false}
@@ -76,10 +61,7 @@ export function DatabaseList({
           />
         </div>
       )}
-      <Highlight
-        className={`overflow-y-auto px-1.5 pb-1.5 ${className}`}
-        pillClassName={PILL}
-      >
+      <Highlight className={`overflow-y-auto px-1.5 pb-1.5 ${className}`} pillClassName={PILL}>
         {visible.map((d, i) => (
           <button
             key={d}
@@ -87,9 +69,7 @@ export function DatabaseList({
             title={d}
             data-highlight={i === selected || undefined}
             className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left ${
-              d === activeDatabase
-                ? "font-bold"
-                : "hover:bg-[var(--color-panel)]"
+              d === activeDatabase ? 'font-bold' : 'hover:bg-[var(--color-panel)]'
             }`}
           >
             <span className="shrink-0 text-[var(--color-faint)]">▪</span>
@@ -98,5 +78,5 @@ export function DatabaseList({
         ))}
       </Highlight>
     </div>
-  );
+  )
 }
