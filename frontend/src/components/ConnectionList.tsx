@@ -41,9 +41,17 @@ export function ConnectionList({
   }
 
   const root = useRef<HTMLDivElement>(null)
-  const { selected, setSelected, onKeyDown } = useListKeys(connections.length, (i) => pick(connections[i].id))
+  const { selected, setSelected, onKeyDown } = useListKeys(connections.length, (i) =>
+    pick(connections[i].id),
+  )
   useEffect(() => {
-    if (active) setSelected(Math.max(0, connections.findIndex((c) => c.id === activeConnectionId)))
+    if (active)
+      setSelected(
+        Math.max(
+          0,
+          connections.findIndex((c) => c.id === activeConnectionId),
+        ),
+      )
     // Only on activation: a refresh of the list must not yank the highlight.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active])
@@ -53,7 +61,12 @@ export function ConnectionList({
   }, [selected])
 
   return (
-    <div ref={root} tabIndex={-1} onKeyDown={onKeyDown} className="outline-none focus-visible:outline-none">
+    <div
+      ref={root}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      className="outline-none focus-visible:outline-none"
+    >
       <Highlight className={`overflow-y-auto px-1.5 pb-1.5 ${className}`} pillClassName={PILL}>
         {connections.length === 0 && (
           <p className="px-2 py-3 leading-relaxed text-[var(--color-faint)]">
@@ -78,14 +91,18 @@ export function ConnectionList({
                   <span
                     className="h-2.5 w-2.5 shrink-0 rounded-full"
                     style={{
-                      background: c.colour || (connected ? 'var(--color-success)' : 'var(--color-border-strong)'),
+                      background:
+                        c.colour ||
+                        (connected ? 'var(--color-success)' : 'var(--color-border-strong)'),
                     }}
                     title={connected ? 'connected' : 'not connected'}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate">{c.name}</span>
                     <span className="block truncate font-normal text-[var(--color-faint)]">
-                      {pending === c.id && busy ? 'Connecting…' : describeConnection(c.kind, c.host, c.file)}
+                      {pending === c.id && busy
+                        ? 'Connecting…'
+                        : describeConnection(c.kind, c.host, c.file)}
                       <TlsTag conn={c} />
                     </span>
                   </span>

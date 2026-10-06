@@ -133,7 +133,8 @@ export function runCount(run: SqlRunEntry): string {
   if (run.error !== undefined) return 'error'
   const first = run.results[0]
   if (!first) return '0'
-  if (first.columns.length === 0 && first.rowsAffected != null) return `${first.rowsAffected} affected`
+  if (first.columns.length === 0 && first.rowsAffected != null)
+    return `${first.rowsAffected} affected`
   return `${first.rows.length}${first.truncated ? '+' : ''}`
 }
 

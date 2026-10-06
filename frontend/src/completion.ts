@@ -78,8 +78,27 @@ const STATEMENT_KEYWORDS = [
  * "lower case compare", which is most ad-hoc filtering.
  */
 const FUNCTIONS: Record<Kind, string[]> = {
-  mysql: ['now()', 'curdate()', 'date_sub', 'interval', 'lower', 'upper', 'concat', 'ifnull', 'coalesce'],
-  postgres: ['now()', 'current_date', 'interval', 'lower', 'upper', 'coalesce', 'date_trunc', 'age'],
+  mysql: [
+    'now()',
+    'curdate()',
+    'date_sub',
+    'interval',
+    'lower',
+    'upper',
+    'concat',
+    'ifnull',
+    'coalesce',
+  ],
+  postgres: [
+    'now()',
+    'current_date',
+    'interval',
+    'lower',
+    'upper',
+    'coalesce',
+    'date_trunc',
+    'age',
+  ],
   mssql: ['getdate()', 'dateadd', 'datediff', 'lower', 'upper', 'isnull', 'coalesce', 'convert'],
   sqlite: ["date('now')", "datetime('now')", 'lower', 'upper', 'ifnull', 'coalesce', 'strftime'],
 }

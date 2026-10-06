@@ -93,7 +93,12 @@ describe('reuseUnchanged', () => {
 
   it('returns the previous array when nothing differs', () => {
     const prev = [query({ phase: 'done' })]
-    expect(reuseUnchanged(prev, prev.map((q) => ({ ...q })))).toBe(prev)
+    expect(
+      reuseUnchanged(
+        prev,
+        prev.map((q) => ({ ...q })),
+      ),
+    ).toBe(prev)
   })
 
   it('takes the new object for an entry that moved on, and keeps the rest', () => {

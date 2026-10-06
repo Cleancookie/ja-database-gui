@@ -56,7 +56,9 @@ describe('the sidebar', () => {
     )
     expect(sidebar.length).toBeGreaterThan(3)
     for (const f of sidebar) {
-      expect(f.code, f.name).not.toMatch(/=>\s*s\.(selection|result|staged|stagedSummary|dirtyTables|editing)\b/)
+      expect(f.code, f.name).not.toMatch(
+        /=>\s*s\.(selection|result|staged|stagedSummary|dirtyTables|editing)\b/,
+      )
     }
   })
 })

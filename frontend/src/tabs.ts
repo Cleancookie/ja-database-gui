@@ -216,8 +216,7 @@ type PageSource = Pick<
 >
 
 export function pageOf(s: PageSource): Page {
-  const kind: PageKind =
-    s.view === 'data' ? (s.activeRef ? 'table' : 'empty') : s.view
+  const kind: PageKind = s.view === 'data' ? (s.activeRef ? 'table' : 'empty') : s.view
   const onTable = kind === 'table' || kind === 'details'
   return {
     tabId: s.activeTabId,

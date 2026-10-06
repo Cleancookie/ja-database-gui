@@ -3,7 +3,12 @@ import { endRun, markCancelled, startRun, wasCancelled } from './sqlRunState'
 
 describe('sql run state', () => {
   it('starts uncancelled and remembers where it runs', () => {
-    expect(startRun(1, 'c1', 'shop')).toEqual({ token: 1, connectionId: 'c1', database: 'shop', cancelled: false })
+    expect(startRun(1, 'c1', 'shop')).toEqual({
+      token: 1,
+      connectionId: 'c1',
+      database: 'shop',
+      cancelled: false,
+    })
   })
 
   it('marks a run cancelled once, and tolerates none', () => {

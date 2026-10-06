@@ -713,7 +713,13 @@ export const useStore = create<State>((set, get) => {
   /** The loaded object behind `ref`, or a stand-in when the list does not have it. */
   function objectFor(ref: ObjectRef): SchemaObject {
     const { name, schema } = ref
-    return get().objects.find((o) => o.name === name && o.schema === schema) ?? { schema, name, type: 'table' }
+    return (
+      get().objects.find((o) => o.name === name && o.schema === schema) ?? {
+        schema,
+        name,
+        type: 'table',
+      }
+    )
   }
 
   /** Shows `p`: switches to its tab, then does whatever its page needs. */
@@ -984,7 +990,8 @@ export const useStore = create<State>((set, get) => {
 
     async openWorkspace(connectionId, database = '') {
       const s = get()
-      if (s.activeConnectionId === connectionId && (!database || database === s.activeDatabase)) return
+      if (s.activeConnectionId === connectionId && (!database || database === s.activeDatabase))
+        return
       if (s.activeConnectionId && s.activeDatabase) {
         get().newTab()
         // Choosing a database from the editor is asking to write SQL against it.
@@ -1249,7 +1256,12 @@ export const useStore = create<State>((set, get) => {
           return { ...t, saved: { ...saved, ...NO_TABLE }, needsLoad: false }
         }),
       })
-      set({ ...forgetTable(get(), ref), recentObjects: get().recentObjects.filter((k) => k !== refKey(ref.database, ref.schema, ref.name)) })
+      set({
+        ...forgetTable(get(), ref),
+        recentObjects: get().recentObjects.filter(
+          (k) => k !== refKey(ref.database, ref.schema, ref.name),
+        ),
+      })
       await get().selectDatabase(get().activeDatabase)
     },
 
@@ -1349,7 +1361,10 @@ export const useStore = create<State>((set, get) => {
       }
       const what = describeCopy(columns, rows)
       if (cut > 0) {
-        s.pushToast('error', `${what} — ${cut} were cut to ${rs.textCap} characters and are partial`)
+        s.pushToast(
+          'error',
+          `${what} — ${cut} were cut to ${rs.textCap} characters and are partial`,
+        )
       } else {
         s.pushToast('info', what)
       }
@@ -1384,7 +1399,10 @@ export const useStore = create<State>((set, get) => {
 
     async adjustFontSize(delta) {
       const { settings, saveSettings } = get()
-      const fontSizePx = Math.min(FONT_SIZE_MAX, Math.max(FONT_SIZE_MIN, settings.fontSizePx + delta))
+      const fontSizePx = Math.min(
+        FONT_SIZE_MAX,
+        Math.max(FONT_SIZE_MIN, settings.fontSizePx + delta),
+      )
       if (fontSizePx !== settings.fontSizePx) await saveSettings({ ...settings, fontSizePx })
     },
 
@@ -1605,7 +1623,8 @@ export const useStore = create<State>((set, get) => {
     },
 
     removeConnection(c) {
-      if (get().settings.confirmDestructive) set({ dialog: { kind: 'confirmDelete', connection: c } })
+      if (get().settings.confirmDestructive)
+        set({ dialog: { kind: 'confirmDelete', connection: c } })
       else void get().deleteConnection(c.id)
     },
 
@@ -1669,7 +1688,13 @@ export const useStore = create<State>((set, get) => {
 
       // Only worth a round trip when there is more to get: an untruncated cell
       // is already whole in the grid.
-      if (full && cell.truncated && cell.rowOffset !== null && s.activeConnectionId && s.activeRef) {
+      if (
+        full &&
+        cell.truncated &&
+        cell.rowOffset !== null &&
+        s.activeConnectionId &&
+        s.activeRef
+      ) {
         try {
           const res = await api.readCell({
             connectionId: s.activeConnectionId,

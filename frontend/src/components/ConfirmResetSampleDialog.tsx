@@ -1,18 +1,17 @@
-import { sampleResetWarning } from "../sample";
-import { useStore } from "../store";
-import { Dialog, dialogButton } from "../ui";
+import { sampleResetWarning } from '../sample'
+import { useStore } from '../store'
+import { Dialog, dialogButton } from '../ui'
 
 /** Confirmation for rebuilding the sample database, which discards the user's edits to it. */
 export function ConfirmResetSampleDialog() {
-  const setDialog = useStore((s) => s.setDialog);
-  const resetSample = useStore((s) => s.resetSample);
+  const setDialog = useStore((s) => s.setDialog)
+  const resetSample = useStore((s) => s.resetSample)
   const connected = useStore((s) =>
     s.connections.some(
-      (c) =>
-        c.name === "Sample database (SQLite)" && s.connectedIds.includes(c.id),
+      (c) => c.name === 'Sample database (SQLite)' && s.connectedIds.includes(c.id),
     ),
-  );
-  const close = () => setDialog({ kind: "none" });
+  )
+  const close = () => setDialog({ kind: 'none' })
 
   return (
     <Dialog
@@ -25,10 +24,7 @@ export function ConfirmResetSampleDialog() {
           <button onClick={close} className={`ml-auto ${dialogButton.ghost}`}>
             Cancel
           </button>
-          <button
-            onClick={() => void resetSample()}
-            className={dialogButton.dangerFilled}
-          >
+          <button onClick={() => void resetSample()} className={dialogButton.dangerFilled}>
             Reset
           </button>
         </>
@@ -38,5 +34,5 @@ export function ConfirmResetSampleDialog() {
         {sampleResetWarning(connected)}
       </p>
     </Dialog>
-  );
+  )
 }

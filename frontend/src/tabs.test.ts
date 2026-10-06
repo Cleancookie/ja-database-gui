@@ -22,16 +22,24 @@ describe('tabTitle', () => {
   const server = { serverHostsDatabases: true } as TabFields['capabilities']
   const file = { serverHostsDatabases: false } as TabFields['capabilities']
   it('names the connection and database', () => {
-    expect(tabTitle({ activeConnectionId: 'c', activeDatabase: 'shop', capabilities: server }, 'Prod')).toBe('Prod / shop')
+    expect(
+      tabTitle({ activeConnectionId: 'c', activeDatabase: 'shop', capabilities: server }, 'Prod'),
+    ).toBe('Prod / shop')
   })
   it('names a file connection alone', () => {
-    expect(tabTitle({ activeConnectionId: 'c', activeDatabase: 'main', capabilities: file }, 'Sample')).toBe('Sample')
+    expect(
+      tabTitle({ activeConnectionId: 'c', activeDatabase: 'main', capabilities: file }, 'Sample'),
+    ).toBe('Sample')
   })
   it('names a connection with no database chosen yet alone', () => {
-    expect(tabTitle({ activeConnectionId: 'c', activeDatabase: '', capabilities: server }, 'Prod')).toBe('Prod')
+    expect(
+      tabTitle({ activeConnectionId: 'c', activeDatabase: '', capabilities: server }, 'Prod'),
+    ).toBe('Prod')
   })
   it('calls an unpointed tab New tab', () => {
-    expect(tabTitle({ activeConnectionId: null, activeDatabase: '', capabilities: null }, undefined)).toBe('New tab')
+    expect(
+      tabTitle({ activeConnectionId: null, activeDatabase: '', capabilities: null }, undefined),
+    ).toBe('New tab')
   })
 })
 
@@ -57,13 +65,17 @@ describe('recordPage', () => {
     expect(r.nav.map((p) => p.kind)).toEqual(['empty', 'table', 'sql'])
   })
   it('refreshes the page being left so it keeps its filter', () => {
-    const left = { ...page(1, 'table', 'a'), controls: { filter: 'id > 3', orderBy: [], sortChosen: false, page: 2 } }
+    const left = {
+      ...page(1, 'table', 'a'),
+      controls: { filter: 'id > 3', orderBy: [], sortChosen: false, page: 2 },
+    }
     const r = recordPage([page(1, 'table', 'a')], 0, left, page(1, 'sql'))
     expect(r.nav[0].controls?.filter).toBe('id > 3')
   })
   it('caps the record', () => {
     let r = { nav: [] as Page[], at: -1 }
-    for (let i = 0; i < 150; i++) r = recordPage(r.nav, r.at, page(1, 'table', `t${i}`), page(1, 'table', `t${i + 1}`))
+    for (let i = 0; i < 150; i++)
+      r = recordPage(r.nav, r.at, page(1, 'table', `t${i}`), page(1, 'table', `t${i + 1}`))
     expect(r.nav.length).toBe(100)
     expect(r.at).toBe(99)
   })
@@ -71,7 +83,13 @@ describe('recordPage', () => {
 
 describe('samePage', () => {
   it('ignores how a table is filtered', () => {
-    const a: Page = { tabId: 1, kind: 'table', connectionId: 'c', ref: ref('a'), controls: { filter: 'x', orderBy: [], sortChosen: false, page: 1 } }
+    const a: Page = {
+      tabId: 1,
+      kind: 'table',
+      connectionId: 'c',
+      ref: ref('a'),
+      controls: { filter: 'x', orderBy: [], sortChosen: false, page: 1 },
+    }
     expect(samePage(a, { ...a, controls: null })).toBe(true)
   })
   it('tells tabs apart', () => {
@@ -123,7 +141,10 @@ describe('blankFields', () => {
 describe('store tabs', () => {
   it('stashes and restores a tab’s fields on switch', async () => {
     vi.resetModules()
-    vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+    vi.doMock('./api', () => ({
+      api: new Proxy({}, { get: () => async () => ({}) }),
+      transportName: 'test',
+    }))
     const { useStore } = await import('./store')
     const s = () => useStore.getState()
 
@@ -142,7 +163,10 @@ describe('store tabs', () => {
 
   it('closes the active tab onto its neighbour, and the last onto a blank one', async () => {
     vi.resetModules()
-    vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+    vi.doMock('./api', () => ({
+      api: new Proxy({}, { get: () => async () => ({}) }),
+      transportName: 'test',
+    }))
     const { useStore } = await import('./store')
     const s = () => useStore.getState()
 
@@ -160,11 +184,17 @@ describe('store tabs', () => {
 
   it('reopens closed tabs newest first, and ignores empty ones', async () => {
     vi.resetModules()
-    vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+    vi.doMock('./api', () => ({
+      api: new Proxy({}, { get: () => async () => ({}) }),
+      transportName: 'test',
+    }))
     const { useStore } = await import('./store')
     const s = () => useStore.getState()
 
-    const opened = (name: string) => ({ activeRef: ref(name), openTables: [{ ref: ref(name), controls: FRESH_CONTROLS }] })
+    const opened = (name: string) => ({
+      activeRef: ref(name),
+      openTables: [{ ref: ref(name), controls: FRESH_CONTROLS }],
+    })
     useStore.setState(opened('a'))
     s().newTab()
     useStore.setState(opened('b'))
@@ -187,14 +217,20 @@ describe('store tabs', () => {
 describe('closing a tab', () => {
   it('offers to reopen a tab worth keeping, and says nothing for an empty one', async () => {
     vi.resetModules()
-    vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+    vi.doMock('./api', () => ({
+      api: new Proxy({}, { get: () => async () => ({}) }),
+      transportName: 'test',
+    }))
     const { useStore } = await import('./store')
     const s = () => useStore.getState()
 
     s().closeTab()
     expect(s().toasts).toEqual([])
 
-    useStore.setState({ activeRef: ref('a'), openTables: [{ ref: ref('a'), controls: FRESH_CONTROLS }] })
+    useStore.setState({
+      activeRef: ref('a'),
+      openTables: [{ ref: ref('a'), controls: FRESH_CONTROLS }],
+    })
     s().closeTab()
     const toast = s().toasts.at(-1)
     expect(toast?.message).toBe('Tab closed')
@@ -207,7 +243,10 @@ describe('closing a tab', () => {
 describe('store routes', () => {
   async function fresh() {
     vi.resetModules()
-    vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+    vi.doMock('./api', () => ({
+      api: new Proxy({}, { get: () => async () => ({}) }),
+      transportName: 'test',
+    }))
     const { useStore } = await import('./store')
     useStore.setState({ activeConnectionId: 'c', activeDatabase: 'db' })
     return useStore
@@ -258,7 +297,9 @@ describe('store routes', () => {
     useStore.getState().closeTab(second)
     const before = useStore.getState().navAt
     await useStore.getState().stepHistory(-1)
-    expect(useStore.getState().tabs.some((t) => t.id === useStore.getState().activeTabId)).toBe(true)
+    expect(useStore.getState().tabs.some((t) => t.id === useStore.getState().activeTabId)).toBe(
+      true,
+    )
     expect(useStore.getState().navAt).toBeLessThan(before)
   })
 })
@@ -279,14 +320,27 @@ describe('tabHistory', () => {
     expect(names(nav, 3, 1)).toEqual(['b', 'a'])
   })
   it('keeps to its own tab', () => {
-    const nav = [page(1, 'table', 'a'), page(2, 'table', 'x'), page(1, 'table', 'b'), page(2, 'table', 'y')]
+    const nav = [
+      page(1, 'table', 'a'),
+      page(2, 'table', 'x'),
+      page(1, 'table', 'b'),
+      page(2, 'table', 'y'),
+    ]
     expect(names(nav, 3, 1)).toEqual(['a'])
     expect(names(nav, 3, 2)).toEqual(['x'])
   })
   it('names each place once, at its latest visit', () => {
-    const nav = [page(1, 'table', 'a'), page(1, 'table', 'b'), page(1, 'table', 'a'), page(1, 'sql')]
+    const nav = [
+      page(1, 'table', 'a'),
+      page(1, 'table', 'b'),
+      page(1, 'table', 'a'),
+      page(1, 'sql'),
+    ]
     const h = tabHistory(nav, 3, 1)
-    expect(h.map((v) => [v.page.ref?.name, v.at])).toEqual([['a', 2], ['b', 1]])
+    expect(h.map((v) => [v.page.ref?.name, v.at])).toEqual([
+      ['a', 2],
+      ['b', 1],
+    ])
   })
   it('ignores what is ahead after going back', () => {
     const nav = [page(1, 'table', 'a'), page(1, 'table', 'b'), page(1, 'table', 'c')]

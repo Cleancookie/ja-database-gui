@@ -20,11 +20,20 @@ describe('infinite scroll', () => {
             // By position the next page starts after the last id seen; by offset
             // it is counted from the top. Ids here are the row numbers.
             const from = req.after ? req.after.values[0] + 1 : (page - 1) * pageSize
-            const rows = Array.from({ length: Math.max(0, Math.min(pageSize, TOTAL - from)) }, (_, i) => [
-              { v: String(from + i) },
-            ])
+            const rows = Array.from(
+              { length: Math.max(0, Math.min(pageSize, TOTAL - from)) },
+              (_, i) => [{ v: String(from + i) }],
+            )
             return {
-              result: { columns: [{ name: 'id' }], rows, truncated: false, textCap: 0, truncatedCells: [], elapsedMs: 1, query: '' },
+              result: {
+                columns: [{ name: 'id' }],
+                rows,
+                truncated: false,
+                textCap: 0,
+                truncatedCells: [],
+                elapsedMs: 1,
+                query: '',
+              },
               columns: [],
               editKey: ['id'],
               readOnlyReason: '',
@@ -44,7 +53,12 @@ describe('infinite scroll', () => {
       activeConnectionId: 'c',
       activeDatabase: 'db',
       pageSize: 100,
-      settings: { ...useStore.getState().settings, infiniteScroll, rowCap: 100000, autoCount: false },
+      settings: {
+        ...useStore.getState().settings,
+        infiniteScroll,
+        rowCap: 100000,
+        autoCount: false,
+      },
     })
     return { useStore, calls }
   }
@@ -60,7 +74,11 @@ describe('infinite scroll', () => {
     expect(useStore.getState().result?.rows).toHaveLength(200)
     expect(useStore.getState().page).toBe(2)
     // Asked for by position: the rows after the last one, not "page 2".
-    expect(calls.at(-1)).toEqual({ page: 1, pageSize: 100, after: { columns: ['id'], values: [99] } })
+    expect(calls.at(-1)).toEqual({
+      page: 1,
+      pageSize: 100,
+      after: { columns: ['id'], values: [99] },
+    })
 
     await useStore.getState().loadMore()
     expect(useStore.getState().result?.rows).toHaveLength(250)

@@ -107,12 +107,7 @@ export function smoothly(c: Correction, reduced: boolean): boolean {
  * there matters — an unconditional `scrollTo` during a smooth animation
  * cancels it.
  */
-export function scrollTo(
-  el: HTMLElement,
-  top: number,
-  left: number,
-  repeat = false,
-): void {
+export function scrollTo(el: HTMLElement, top: number, left: number, repeat = false): void {
   const dy = top - el.scrollTop
   const dx = left - el.scrollLeft
   if (dy === 0 && dx === 0) return

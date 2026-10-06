@@ -72,8 +72,8 @@ function CrashScreen({ crash }: { crash: CrashDetail }) {
     <div className="flex h-screen flex-col items-center justify-center gap-4 bg-[var(--color-bg)] p-8 text-[var(--color-text)]">
       <h1 className="font-semibold text-[var(--color-danger)]">Something broke</h1>
       <p className="max-w-prose text-center text-[var(--color-muted)]">
-        The view crashed rather than the app. Reloading keeps your connections and loses only
-        what is on screen.
+        The view crashed rather than the app. Reloading keeps your connections and loses only what
+        is on screen.
       </p>
       <pre className="max-h-64 w-full max-w-3xl overflow-auto rounded-2xl border border-[var(--color-border)] bg-[var(--color-elevated)] p-4 font-[var(--font-mono)] whitespace-pre-wrap text-[var(--color-muted)]">
         {full}

@@ -29,7 +29,9 @@ export function OpenList() {
       if (view !== 'data' && view !== 'details') setView('data')
       return
     }
-    const known = useStore.getState().objects.find((o) => o.name === ref.name && o.schema === ref.schema)
+    const known = useStore
+      .getState()
+      .objects.find((o) => o.name === ref.name && o.schema === ref.schema)
     void openObject(known ?? { schema: ref.schema, name: ref.name, type: 'table' })
   }
 
@@ -71,7 +73,9 @@ export function OpenList() {
                   >
                     <OpenDot />
                     <span className="min-w-0 flex-1 truncate">{name}</span>
-                    {activeConnectionId && <TableMark tableKey={tableKey(activeConnectionId, ref)} />}
+                    {activeConnectionId && (
+                      <TableMark tableKey={tableKey(activeConnectionId, ref)} />
+                    )}
                   </button>
                   <button
                     onClick={() => void closeOpenTable(ref)}

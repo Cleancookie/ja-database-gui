@@ -86,7 +86,15 @@ describe('csv', () => {
 
 describe('csv formula defusing', () => {
   it('prefixes cells a spreadsheet would run, in the file export only', () => {
-    for (const evil of ['=1+1', '+SUM(A1)', '-2+3', '@SUM(A1)', '\tx', '\rx', '=HYPERLINK("http://x","y")']) {
+    for (const evil of [
+      '=1+1',
+      '+SUM(A1)',
+      '-2+3',
+      '@SUM(A1)',
+      '\tx',
+      '\rx',
+      '=HYPERLINK("http://x","y")',
+    ]) {
       expect(csvField(evil, true).replace(/^"/, '').startsWith("'")).toBe(true)
       expect(csvField(evil)).not.toContain("'")
     }
@@ -127,8 +135,14 @@ describe('describeCopy', () => {
   it('says which format was used', () => {
     expect(describeCopy(['id'], [[1]])).toBe('Copied the cell')
     expect(describeCopy(['id'], [[1], [2]])).toBe('Copied 2 values as an IN list')
-    expect(describeCopy(['id', 'name'], [[1, 'a'], [2, 'b']])).toBe(
-      'Copied 4 cells as CSV (2 rows × 2 columns)',
-    )
+    expect(
+      describeCopy(
+        ['id', 'name'],
+        [
+          [1, 'a'],
+          [2, 'b'],
+        ],
+      ),
+    ).toBe('Copied 4 cells as CSV (2 rows × 2 columns)')
   })
 })

@@ -31,7 +31,13 @@ export interface ContextMenuProps {
   onCloseAutoFocus?: (e: Event) => void
 }
 
-export function ContextMenu({ items, heading, children, className, onCloseAutoFocus }: ContextMenuProps) {
+export function ContextMenu({
+  items,
+  heading,
+  children,
+  className,
+  onCloseAutoFocus,
+}: ContextMenuProps) {
   return (
     <RadixContextMenu.Root>
       <RadixContextMenu.Trigger className={className} asChild>

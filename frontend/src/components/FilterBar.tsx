@@ -65,9 +65,7 @@ export function FilterBar() {
           {qualified}
         </span>
       )}
-      <span className="shrink-0 font-[var(--font-mono)] text-[var(--color-faint)]">
-        WHERE
-      </span>
+      <span className="shrink-0 font-[var(--font-mono)] text-[var(--color-faint)]">WHERE</span>
       <Editor
         id={FILTER_INPUT_ID}
         handleRef={handle}
@@ -89,7 +87,9 @@ export function FilterBar() {
         }`}
       />
       {dirty && (
-        <span className="shrink-0 rounded-full bg-[var(--color-warn-dim)] px-2 py-0.5 font-semibold text-[var(--color-warn)]">Enter to apply</span>
+        <span className="shrink-0 rounded-full bg-[var(--color-warn-dim)] px-2 py-0.5 font-semibold text-[var(--color-warn)]">
+          Enter to apply
+        </span>
       )}
       {filter && !dirty && (
         <button

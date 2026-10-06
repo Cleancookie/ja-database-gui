@@ -289,7 +289,10 @@ export function buildActionCommands(s: Store): Command[] {
       title: `Back to ${pageTitle(v.page)}`,
       subtitle: v.page.controls?.filter || 'Earlier in this tab',
       group: 'Pages',
-      candidate: { name: `Back to ${pageTitle(v.page)}`, keywords: 'history recent visited earlier page tab' },
+      candidate: {
+        name: `Back to ${pageTitle(v.page)}`,
+        keywords: 'history recent visited earlier page tab',
+      },
       run: () => s.goToVisit(v.at),
     })
   }
@@ -311,7 +314,10 @@ export function buildActionCommands(s: Store): Command[] {
     title: 'Open sample database',
     subtitle: 'A small shop to play with; created in the config folder on first use',
     group: 'Connections',
-    candidate: { name: 'Open sample database', keywords: 'demo example try tutorial sqlite playground' },
+    candidate: {
+      name: 'Open sample database',
+      keywords: 'demo example try tutorial sqlite playground',
+    },
     run: () => s.openSample(),
   })
   cmds.push({
@@ -401,7 +407,8 @@ export function buildActionCommands(s: Store): Command[] {
         group: 'Query',
         candidate: {
           name: `Isolation level ${c.label}`,
-          keywords: 'transaction isolation level read committed serializable snapshot repeatable uncommitted',
+          keywords:
+            'transaction isolation level read committed serializable snapshot repeatable uncommitted',
           bias: c.value === current ? -0.5 : 0,
         },
         run: () => s.setSqlIsolation(c.value),
@@ -525,7 +532,10 @@ export function buildActionCommands(s: Store): Command[] {
     subtitle: 'Connection pools per database, with disconnect',
     group: 'Query',
     shortcut: 'Ctrl+Shift+A',
-    candidate: { name: 'Open connections', keywords: 'activity sessions processes pool disconnect' },
+    candidate: {
+      name: 'Open connections',
+      keywords: 'activity sessions processes pool disconnect',
+    },
     run: () => s.setView('activity'),
   })
 
@@ -602,7 +612,10 @@ export function buildActionCommands(s: Store): Command[] {
         title: "Put this run's SQL back in the editor",
         subtitle: 'Replaces the editor text with what this run sent',
         group,
-        candidate: { name: "Put this run's SQL back in the editor", keywords: kw + ' restore rerun recall' },
+        candidate: {
+          name: "Put this run's SQL back in the editor",
+          keywords: kw + ' restore rerun recall',
+        },
         run: async () => s.restoreSqlRunText(),
       },
       {

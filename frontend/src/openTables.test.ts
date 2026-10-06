@@ -3,7 +3,10 @@ import { EMPTY_EDITS, EMPTY_STAGED, tableKey } from './edits'
 
 async function fresh() {
   vi.resetModules()
-  vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+  vi.doMock('./api', () => ({
+    api: new Proxy({}, { get: () => async () => ({}) }),
+    transportName: 'test',
+  }))
   const { useStore } = await import('./store')
   useStore.setState({ activeConnectionId: 'c', activeDatabase: 'db', objects: [] })
   return useStore
@@ -25,7 +28,12 @@ describe('open tables', () => {
     const useStore = await fresh()
     const s = () => useStore.getState()
     await s().openObject(table('a'))
-    useStore.setState({ filter: 'id > 3', page: 2, orderBy: [{ column: 'id', desc: true }], sortChosen: true })
+    useStore.setState({
+      filter: 'id > 3',
+      page: 2,
+      orderBy: [{ column: 'id', desc: true }],
+      sortChosen: true,
+    })
     await s().openObject(table('b'))
     expect(s().filter).toBe('')
     await s().openObject(table('a'))
@@ -172,7 +180,9 @@ describe('openWorkspace', () => {
       listObjects: async () => [],
     }
     vi.doMock('./api', () => ({
-      api: new Proxy(api, { get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? (async () => ({})) }),
+      api: new Proxy(api, {
+        get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? (async () => ({})),
+      }),
       errorMessage: String,
       transportName: 'test',
     }))

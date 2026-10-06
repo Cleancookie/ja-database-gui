@@ -41,7 +41,9 @@ function Section({
     <section className="mb-6">
       <h2 className="mb-2 flex items-center gap-2 font-semibold uppercase tracking-wide text-[var(--color-muted)]">
         {title}
-        {count !== undefined && <span className="font-normal text-[var(--color-faint)]">{count}</span>}
+        {count !== undefined && (
+          <span className="font-normal text-[var(--color-faint)]">{count}</span>
+        )}
       </h2>
       {children}
     </section>
@@ -140,7 +142,9 @@ export function TableDetailsPage() {
   return (
     <div className="h-full overflow-auto p-4">
       <header className="mb-5 flex items-baseline gap-2">
-        <h1 className="font-semibold font-semibold text-[var(--color-text)]">{qualifiedName(detail.ref)}</h1>
+        <h1 className="font-semibold font-semibold text-[var(--color-text)]">
+          {qualifiedName(detail.ref)}
+        </h1>
         <span className="uppercase tracking-wide text-[var(--color-faint)]">{detail.type}</span>
         <button
           className="ml-auto text-[var(--color-faint)] hover:text-[var(--color-text)]"

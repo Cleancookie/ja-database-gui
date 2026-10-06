@@ -40,7 +40,12 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
       const live = t.id === activeTabId
       const f = live
         ? { activeConnectionId, activeDatabase, capabilities, openTables: [] }
-        : (t.saved ?? { activeConnectionId: null, activeDatabase: '', capabilities: null, openTables: [] })
+        : (t.saved ?? {
+            activeConnectionId: null,
+            activeDatabase: '',
+            capabilities: null,
+            openTables: [],
+          })
       const conn = f.activeConnectionId ? byId.get(f.activeConnectionId) : undefined
       return {
         id: t.id,
@@ -121,7 +126,9 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
       <aside
         style={{ width: resize.size }}
         className={`chrome island relative flex h-full flex-col ${
-          resize.dragging ? '' : 'transition-transform duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none'
+          resize.dragging
+            ? ''
+            : 'transition-transform duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none'
         } ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <Resizer {...resize} axis="x" label="Resize the tab strip" className="right-0" />
@@ -139,7 +146,9 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
           </button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col p-1.5">
-          {before.length > 0 && <div className="max-h-[30%] shrink-0 overflow-y-auto">{before.map(row)}</div>}
+          {before.length > 0 && (
+            <div className="max-h-[30%] shrink-0 overflow-y-auto">{before.map(row)}</div>
+          )}
           {live && (
             <section className="flex min-h-0 flex-1 flex-col">
               {row(live)}
@@ -154,7 +163,9 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
               )}
             </section>
           )}
-          {after.length > 0 && <div className="max-h-[30%] shrink-0 overflow-y-auto">{after.map(row)}</div>}
+          {after.length > 0 && (
+            <div className="max-h-[30%] shrink-0 overflow-y-auto">{after.map(row)}</div>
+          )}
         </div>
       </aside>
     </div>

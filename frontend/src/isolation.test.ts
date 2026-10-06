@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { effectiveIsolation, isolationChoices, isolationLabel, ISOLATION_WARNING } from './isolation'
+import {
+  effectiveIsolation,
+  isolationChoices,
+  isolationLabel,
+  ISOLATION_WARNING,
+} from './isolation'
 
 describe('isolation choices', () => {
   it('leads with the driver default and then the dialect list in order', () => {
@@ -23,7 +28,13 @@ describe('isolation choices', () => {
 })
 
 describe('effectiveIsolation', () => {
-  const mssql = ['read uncommitted', 'read committed', 'repeatable read', 'snapshot', 'serializable']
+  const mssql = [
+    'read uncommitted',
+    'read committed',
+    'repeatable read',
+    'snapshot',
+    'serializable',
+  ]
   const mysql = ['read uncommitted', 'read committed', 'repeatable read', 'serializable']
 
   it('keeps a level the dialect offers', () => {

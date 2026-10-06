@@ -1,6 +1,12 @@
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
-import { formatCount, objectCandidate, OBJECT_ICON, qualifiedName, TABLE_SEARCH_ID } from '../../commands'
+import {
+  formatCount,
+  objectCandidate,
+  OBJECT_ICON,
+  qualifiedName,
+  TABLE_SEARCH_ID,
+} from '../../commands'
 import { tableKey } from '../../edits'
 import { rankCandidates } from '../../fuzzy'
 import { useStore } from '../../store'
@@ -26,7 +32,9 @@ const GROUP_LABEL: Record<Browsable, string> = {
   view: 'Views',
 }
 
-type Row = { kind: 'head'; type: Browsable; count: number } | { kind: 'object'; o: SchemaObject; index: number }
+type Row =
+  | { kind: 'head'; type: Browsable; count: number }
+  | { kind: 'object'; o: SchemaObject; index: number }
 
 /**
  * Every table and view in the tab's database, grouped by kind, under a filter
@@ -98,7 +106,10 @@ export const ObjectList = memo(function ObjectList({
     estimateSize: (i) => (rows[i].kind === 'head' ? 30 : 24),
     overscan: 12,
   })
-  const { selected, setSelected, onKeyDown } = useListKeys(order.length, (i) => void openObject(order[i]))
+  const { selected, setSelected, onKeyDown } = useListKeys(
+    order.length,
+    (i) => void openObject(order[i]),
+  )
   useEffect(() => {
     if (active) setSelected(0)
   }, [active, setSelected])
@@ -138,7 +149,9 @@ export const ObjectList = memo(function ObjectList({
       <div ref={scroller} className={`min-h-0 overflow-y-auto ${className}`}>
         <Highlight className="px-1.5 pb-2" pillClassName={PILL}>
           {objects.length === 0 && (
-            <p className="px-2 py-2 text-[var(--color-faint)]">{busy ? 'Loading…' : 'No objects'}</p>
+            <p className="px-2 py-2 text-[var(--color-faint)]">
+              {busy ? 'Loading…' : 'No objects'}
+            </p>
           )}
           <ObjectListMenu>
             <div className="relative" style={{ height: virtualizer.getTotalSize() }}>
@@ -211,7 +224,9 @@ function ObjectRow({
       <span className="min-w-0 flex-1 truncate">{qualified}</span>
       {open && <OpenDot />}
       {o.type === 'table' && (
-        <TableMark tableKey={tableKey(connectionId, { database, schema: o.schema, name: o.name })} />
+        <TableMark
+          tableKey={tableKey(connectionId, { database, schema: o.schema, name: o.name })}
+        />
       )}
       {o.rowEstimate != null && (
         <span className="shrink-0 text-[var(--color-faint)]" title="estimated row count">

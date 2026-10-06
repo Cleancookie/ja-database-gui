@@ -21,7 +21,8 @@ export function DatabaseList({
 
   const [query, setQuery] = useState('')
   const visible = useMemo(
-    () => (query ? rankCandidates(query, databases, (d) => ({ name: d })).map((r) => r.item) : databases),
+    () =>
+      query ? rankCandidates(query, databases, (d) => ({ name: d })).map((r) => r.item) : databases,
     [databases, query],
   )
 
@@ -44,7 +45,12 @@ export function DatabaseList({
   }, [selected])
 
   return (
-    <div ref={root} tabIndex={-1} onKeyDown={onKeyDown} className="outline-none focus-visible:outline-none">
+    <div
+      ref={root}
+      tabIndex={-1}
+      onKeyDown={onKeyDown}
+      className="outline-none focus-visible:outline-none"
+    >
       {databases.length > 8 && (
         <div className="px-3 py-1">
           <input

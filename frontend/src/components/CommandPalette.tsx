@@ -43,8 +43,7 @@ export function CommandPalette() {
   // map of arrays and flattening it — to then show two hundred was most of the
   // work done on each keystroke.
   const results = useMemo(
-    () =>
-      groupContiguously(rankCandidates(query, commands, (c) => c.candidate).slice(0, MAX_ROWS)),
+    () => groupContiguously(rankCandidates(query, commands, (c) => c.candidate).slice(0, MAX_ROWS)),
     [query, commands],
   )
 
@@ -144,25 +143,25 @@ export function CommandPalette() {
 
         <div ref={listRef} className="max-h-[52vh] overflow-y-auto">
           <Highlight className="p-2">
-          {results.length === 0 && (
-            <div className="px-4 py-6 text-center text-[var(--color-faint)]">
-              {mode === 'go'
-                ? 'Nothing to go to — connect first, or try Ctrl+Shift+P'
-                : 'No matching commands'}
-            </div>
-          )}
-          {results.map(({ item }, i) => (
-            <Row
-              key={item.id}
-              item={item}
-              query={query}
-              index={i}
-              selected={i === selected}
-              heading={i > 0 && results[i - 1].item.group === item.group ? null : item.group}
-              onHover={onHover}
-              onRun={run}
-            />
-          ))}
+            {results.length === 0 && (
+              <div className="px-4 py-6 text-center text-[var(--color-faint)]">
+                {mode === 'go'
+                  ? 'Nothing to go to — connect first, or try Ctrl+Shift+P'
+                  : 'No matching commands'}
+              </div>
+            )}
+            {results.map(({ item }, i) => (
+              <Row
+                key={item.id}
+                item={item}
+                query={query}
+                index={i}
+                selected={i === selected}
+                heading={i > 0 && results[i - 1].item.group === item.group ? null : item.group}
+                onHover={onHover}
+                onRun={run}
+              />
+            ))}
           </Highlight>
         </div>
       </div>
@@ -248,9 +247,7 @@ const Row = memo(function Row({
  * Groups are ordered by their best-scoring member, so the most relevant group
  * still leads, and entries stay in rank order within it.
  */
-function groupContiguously<T extends { group: string }>(
-  results: Scored<T>[],
-): Scored<T>[] {
+function groupContiguously<T extends { group: string }>(results: Scored<T>[]): Scored<T>[] {
   const groups = new Map<string, Scored<T>[]>()
   for (const r of results) {
     const list = groups.get(r.item.group)

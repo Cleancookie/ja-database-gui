@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { listMove, moveIndex } from './listNav'
 
-const key = (k: string, mods: { ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean } = {}) => ({
+const key = (
+  k: string,
+  mods: { ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean } = {},
+) => ({
   key: k,
   ctrlKey: false,
   shiftKey: false,

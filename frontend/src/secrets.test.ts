@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { isPasswordRequired, needsPasswordPrompt, storageWarning } from './secrets'
 import type { Connection } from './types'
 
-const conn = (askPassword: boolean): Connection => ({ id: 'a', name: 'n', kind: 'mysql', askPassword })
+const conn = (askPassword: boolean): Connection => ({
+  id: 'a',
+  name: 'n',
+  kind: 'mysql',
+  askPassword,
+})
 
 describe('storageWarning', () => {
   it('stays quiet for the keyring and before the backend is known', () => {

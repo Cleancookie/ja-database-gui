@@ -59,7 +59,9 @@ export function PasswordDialog({
             className="w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-panel)] px-3 py-1.5 outline-none focus:bg-[var(--color-elevated)]"
           />
         </label>
-        <p className="mt-2 text-[var(--color-faint)]">Used for this connection only. It is not saved.</p>
+        <p className="mt-2 text-[var(--color-faint)]">
+          Used for this connection only. It is not saved.
+        </p>
         {error && (
           <p className="mt-3 rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger-dim)] px-3 py-2 font-[var(--font-mono)] break-words text-[var(--color-danger)]">
             {error}

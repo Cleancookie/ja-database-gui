@@ -163,37 +163,39 @@ export function ActivityTray() {
       {/* The strip is one button so the whole width is a hit target, with the
           staged-changes status beside it: a button cannot hold buttons. */}
       <div className="flex h-6 items-stretch">
-      <button
-        onClick={() => setTrayOpen(!open)}
-        aria-expanded={open}
-        title="Query activity (Ctrl+`)"
-        // No press-scale: the strip is the full width of the window, and shrinking it
-        // on mousedown reads as the layout twitching.
-        className="flex min-w-0 flex-1 items-center gap-2 px-3 hover:bg-[var(--color-elevated)] active:[transform:none]"
-      >
-        <span className="text-[var(--color-faint)]">{open ? '▾' : '▸'}</span>
-        <span className="font-semibold tracking-wider text-[var(--color-faint)] uppercase">
-          Activity
-        </span>
-        <span
-          className={status.running > 0 ? 'text-[var(--color-text)]' : 'text-[var(--color-faint)]'}
+        <button
+          onClick={() => setTrayOpen(!open)}
+          aria-expanded={open}
+          title="Query activity (Ctrl+`)"
+          // No press-scale: the strip is the full width of the window, and shrinking it
+          // on mousedown reads as the layout twitching.
+          className="flex min-w-0 flex-1 items-center gap-2 px-3 hover:bg-[var(--color-elevated)] active:[transform:none]"
         >
-          {label}
-        </span>
-        {status.running > 0 && <IndeterminateBar className="ml-1 h-[3px] w-24 rounded-full" />}
-        {/* Only says anything in the browser transport, where knowing you are
+          <span className="text-[var(--color-faint)]">{open ? '▾' : '▸'}</span>
+          <span className="font-semibold tracking-wider text-[var(--color-faint)] uppercase">
+            Activity
+          </span>
+          <span
+            className={
+              status.running > 0 ? 'text-[var(--color-text)]' : 'text-[var(--color-faint)]'
+            }
+          >
+            {label}
+          </span>
+          {status.running > 0 && <IndeterminateBar className="ml-1 h-[3px] w-24 rounded-full" />}
+          {/* Only says anything in the browser transport, where knowing you are
             not in the real app is worth a few pixels. */}
-        {transportName === 'http' && (
-          <span className="ml-auto text-[var(--color-warn)]">dev (browser)</span>
-        )}
-        <span
-          className={`font-[var(--font-mono)] text-[var(--color-faint)] ${
-            transportName === 'http' ? 'ml-3' : 'ml-auto'
-          }`}
-        >
-          Ctrl+`
-        </span>
-      </button>
+          {transportName === 'http' && (
+            <span className="ml-auto text-[var(--color-warn)]">dev (browser)</span>
+          )}
+          <span
+            className={`font-[var(--font-mono)] text-[var(--color-faint)] ${
+              transportName === 'http' ? 'ml-3' : 'ml-auto'
+            }`}
+          >
+            Ctrl+`
+          </span>
+        </button>
         <ChangesStatus />
       </div>
     </div>
@@ -232,7 +234,7 @@ const QueryRow = memo(function QueryRow({
   const [full, setFull] = useState<{ result: QuerySqlResult; final: boolean } | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
   const cut = Boolean(query.sqlTruncated || query.errorTruncated)
-  const needsFetch = open && cut && !(full?.final)
+  const needsFetch = open && cut && !full?.final
 
   useEffect(() => {
     if (!needsFetch) return
@@ -315,7 +317,10 @@ const QueryRow = memo(function QueryRow({
         {/* One line here: the tray is a glance, and the row only ever holds the
             preview. Expanding fetches the rest. */}
         <span
-          title={(query.error ? `${query.sql}\n\n${query.error}\n\n` : `${query.sql}\n\n`) + 'Click to expand'}
+          title={
+            (query.error ? `${query.sql}\n\n${query.error}\n\n` : `${query.sql}\n\n`) +
+            'Click to expand'
+          }
           className={`min-w-0 flex-1 truncate font-[var(--font-mono)] ${
             query.error ? 'text-[var(--color-danger)]' : ''
           }`}
@@ -427,7 +432,13 @@ export function ConfirmCancelDialog({ queryId, sql }: { queryId: string; sql: st
  * percentage that is really a guess is worse than none. The bar shows motion,
  * the status and timer beside it show the facts.
  */
-function IndeterminateBar({ className = '', warn = false }: { className?: string; warn?: boolean }) {
+function IndeterminateBar({
+  className = '',
+  warn = false,
+}: {
+  className?: string
+  warn?: boolean
+}) {
   return (
     <span
       role="progressbar"

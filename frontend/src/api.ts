@@ -56,7 +56,10 @@ export const transportName = wailsBindings() ? 'wails' : 'http'
  * being wrapped in something friendlier and less useful.
  */
 export class ApiError extends Error {
-  constructor(public method: string, message: string) {
+  constructor(
+    public method: string,
+    message: string,
+  ) {
     super(message)
     this.name = 'ApiError'
   }
@@ -110,8 +113,7 @@ export const api = {
 
   listConnections: () => call<Connection[]>('ListConnections', [], {}),
 
-  saveConnection: (req: SaveConnectionRequest) =>
-    call<Connection>('SaveConnection', [req], req),
+  saveConnection: (req: SaveConnectionRequest) => call<Connection>('SaveConnection', [req], req),
 
   deleteConnection: (id: string) => call<void>('DeleteConnection', [id], { id }),
 
@@ -174,8 +176,7 @@ export const api = {
 
   /** The statements applyChanges would run. Runs none of them. Rejects with the
    *  reason when a change does not fit the table (wrong key, read-only column …). */
-  previewChanges: (req: ChangesRequest) =>
-    call<ChangesPreview>('PreviewChanges', [req], req),
+  previewChanges: (req: ChangesRequest) => call<ChangesPreview>('PreviewChanges', [req], req),
 
   /** One transaction. A conflict comes back as a result, not a thrown error;
    *  a change that does not fit the table rejects like previewChanges does. */
@@ -188,8 +189,7 @@ export const api = {
     maxRows: number
     /** One of capabilities.isolationLevels, or '' for the driver default. */
     isolation: string
-  }) =>
-    call<RunSQLResult>('RunSQL', [req], req),
+  }) => call<RunSQLResult>('RunSQL', [req], req),
 
   /** Empties a table — a DELETE on SQLite. See capabilities.truncateIsDelete. */
   truncateTable: (req: { connectionId: string; ref: ObjectRef }) =>

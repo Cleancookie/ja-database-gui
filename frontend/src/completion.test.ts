@@ -10,7 +10,11 @@ const col = (name: string, dataType = 'text', primaryKey = false): Column => ({
   ordinal: 0,
 })
 
-const obj = (name: string, schema = 'public', type: SchemaObject['type'] = 'table'): SchemaObject => ({
+const obj = (
+  name: string,
+  schema = 'public',
+  type: SchemaObject['type'] = 'table',
+): SchemaObject => ({
   schema,
   name,
   type,
@@ -65,8 +69,16 @@ describe('editorCandidates', () => {
   })
 
   it('qualifies with the schema only where the dialect has schemas', () => {
-    const withSchemas = editorCandidates({ ...base, objects: [obj('users', 'auth')], hasSchemas: true })
-    const without = editorCandidates({ ...base, objects: [obj('users', 'auth')], hasSchemas: false })
+    const withSchemas = editorCandidates({
+      ...base,
+      objects: [obj('users', 'auth')],
+      hasSchemas: true,
+    })
+    const without = editorCandidates({
+      ...base,
+      objects: [obj('users', 'auth')],
+      hasSchemas: false,
+    })
     expect(withSchemas.some((c) => c.label === 'auth.users')).toBe(true)
     expect(without.some((c) => c.label === 'users')).toBe(true)
   })
@@ -110,7 +122,7 @@ describe('tokenAt', () => {
     expect(tokenAt("status = 'active' an", 20)).toEqual({ from: 18, word: 'an' })
   })
 
-  it("treats a doubled quote as the SQL escape, not a new literal", () => {
+  it('treats a doubled quote as the SQL escape, not a new literal', () => {
     // O''Brien is one closed string; the caret after it is not inside a literal.
     expect(tokenAt("name = 'O''Brien' an", 20)).toEqual({ from: 18, word: 'an' })
   })

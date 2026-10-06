@@ -336,7 +336,13 @@ function useGlobalHotkeys() {
       // Alt+[ and Alt+] step through the SQL editor's kept runs. Claimed inside
       // the editor too: CodeMirror leaves both unbound. e.code, not e.key, since
       // some layouts type a character on Alt+bracket.
-      if (s.view === 'sql' && e.altKey && !mod && !e.shiftKey && (e.code === 'BracketLeft' || e.code === 'BracketRight')) {
+      if (
+        s.view === 'sql' &&
+        e.altKey &&
+        !mod &&
+        !e.shiftKey &&
+        (e.code === 'BracketLeft' || e.code === 'BracketRight')
+      ) {
         e.preventDefault()
         s.stepSqlRun(e.code === 'BracketLeft' ? -1 : 1)
         return
@@ -359,7 +365,13 @@ function useGlobalHotkeys() {
       // Alt+arrows are the browser's back and forward, and the keyboard twin of
       // the mouse buttons. Left alone inside the SQL editor, which uses them to
       // move by syntax; a plain <input> has no use for them.
-      if (!target?.isContentEditable && e.altKey && !mod && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+      if (
+        !target?.isContentEditable &&
+        e.altKey &&
+        !mod &&
+        !e.shiftKey &&
+        (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
+      ) {
         e.preventDefault()
         void s.stepHistory(e.key === 'ArrowLeft' ? -1 : 1)
         return
@@ -414,7 +426,13 @@ function useGlobalHotkeys() {
     }
     return () => {
       window.removeEventListener('keydown', onKey)
-      for (const type of ['mousedown', 'mouseup', 'auxclick', 'pointerdown', 'pointerup'] as const) {
+      for (const type of [
+        'mousedown',
+        'mouseup',
+        'auxclick',
+        'pointerdown',
+        'pointerup',
+      ] as const) {
         window.removeEventListener(type, onMouse, true)
       }
     }

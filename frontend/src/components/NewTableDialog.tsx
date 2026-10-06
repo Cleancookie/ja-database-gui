@@ -202,7 +202,9 @@ export function NewTableDialog({ schema }: { schema: string }) {
             </span>
             <button
               type="button"
-              onClick={() => setColumns((cs) => (cs.length > 1 ? cs.filter((_, j) => j !== i) : cs))}
+              onClick={() =>
+                setColumns((cs) => (cs.length > 1 ? cs.filter((_, j) => j !== i) : cs))
+              }
               disabled={columns.length === 1}
               title="Remove this column"
               aria-label={`Remove column ${i + 1}`}

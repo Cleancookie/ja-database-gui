@@ -27,7 +27,10 @@ export function isolationLabel(level: string): string {
 
 /** What the dropdown offers: the default first, then the dialect's own levels. */
 export function isolationChoices(levels: readonly string[] | undefined): IsolationChoice[] {
-  return [DRIVER_DEFAULT, ...(levels ?? [])].map((value) => ({ value, label: isolationLabel(value) }))
+  return [DRIVER_DEFAULT, ...(levels ?? [])].map((value) => ({
+    value,
+    label: isolationLabel(value),
+  }))
 }
 
 /**

@@ -20,7 +20,8 @@ const BLANK: Connection = {
   file: '',
 }
 
-type TestState = { state: 'idle' } | { state: 'testing' } | { state: 'ok' } | { state: 'failed'; message: string }
+type TestState =
+  { state: 'idle' } | { state: 'testing' } | { state: 'ok' } | { state: 'failed'; message: string }
 
 export function ConnectionDialog({ existing }: { existing: Connection | null }) {
   const drivers = useStore((s) => s.drivers)
@@ -108,170 +109,168 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
         </>
       }
     >
+      <div className="grid grid-cols-2 gap-3 p-4">
+        <StorageNotice className="col-span-2" />
 
-        <div className="grid grid-cols-2 gap-3 p-4">
-          <StorageNotice className="col-span-2" />
+        <Field label="Name" className="col-span-2">
+          <input
+            autoFocus
+            value={conn.name}
+            onChange={(e) => patch({ name: e.target.value })}
+            placeholder="Production replica"
+            className={inputClass}
+          />
+        </Field>
 
-          <Field label="Name" className="col-span-2">
+        <Field label="Type" className="col-span-2">
+          <div className="flex gap-1.5">
+            {KIND_ORDER.map((k) => (
+              <button
+                key={k}
+                type="button"
+                onClick={() => patch({ kind: k, sslMode: '', trustServerCertificate: false })}
+                className={`flex-1 rounded-lg border px-2 py-1.5 ${
+                  conn.kind === k
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/40'
+                    : 'border-[var(--color-border-strong)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]/25'
+                }`}
+              >
+                {drivers?.[k]?.displayName ?? k}
+              </button>
+            ))}
+          </div>
+        </Field>
+
+        {isFileBased ? (
+          <Field label="Database file" className="col-span-2">
             <input
-              autoFocus
-              value={conn.name}
-              onChange={(e) => patch({ name: e.target.value })}
-              placeholder="Production replica"
-              className={inputClass}
+              value={conn.file ?? ''}
+              onChange={(e) => patch({ file: e.target.value })}
+              placeholder="C:\data\app.sqlite"
+              spellCheck={false}
+              className={`${inputClass} font-[var(--font-mono)]`}
             />
           </Field>
-
-          <Field label="Type" className="col-span-2">
-            <div className="flex gap-1.5">
-              {KIND_ORDER.map((k) => (
-                <button
-                  key={k}
-                  type="button"
-                  onClick={() => patch({ kind: k, sslMode: '', trustServerCertificate: false })}
-                  className={`flex-1 rounded-lg border px-2 py-1.5 ${
-                    conn.kind === k
-                      ? 'border-[var(--color-accent)] bg-[var(--color-accent-dim)]/40'
-                      : 'border-[var(--color-border-strong)] hover:border-[var(--color-accent)] hover:bg-[var(--color-accent-dim)]/25'
-                  }`}
-                >
-                  {drivers?.[k]?.displayName ?? k}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          {isFileBased ? (
-            <Field label="Database file" className="col-span-2">
+        ) : (
+          <>
+            <Field label="Host">
               <input
-                value={conn.file ?? ''}
-                onChange={(e) => patch({ file: e.target.value })}
-                placeholder="C:\data\app.sqlite"
+                value={conn.host ?? ''}
+                onChange={(e) => patch({ host: e.target.value })}
                 spellCheck={false}
-                className={`${inputClass} font-[var(--font-mono)]`}
+                className={inputClass}
               />
             </Field>
-          ) : (
-            <>
-              <Field label="Host">
-                <input
-                  value={conn.host ?? ''}
-                  onChange={(e) => patch({ host: e.target.value })}
-                  spellCheck={false}
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="Port">
-                <input
-                  type="number"
-                  value={conn.port ?? ''}
-                  onChange={(e) => patch({ port: Number(e.target.value) })}
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="User">
-                <input
-                  value={conn.user ?? ''}
-                  onChange={(e) => patch({ user: e.target.value })}
-                  spellCheck={false}
-                  autoComplete="off"
-                  className={inputClass}
-                />
-              </Field>
-              <Field label={conn.askPassword ? 'Password (for Test only)' : 'Password'}>
-                <input
-                  type="password"
-                  value={password ?? ''}
-                  onChange={(e) => {
-                    setPassword(e.target.value)
-                    setTest({ state: 'idle' })
-                  }}
-                  placeholder={password === null && !conn.askPassword ? '••••••• unchanged' : ''}
-                  autoComplete="off"
-                  className={inputClass}
-                />
-              </Field>
-              <label className="col-span-2 flex items-center gap-2">
+            <Field label="Port">
+              <input
+                type="number"
+                value={conn.port ?? ''}
+                onChange={(e) => patch({ port: Number(e.target.value) })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="User">
+              <input
+                value={conn.user ?? ''}
+                onChange={(e) => patch({ user: e.target.value })}
+                spellCheck={false}
+                autoComplete="off"
+                className={inputClass}
+              />
+            </Field>
+            <Field label={conn.askPassword ? 'Password (for Test only)' : 'Password'}>
+              <input
+                type="password"
+                value={password ?? ''}
+                onChange={(e) => {
+                  setPassword(e.target.value)
+                  setTest({ state: 'idle' })
+                }}
+                placeholder={password === null && !conn.askPassword ? '••••••• unchanged' : ''}
+                autoComplete="off"
+                className={inputClass}
+              />
+            </Field>
+            <label className="col-span-2 flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={!!conn.askPassword}
+                onChange={(e) => {
+                  patch({ askPassword: e.target.checked })
+                  // Typed under "ask" it is for Test only; never carry it into a save.
+                  setPassword(e.target.checked ? '' : existing && !existing.askPassword ? null : '')
+                }}
+              />
+              <span>Ask for the password every time (never stored)</span>
+            </label>
+            <Field label="Database" className="col-span-2">
+              <input
+                value={conn.database ?? ''}
+                onChange={(e) => patch({ database: e.target.value })}
+                placeholder={conn.kind === 'postgres' ? 'postgres' : 'optional'}
+                spellCheck={false}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="SSL mode" className="col-span-2">
+              <select
+                value={conn.sslMode ?? ''}
+                onChange={(e) => patch({ sslMode: e.target.value })}
+                className={inputClass}
+              >
+                <option value="">Default for this host</option>
+                {(caps?.sslModes ?? []).map((m) => (
+                  <option key={m} value={m}>
+                    {m}
+                  </option>
+                ))}
+              </select>
+              {tls && (
+                <span
+                  data-testid="tls-effective"
+                  className={`mt-1 block ${
+                    tls.warn ? 'text-[var(--color-danger)]' : 'text-[var(--color-faint)]'
+                  }`}
+                >
+                  {tls.implicit ? 'Default: ' : ''}
+                  {tls.label}
+                  {tls.warn && ' - this host is not on this machine'}
+                </span>
+              )}
+            </Field>
+            {caps?.canTrustServerCertificate && (
+              <label className="col-span-2 flex items-start gap-2">
                 <input
                   type="checkbox"
-                  checked={!!conn.askPassword}
-                  onChange={(e) => {
-                    patch({ askPassword: e.target.checked })
-                    // Typed under "ask" it is for Test only; never carry it into a save.
-                    setPassword(e.target.checked ? '' : existing && !existing.askPassword ? null : '')
-                  }}
+                  checked={!!conn.trustServerCertificate}
+                  onChange={(e) => patch({ trustServerCertificate: e.target.checked })}
+                  className="mt-1"
                 />
-                <span>Ask for the password every time (never stored)</span>
+                <span>
+                  Trust the server certificate without checking it
+                  {conn.trustServerCertificate && (
+                    <span className="block text-[var(--color-danger)]">{TRUST_WARNING}</span>
+                  )}
+                </span>
               </label>
-              <Field label="Database" className="col-span-2">
-                <input
-                  value={conn.database ?? ''}
-                  onChange={(e) => patch({ database: e.target.value })}
-                  placeholder={conn.kind === 'postgres' ? 'postgres' : 'optional'}
-                  spellCheck={false}
-                  className={inputClass}
-                />
-              </Field>
-              <Field label="SSL mode" className="col-span-2">
-                <select
-                  value={conn.sslMode ?? ''}
-                  onChange={(e) => patch({ sslMode: e.target.value })}
-                  className={inputClass}
-                >
-                  <option value="">Default for this host</option>
-                  {(caps?.sslModes ?? []).map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-                {tls && (
-                  <span
-                    data-testid="tls-effective"
-                    className={`mt-1 block ${
-                      tls.warn ? 'text-[var(--color-danger)]' : 'text-[var(--color-faint)]'
-                    }`}
-                  >
-                    {tls.implicit ? 'Default: ' : ''}
-                    {tls.label}
-                    {tls.warn && ' - this host is not on this machine'}
-                  </span>
-                )}
-              </Field>
-              {caps?.canTrustServerCertificate && (
-                <label className="col-span-2 flex items-start gap-2">
-                  <input
-                    type="checkbox"
-                    checked={!!conn.trustServerCertificate}
-                    onChange={(e) => patch({ trustServerCertificate: e.target.checked })}
-                    className="mt-1"
-                  />
-                  <span>
-                    Trust the server certificate without checking it
-                    {conn.trustServerCertificate && (
-                      <span className="block text-[var(--color-danger)]">{TRUST_WARNING}</span>
-                    )}
-                  </span>
-                </label>
-              )}
-            </>
-          )}
-        </div>
+            )}
+          </>
+        )}
+      </div>
 
-        {conn.params && Object.keys(conn.params).length > 0 && (
-          <p className="mx-4 mb-3 rounded-lg border border-[var(--color-warn)] bg-[var(--color-warn-dim)] px-3 py-2">
-            {PARAMS_WARNING}
-          </p>
-        )}
-        {test.state === 'failed' && (
-          <p className="mx-4 mb-3 rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger-dim)] px-3 py-2 font-[var(--font-mono)] break-words text-[var(--color-danger)]">
-            {test.message}
-          </p>
-        )}
-        {test.state === 'ok' && (
-          <p className="mx-4 mb-3 text-[var(--color-success)]">Connected successfully</p>
-        )}
-
+      {conn.params && Object.keys(conn.params).length > 0 && (
+        <p className="mx-4 mb-3 rounded-lg border border-[var(--color-warn)] bg-[var(--color-warn-dim)] px-3 py-2">
+          {PARAMS_WARNING}
+        </p>
+      )}
+      {test.state === 'failed' && (
+        <p className="mx-4 mb-3 rounded-lg border border-[var(--color-danger)] bg-[var(--color-danger-dim)] px-3 py-2 font-[var(--font-mono)] break-words text-[var(--color-danger)]">
+          {test.message}
+        </p>
+      )}
+      {test.state === 'ok' && (
+        <p className="mx-4 mb-3 text-[var(--color-success)]">Connected successfully</p>
+      )}
     </FormDialog>
   )
 }

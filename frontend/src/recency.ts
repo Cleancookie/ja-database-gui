@@ -65,7 +65,11 @@ export function typeBias(t: ObjectType): number {
 }
 
 /** The whole bias for one object: its schema, its type, and how recent it is. */
-export function objectBias(schema: string | undefined, type: ObjectType, recentIndex: number): number {
+export function objectBias(
+  schema: string | undefined,
+  type: ObjectType,
+  recentIndex: number,
+): number {
   return schemaBias(schema) + typeBias(type) + recencyBias(recentIndex)
 }
 

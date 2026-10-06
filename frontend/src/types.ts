@@ -400,13 +400,7 @@ export type QueryKind = 'browse' | 'count' | 'query' | 'introspect' | 'ddl' | 'w
  * last three are terminal: an entry carrying one of them is history.
  */
 export type QueryPhase =
-  | 'queued'
-  | 'executing'
-  | 'reading rows'
-  | 'cancelling'
-  | 'done'
-  | 'failed'
-  | 'cancelled'
+  'queued' | 'executing' | 'reading rows' | 'cancelling' | 'done' | 'failed' | 'cancelled'
 
 /** One query, running or finished. Mirrors internal/activity.Info. */
 export interface QueryInfo {

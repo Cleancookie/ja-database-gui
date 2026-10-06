@@ -55,7 +55,10 @@ export function SqlEditor() {
   // component subscribes to `sqlText`, so it re-renders on every keystroke. An
   // inline arrow would hand the memoised grid a new prop each time and repaint
   // the whole result while the user types.
-  const onOpenCell = useCallback((row: number, col: number) => openCell('sql', row, col), [openCell])
+  const onOpenCell = useCallback(
+    (row: number, col: number) => openCell('sql', row, col),
+    [openCell],
+  )
 
   // The editor is gone with this view, and its selection with it.
   useEffect(() => () => setHasSelection(false), [setHasSelection])
@@ -156,139 +159,147 @@ export function SqlEditor() {
         }
         bottom={
           <>
-          {/* One tab per run, every run kept (see sqlHistory.ts). In memory
+            {/* One tab per run, every run kept (see sqlHistory.ts). In memory
               only. Click selects, the pin protects a run from eviction, and
               ✕ or a middle click forgets it. */}
-          {sqlRuns.length > 0 && (
-            <Highlight className="chrome flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5">
-              {sqlRuns.map((r) => {
-                const active = r.id === sqlActiveRun
-                return (
-                  <span
-                    key={r.id}
-                    data-highlight={active || undefined}
-                    title={runTooltip(r)}
-                    onMouseDown={(e) => e.button === 1 && e.preventDefault()}
-                    onAuxClick={(e) => {
-                      if (e.button !== 1) return
-                      e.preventDefault()
-                      closeSqlRun(r.id)
-                    }}
-                    className={`relative flex shrink-0 items-center rounded-lg ${
-                      active ? '' : 'hover:bg-[var(--color-elevated)]'
-                    }`}
-                  >
-                    <button
-                      onClick={() => selectSqlRun(r.id)}
-                      className={`max-w-56 truncate rounded-lg py-0.5 pr-1 pl-2 ${
-                        active ? 'font-bold text-[var(--color-accent)]' : 'text-[var(--color-muted)]'
+            {sqlRuns.length > 0 && (
+              <Highlight className="chrome flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5">
+                {sqlRuns.map((r) => {
+                  const active = r.id === sqlActiveRun
+                  return (
+                    <span
+                      key={r.id}
+                      data-highlight={active || undefined}
+                      title={runTooltip(r)}
+                      onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+                      onAuxClick={(e) => {
+                        if (e.button !== 1) return
+                        e.preventDefault()
+                        closeSqlRun(r.id)
+                      }}
+                      className={`relative flex shrink-0 items-center rounded-lg ${
+                        active ? '' : 'hover:bg-[var(--color-elevated)]'
                       }`}
                     >
-                      {sqlSnippet(r.sql)}{' '}
-                      <span
-                        className={
-                          r.error !== undefined ? 'text-[var(--color-danger)]' : 'text-[var(--color-faint)]'
-                        }
+                      <button
+                        onClick={() => selectSqlRun(r.id)}
+                        className={`max-w-56 truncate rounded-lg py-0.5 pr-1 pl-2 ${
+                          active
+                            ? 'font-bold text-[var(--color-accent)]'
+                            : 'text-[var(--color-muted)]'
+                        }`}
                       >
-                        {runCount(r)}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => toggleSqlRunPin(r.id)}
-                      aria-label={r.pinned ? 'Unpin this run' : 'Pin this run'}
-                      title={r.pinned ? 'Pinned: never dropped. Click to unpin' : 'Pin this run so it is never dropped'}
-                      className={`px-0.5 ${
-                        r.pinned
-                          ? 'text-[var(--color-accent)]'
-                          : 'text-[var(--color-faint)] opacity-50 hover:opacity-100'
-                      }`}
-                    >
-                      {r.pinned ? '●' : '○'}
-                    </button>
-                    <button
-                      onClick={() => closeSqlRun(r.id)}
-                      aria-label="Close this run"
-                      title="Close this run (middle click)"
-                      className="rounded-lg pr-1.5 pl-0.5 text-[var(--color-faint)] hover:text-[var(--color-text)]"
-                    >
-                      ✕
-                    </button>
-                  </span>
-                )
-              })}
-              <span className="ml-auto flex shrink-0 items-center gap-1 pl-2">
-                <button
-                  onClick={() => restoreSqlRunText()}
-                  disabled={!run}
-                  title="Replace the editor text with this run's SQL"
-                  className="rounded-lg px-2 py-0.5 text-[var(--color-muted)] hover:bg-[var(--color-elevated)] disabled:opacity-40"
-                >
-                  SQL back to editor
-                </button>
-                <button
-                  onClick={clearSqlRuns}
-                  title="Forget every run that is not pinned"
-                  className="rounded-lg px-2 py-0.5 text-[var(--color-muted)] hover:bg-[var(--color-elevated)]"
-                >
-                  Clear
-                </button>
-              </span>
-            </Highlight>
-          )}
+                        {sqlSnippet(r.sql)}{' '}
+                        <span
+                          className={
+                            r.error !== undefined
+                              ? 'text-[var(--color-danger)]'
+                              : 'text-[var(--color-faint)]'
+                          }
+                        >
+                          {runCount(r)}
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => toggleSqlRunPin(r.id)}
+                        aria-label={r.pinned ? 'Unpin this run' : 'Pin this run'}
+                        title={
+                          r.pinned
+                            ? 'Pinned: never dropped. Click to unpin'
+                            : 'Pin this run so it is never dropped'
+                        }
+                        className={`px-0.5 ${
+                          r.pinned
+                            ? 'text-[var(--color-accent)]'
+                            : 'text-[var(--color-faint)] opacity-50 hover:opacity-100'
+                        }`}
+                      >
+                        {r.pinned ? '●' : '○'}
+                      </button>
+                      <button
+                        onClick={() => closeSqlRun(r.id)}
+                        aria-label="Close this run"
+                        title="Close this run (middle click)"
+                        className="rounded-lg pr-1.5 pl-0.5 text-[var(--color-faint)] hover:text-[var(--color-text)]"
+                      >
+                        ✕
+                      </button>
+                    </span>
+                  )
+                })}
+                <span className="ml-auto flex shrink-0 items-center gap-1 pl-2">
+                  <button
+                    onClick={() => restoreSqlRunText()}
+                    disabled={!run}
+                    title="Replace the editor text with this run's SQL"
+                    className="rounded-lg px-2 py-0.5 text-[var(--color-muted)] hover:bg-[var(--color-elevated)] disabled:opacity-40"
+                  >
+                    SQL back to editor
+                  </button>
+                  <button
+                    onClick={clearSqlRuns}
+                    title="Forget every run that is not pinned"
+                    className="rounded-lg px-2 py-0.5 text-[var(--color-muted)] hover:bg-[var(--color-elevated)]"
+                  >
+                    Clear
+                  </button>
+                </span>
+              </Highlight>
+            )}
 
-          {/* One tab per result set. A batch is one round trip that can answer
+            {/* One tab per result set. A batch is one round trip that can answer
               several times over, and before this the later answers were dropped
               on the floor. Hidden for the single result that most runs produce. */}
-          {sqlResults.length > 1 && (
-            <Highlight className="chrome flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5">
-              {sqlResults.map((r, i) => (
-                <button
-                  key={i}
-                  onClick={() => selectSqlResult(i)}
-                  title={r.query}
-                  data-highlight={i === sqlResultIndex || undefined}
-                  className={`relative shrink-0 rounded-lg px-2 py-0.5 ${
-                    i === sqlResultIndex
-                      ? 'font-bold text-[var(--color-accent)]'
-                      : 'text-[var(--color-muted)] hover:bg-[var(--color-elevated)]'
-                  }`}
-                >
-                  Result {i + 1}{' '}
-                  <span className="text-[var(--color-faint)]">
-                    {r.rows.length}
-                    {r.truncated ? '+' : ''}
+            {sqlResults.length > 1 && (
+              <Highlight className="chrome flex shrink-0 items-center gap-1 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-panel)] px-2 py-1.5">
+                {sqlResults.map((r, i) => (
+                  <button
+                    key={i}
+                    onClick={() => selectSqlResult(i)}
+                    title={r.query}
+                    data-highlight={i === sqlResultIndex || undefined}
+                    className={`relative shrink-0 rounded-lg px-2 py-0.5 ${
+                      i === sqlResultIndex
+                        ? 'font-bold text-[var(--color-accent)]'
+                        : 'text-[var(--color-muted)] hover:bg-[var(--color-elevated)]'
+                    }`}
+                  >
+                    Result {i + 1}{' '}
+                    <span className="text-[var(--color-faint)]">
+                      {r.rows.length}
+                      {r.truncated ? '+' : ''}
+                    </span>
+                  </button>
+                ))}
+                {moreSqlResults && (
+                  <span
+                    className="shrink-0 px-2 text-[var(--color-warn)]"
+                    title="The batch produced more result sets than are shown"
+                  >
+                    more not shown
                   </span>
-                </button>
-              ))}
-              {moreSqlResults && (
-                <span
-                  className="shrink-0 px-2 text-[var(--color-warn)]"
-                  title="The batch produced more result sets than are shown"
-                >
-                  more not shown
-                </span>
-              )}
-            </Highlight>
-          )}
-
-          <div className="min-h-0 flex-1">
-            {run?.error !== undefined ? (
-              <div className="h-full overflow-auto p-3 text-[var(--color-danger)]">
-                <div className="font-semibold">{run.error}</div>
-              </div>
-            ) : sqlResult ? (
-              <DataGrid
-                result={sqlResult}
-                source="sql"
-                onOpenCell={onOpenCell}
-                cellMenu={cellMenu}
-              />
-            ) : (
-              <div className="flex h-full items-center justify-center text-[var(--color-faint)]">
-                Results appear here
-              </div>
+                )}
+              </Highlight>
             )}
-          </div>
+
+            <div className="min-h-0 flex-1">
+              {run?.error !== undefined ? (
+                <div className="h-full overflow-auto p-3 text-[var(--color-danger)]">
+                  <div className="font-semibold">{run.error}</div>
+                </div>
+              ) : sqlResult ? (
+                <DataGrid
+                  result={sqlResult}
+                  source="sql"
+                  onOpenCell={onOpenCell}
+                  cellMenu={cellMenu}
+                />
+              ) : (
+                <div className="flex h-full items-center justify-center text-[var(--color-faint)]">
+                  Results appear here
+                </div>
+              )}
+            </div>
           </>
         }
       />

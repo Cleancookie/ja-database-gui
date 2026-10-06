@@ -56,7 +56,10 @@ export function Paginator() {
   // loaded, not one page of them.
   const firstRow = enabled && !infinite ? (page - 1) * pageSize + 1 : 1
   const lastRow = enabled && !infinite ? firstRow + rowCount - 1 : rowCount
-  const lastPage = totalCount != null && enabled && !infinite ? Math.max(1, Math.ceil(totalCount / pageSize)) : null
+  const lastPage =
+    totalCount != null && enabled && !infinite
+      ? Math.max(1, Math.ceil(totalCount / pageSize))
+      : null
 
   const commitPage = () => {
     const n = Number.parseInt(pageDraft, 10)
@@ -119,7 +122,11 @@ export function Paginator() {
 
           {infinite ? (
             <span className="text-[var(--color-faint)]">
-              {busy && rowCount > 0 ? 'Loading more…' : hasMore ? 'Scroll for more' : 'End of results'}
+              {busy && rowCount > 0
+                ? 'Loading more…'
+                : hasMore
+                  ? 'Scroll for more'
+                  : 'End of results'}
             </span>
           ) : (
             <div className="flex items-center gap-1">

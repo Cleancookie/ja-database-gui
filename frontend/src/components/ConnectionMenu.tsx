@@ -68,10 +68,7 @@ export function ConfirmDeleteDialog({ name, id }: { name: string; id: string }) 
           <button onClick={close} className={`ml-auto ${dialogButton.ghost}`}>
             Cancel
           </button>
-          <button
-            onClick={() => void deleteConnection(id)}
-            className={dialogButton.dangerFilled}
-          >
+          <button onClick={() => void deleteConnection(id)} className={dialogButton.dangerFilled}>
             Remove
           </button>
         </>

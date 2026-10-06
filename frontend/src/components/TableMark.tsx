@@ -38,7 +38,8 @@ export const TabMark = memo(function TabMark({
   openTables: OpenTable[]
 }) {
   const dirty = useStore(
-    (s) => !!connectionId && openTables.some((t) => s.dirtyTables.has(tableKey(connectionId, t.ref))),
+    (s) =>
+      !!connectionId && openTables.some((t) => s.dirtyTables.has(tableKey(connectionId, t.ref))),
   )
   if (!dirty) return null
   return (
