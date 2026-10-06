@@ -22,6 +22,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  * `relative` on every item is what keeps the text painting above the pill,
  * since an absolutely positioned sibling would otherwise cover it.
  *
+ * Items marked `data-item` also pull the pill under the pointer while it is
+ * over them, and let it slide back to `data-highlight` when it leaves — so the
+ * mouse gets the same motion as the keys, and needs no hover colour of its own.
+ *
  * This is not in `src/ui` on purpose. That layer exists to quarantine vendor
  * APIs — see ui/README.md — and there is no vendor here to hide.
  */
@@ -48,10 +52,14 @@ export function Highlight({
   const host = useRef<HTMLDivElement>(null)
   const [rect, setRect] = useState<Rect | null>(null)
   const [moving, setMoving] = useState(false)
+  const hovered = useRef<HTMLElement | null>(null)
 
   const measure = useCallback(() => {
     const el = host.current
-    const target = el?.querySelector<HTMLElement>('[data-highlight]')
+    // A virtualised list recycles rows, so a hovered one may have gone.
+    const target = hovered.current?.isConnected
+      ? hovered.current
+      : el?.querySelector<HTMLElement>('[data-highlight]')
     if (!el || !target) {
       setRect(null)
       return
@@ -104,7 +112,20 @@ export function Highlight({
   }, [rect, moving])
 
   return (
-    <div ref={host} className={`relative ${className}`}>
+    <div
+      ref={host}
+      className={`relative ${className}`}
+      onPointerOver={(e) => {
+        const item = (e.target as Element).closest<HTMLElement>('[data-item]')
+        if (item === hovered.current || !host.current?.contains(item)) return
+        hovered.current = item
+        measure()
+      }}
+      onPointerLeave={() => {
+        hovered.current = null
+        measure()
+      }}
+    >
       <div
         aria-hidden
         className={`highlight-pill ${moving ? 'highlight-pill-moves' : ''} ${pillClassName}`}

@@ -10,7 +10,7 @@ import { PILL } from './listKit'
 
 const HEADING = 'px-3 pt-2 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase'
 const ROW =
-  'relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left hover:bg-[var(--color-elevated)]'
+  'relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left'
 
 /**
  * The top of an expanded tab, between the table search and the list of every
@@ -41,6 +41,7 @@ export function OpenList() {
     <Highlight className="shrink-0 px-1.5" pillClassName={PILL}>
       <button
         onClick={() => setView('sql')}
+        data-item
         data-highlight={view === 'sql' || undefined}
         className={`${ROW} mt-1 w-full ${view === 'sql' ? 'font-bold' : ''}`}
         title="SQL editor (Ctrl+E)"
@@ -72,6 +73,7 @@ export function OpenList() {
                     onClick={() => show(ref)}
                     title={name}
                     aria-current={current || undefined}
+                    data-item
                     data-highlight={current || undefined}
                     className={`${ROW} ${current ? 'font-bold' : ''}`}
                   >

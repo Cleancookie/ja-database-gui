@@ -79,9 +79,10 @@ export function ConnectionList({
           return (
             <ConnectionMenu key={c.id} connection={c}>
               <div
+                data-item
                 data-highlight={i === selected || undefined}
                 className={`group relative flex items-center gap-1 rounded-xl ${
-                  current ? 'font-bold' : 'hover:bg-[var(--color-elevated)]'
+                  current ? 'font-bold' : ''
                 }`}
               >
                 <button
