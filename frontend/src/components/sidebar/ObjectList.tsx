@@ -139,7 +139,7 @@ export const ObjectList = memo(function ObjectList({
             setQuery(e.target.value)
             setSelected(0)
           }}
-          placeholder="Search tables…  ( / )"
+          placeholder="Search tables…  (Ctrl+L)"
           spellCheck={false}
           aria-label="Search tables"
           className={INPUT}
