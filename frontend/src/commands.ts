@@ -16,7 +16,7 @@ import { rectOf, rectSize } from './selection'
 import { runSqlFromEditor } from './sqlEditorRun'
 import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
 import { storageWarning } from './secrets'
-import { tabTitle } from './tabs'
+import { pageTitle, tabHistory, tabTitle } from './tabs'
 import { THEMES } from './themes'
 import type { ObjectType, SchemaObject } from './types'
 
@@ -249,6 +249,16 @@ export function buildActionCommands(s: Store): Command[] {
     candidate: { name: 'Go forward', keywords: 'next history page redo navigation route mouse' },
     run: () => s.stepHistory(1),
   })
+  for (const v of tabHistory(s.nav, s.navAt, s.activeTabId)) {
+    cmds.push({
+      id: `page:visit:${v.at}`,
+      title: `Back to ${pageTitle(v.page)}`,
+      subtitle: v.page.controls?.filter || 'Earlier in this tab',
+      group: 'Pages',
+      candidate: { name: `Back to ${pageTitle(v.page)}`, keywords: 'history recent visited earlier page tab' },
+      run: () => s.goToVisit(v.at),
+    })
+  }
 
   cmds.push({
     id: 'connection:new',
