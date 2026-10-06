@@ -55,6 +55,8 @@ export const ObjectList = memo(function ObjectList({
   const open = useMemo(() => openTableKeys(openTables), [openTables])
 
   const [query, setQuery] = useState('')
+  // The keyboard highlight is only shown while the keys would move it.
+  const [focused, setFocused] = useState(false)
   const matched = useMemo(
     () => (query ? rankCandidates(query, objects, objectCandidate).map((r) => r.item) : objects),
     [objects, query],
@@ -109,7 +111,14 @@ export const ObjectList = memo(function ObjectList({
   if (!activeConnectionId) return null
 
   return (
-    <div onKeyDown={onKeyDown} className="flex min-h-0 flex-col">
+    <div
+      onKeyDown={onKeyDown}
+      onFocus={() => setFocused(true)}
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false)
+      }}
+      className="flex min-h-0 flex-col"
+    >
       <div className="px-3 py-1">
         <input
           ref={field}
@@ -156,7 +165,7 @@ export const ObjectList = memo(function ObjectList({
                     ) : (
                       <ObjectRow
                         o={row.o}
-                        highlighted={row.index === selected}
+                        highlighted={focused && row.index === selected}
                         open={open.has(refKey(activeDatabase, row.o.schema, row.o.name))}
                         connectionId={activeConnectionId}
                         database={activeDatabase}

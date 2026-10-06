@@ -30,7 +30,7 @@ export function EmptyPanel() {
       <ul className="flex flex-col gap-1.5">
         {hints.map(([key, what]) => (
           <li key={key} className="flex items-center gap-3">
-            <kbd className={`${KBD} w-16 shrink-0 text-center`}>{key}</kbd>
+            <kbd className={`${KBD} min-w-20 shrink-0 text-center`}>{key}</kbd>
             {what}
           </li>
         ))}
