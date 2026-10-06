@@ -1,5 +1,7 @@
 import { memo, useMemo } from 'react'
 import { isBound, useStore } from '../store'
+import { Highlight } from './Highlight'
+import { PILL } from './sidebar/listKit'
 import { tabTitle } from '../tabs'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import { ObjectList } from './sidebar/ObjectList'
@@ -67,9 +69,9 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
   const row = (r: (typeof rows)[number]) => (
     <div
       key={r.id}
-      className={`group relative flex items-center rounded-xl ${
-        r.live ? 'bg-[var(--color-accent-dim)]/55' : ''
-      }`}
+      data-item
+      data-highlight={r.live || undefined}
+      className="group relative flex items-center rounded-xl"
       // Middle-click closes, as in a browser.
       onAuxClick={(e) => {
         if (e.button === 1) {
@@ -83,7 +85,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
         title={r.title}
         aria-current={r.live || undefined}
         className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
-          r.live ? 'font-bold' : 'hover:bg-[var(--color-elevated)] hover:shadow-xs'
+          r.live ? 'font-bold' : ''
         }`}
       >
         <span
@@ -145,7 +147,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
             +
           </button>
         </div>
-        <div className="flex min-h-0 flex-1 flex-col p-1.5">
+        <Highlight className="flex min-h-0 flex-1 flex-col p-1.5" pillClassName={PILL}>
           {before.length > 0 && (
             <div className="max-h-[30%] shrink-0 overflow-y-auto">{before.map(row)}</div>
           )}
@@ -169,7 +171,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
           {after.length > 0 && (
             <div className="max-h-[30%] shrink-0 overflow-y-auto">{after.map(row)}</div>
           )}
-        </div>
+        </Highlight>
       </aside>
     </div>
   )

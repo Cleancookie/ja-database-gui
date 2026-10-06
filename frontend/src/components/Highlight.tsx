@@ -59,7 +59,9 @@ export function Highlight({
     // A virtualised list recycles rows, so a hovered one may have gone.
     const target = hovered.current?.isConnected
       ? hovered.current
-      : el?.querySelector<HTMLElement>('[data-highlight]')
+      : [...(el?.querySelectorAll<HTMLElement>('[data-highlight]') ?? [])].find((t) =>
+          ownedBy(el, t),
+        )
     if (!el || !target) {
       setRect(null)
       return
@@ -114,10 +116,11 @@ export function Highlight({
   return (
     <div
       ref={host}
+      data-highlight-host
       className={`relative ${className}`}
       onPointerOver={(e) => {
         const item = (e.target as Element).closest<HTMLElement>('[data-item]')
-        if (item === hovered.current || !host.current?.contains(item)) return
+        if (!item || item === hovered.current || !ownedBy(host.current, item)) return
         hovered.current = item
         measure()
       }}
@@ -143,6 +146,11 @@ export function Highlight({
       {children}
     </div>
   )
+}
+
+/** Nested lists have their own pill; an item belongs to the nearest host above it. */
+function ownedBy(host: HTMLElement | null, item: Element): boolean {
+  return item.parentElement?.closest('[data-highlight-host]') === host
 }
 
 function same(a: Rect, b: Rect): boolean {
