@@ -12,7 +12,7 @@ import { describe, expect, it } from 'vitest'
  * which is where a conditional return makes them unsafe.
  */
 
-const sources = import.meta.glob<string>('./components/*.tsx', {
+const sources = import.meta.glob<string>('./components/**/*.tsx', {
   query: '?raw',
   import: 'default',
   eager: true,
