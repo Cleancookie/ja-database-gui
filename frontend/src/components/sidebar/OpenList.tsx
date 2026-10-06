@@ -3,17 +3,19 @@ import { tableKey } from '../../edits'
 import { useStore } from '../../store'
 import { sameRef } from '../../tabs'
 import type { ObjectRef } from '../../types'
+import { Highlight } from '../Highlight'
 import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
+import { PILL } from './listKit'
 
 const HEADING = 'px-3 pt-2 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase'
 const ROW =
-  'relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left hover:bg-[var(--color-panel)]'
+  'relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left hover:bg-[var(--color-elevated)]'
 
 /**
  * The top of an expanded tab, between the table search and the list of every
- * table: the tab's SQL editor, and the tables open in it, the one on screen in
- * bold. Each closes with its ×.
+ * table: the tab's SQL editor, and the tables open in it. The pill slides to
+ * whichever is on screen. Each table closes with its ×.
  */
 export function OpenList() {
   const openTables = useStore((s) => s.openTables)
@@ -36,9 +38,10 @@ export function OpenList() {
   }
 
   return (
-    <div className="shrink-0 px-1.5">
+    <Highlight className="shrink-0 px-1.5" pillClassName={PILL}>
       <button
         onClick={() => setView('sql')}
+        data-highlight={view === 'sql' || undefined}
         className={`${ROW} mt-1 w-full ${view === 'sql' ? 'font-bold' : ''}`}
         title="SQL editor (Ctrl+E)"
       >
@@ -52,7 +55,7 @@ export function OpenList() {
           </h3>
           <div className="max-h-[30vh] overflow-y-auto">
             {openTables.map(({ ref }) => {
-              const current = sameRef(activeRef, ref)
+              const current = view !== 'sql' && sameRef(activeRef, ref)
               const name = qualifiedName(ref)
               return (
                 <div
@@ -69,6 +72,7 @@ export function OpenList() {
                     onClick={() => show(ref)}
                     title={name}
                     aria-current={current || undefined}
+                    data-highlight={current || undefined}
                     className={`${ROW} ${current ? 'font-bold' : ''}`}
                   >
                     <OpenDot />
@@ -92,6 +96,6 @@ export function OpenList() {
         </>
       )}
       <h3 className={HEADING}>All</h3>
-    </div>
+    </Highlight>
   )
 }

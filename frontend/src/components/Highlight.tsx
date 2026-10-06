@@ -84,7 +84,12 @@ export function Highlight({
     if (!el) return
     const observer = new ResizeObserver(measure)
     observer.observe(el)
-    return () => observer.disconnect()
+    // A scroller inside the wrapper moves the target without a render.
+    el.addEventListener('scroll', measure, { capture: true, passive: true })
+    return () => {
+      observer.disconnect()
+      el.removeEventListener('scroll', measure, { capture: true })
+    }
   }, [measure])
 
   // Movement is enabled one frame after the pill first has somewhere to be.
