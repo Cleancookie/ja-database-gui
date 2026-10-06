@@ -8,7 +8,7 @@ export function EmptyPanel() {
   const sidebarHidden = useStore((s) => s.settings.tabStripHidden)
   const hints: [string, string][] = connected
     ? [
-        ['/', 'search the tables in the sidebar'],
+        ['Ctrl+L', 'search the tables in the sidebar'],
         ['Ctrl+P', 'jump to a table'],
         ['Ctrl+E', 'write SQL'],
         ['Ctrl+T', 'open another database in a new tab'],

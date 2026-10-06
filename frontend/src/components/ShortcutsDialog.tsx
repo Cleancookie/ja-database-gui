@@ -13,7 +13,7 @@ const SHORTCUTS: [string, string][] = [
   ['Mouse back / forward', 'Previous / next page in the main panel, across tabs — hold Shift to change tab instead'],
   ['Ctrl+=  /  Ctrl+-  /  Ctrl+0', 'Increase / decrease / reset the font size'],
   ['Ctrl+F', 'Focus the WHERE filter'],
-  ['/', 'Search the tables in the sidebar'],
+  ['Ctrl+L', 'Search the tables in the sidebar'],
   ['Alt+W', 'Close the table on screen (the tab keeps its other open tables)'],
   ['Alt+PageUp  /  Alt+PageDown', 'Previous / next open table in this tab'],
   ['Enter', 'Apply the filter'],

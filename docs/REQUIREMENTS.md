@@ -799,7 +799,7 @@ Make each tab a workspace on one database, and move the table picker from the ma
 | Another database | `openWorkspace`. While the tab has no database it is used; otherwise a new tab opens. From the SQL editor's database picker the new tab opens on its SQL editor |
 | Connecting | Binds the saved database, or the chosen one, or the file for SQLite. A server connection with no saved database waits for the user to choose |
 | Closing a table | `Alt+W`, or ×. With staged edits on it, asks first (`ConfirmDiscardDialog`) and discards only that table's |
-| Keys | `Alt+PageUp` / `Alt+PageDown` cycle the open tables. `/` focuses the table search when not typing, showing the sidebar if hidden. `Ctrl+F` stays the WHERE filter. All in the action palette, which also groups a tab's open tables as "Open in this tab" |
+| Keys | `Alt+PageUp` / `Alt+PageDown` cycle the open tables. `Ctrl+L` focuses the table search, even from a field, showing the sidebar if hidden. `Ctrl+F` stays the WHERE filter. All in the action palette, which also groups a tab's open tables as "Open in this tab" |
 | Back / forward | Unchanged. Going back to a table since closed opens it again |
 | Reopen closed tab | Brings back the open tables and the SQL text, not the runs. A tab with no open table, no SQL and no other page is not kept |
 | Drop, disconnect | A dropped table leaves every tab's open list. Disconnect blanks every tab on that connection |

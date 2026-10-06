@@ -286,6 +286,13 @@ function useGlobalHotkeys() {
         return
       }
 
+      // Ctrl+L, as for a browser's location bar: works from inside a field too.
+      if (mod && !e.shiftKey && e.key.toLowerCase() === 'l') {
+        e.preventDefault()
+        void focusTableSearch(s)
+        return
+      }
+
       if (mod && e.key.toLowerCase() === 'f') {
         e.preventDefault()
         if (s.view !== 'data') s.setView('data')
@@ -376,12 +383,6 @@ function useGlobalHotkeys() {
         e.preventDefault()
         s.toggleTransposed()
         return
-      }
-
-      // Bare "/" jumps to the table search, as in vim and every pager.
-      if (!typing && !mod && e.key === '/') {
-        e.preventDefault()
-        void focusTableSearch(s)
       }
     }
 

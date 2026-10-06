@@ -260,7 +260,7 @@ export function buildActionCommands(s: Store): Command[] {
       title: 'Search tables',
       subtitle: 'The table search in the sidebar',
       group: 'Tables',
-      shortcut: '/',
+      shortcut: 'Ctrl+L',
       candidate: { name: 'Search tables', keywords: 'find filter sidebar focus list' },
       run: () => focusTableSearch(s),
     })
