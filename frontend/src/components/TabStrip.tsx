@@ -149,7 +149,9 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
         </div>
         <Highlight className="flex min-h-0 flex-1 flex-col p-1.5" pillClassName={PILL}>
           {before.length > 0 && (
-            <div className="max-h-[30%] shrink-0 overflow-y-auto">{before.map(row)}</div>
+            <div data-highlight-clip className="max-h-[30%] shrink-0 overflow-y-auto">
+              {before.map(row)}
+            </div>
           )}
           {live && (
             // One card, sized to what it holds: a database with three tables
@@ -169,7 +171,9 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
             </section>
           )}
           {after.length > 0 && (
-            <div className="max-h-[30%] shrink-0 overflow-y-auto">{after.map(row)}</div>
+            <div data-highlight-clip className="max-h-[30%] shrink-0 overflow-y-auto">
+              {after.map(row)}
+            </div>
           )}
         </Highlight>
       </aside>

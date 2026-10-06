@@ -11,13 +11,12 @@ import { tableKey } from '../../edits'
 import { rankCandidates } from '../../fuzzy'
 import { useStore } from '../../store'
 import type { ObjectType, SchemaObject } from '../../types'
-import { Highlight } from '../Highlight'
 import { ObjectListMenu, objectKey } from '../ObjectMenu'
 import { refKey } from '../../recency'
 import { openTableKeys } from '../../tabs'
 import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
-import { INPUT, PILL, useFocusWhen, useListKeys } from './listKit'
+import { INPUT, useFocusWhen, useListKeys } from './listKit'
 
 /** Only what has rows to browse; functions and procedures are reached from the palette. */
 type Browsable = 'table' | 'view'
@@ -146,8 +145,9 @@ export const ObjectList = memo(function ObjectList({
         />
       </div>
       {children}
-      <div ref={scroller} className={`min-h-0 overflow-y-auto ${className}`}>
-        <Highlight className="px-1.5 pb-2" pillClassName={PILL}>
+      {/* The pill is the sidebar's one Highlight, in TabStrip. */}
+      <div ref={scroller} data-highlight-clip className={`min-h-0 overflow-y-auto ${className}`}>
+        <div className="px-1.5 pb-2">
           {objects.length === 0 && (
             <p className="px-2 py-2 text-[var(--color-faint)]">
               {busy ? 'Loading…' : 'No objects'}
@@ -190,7 +190,7 @@ export const ObjectList = memo(function ObjectList({
               })}
             </div>
           </ObjectListMenu>
-        </Highlight>
+        </div>
       </div>
     </div>
   )

@@ -3,10 +3,8 @@ import { tableKey } from '../../edits'
 import { useStore } from '../../store'
 import { sameRef } from '../../tabs'
 import type { ObjectRef } from '../../types'
-import { Highlight } from '../Highlight'
 import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
-import { PILL } from './listKit'
 
 const HEADING = 'px-3 pt-2 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase'
 const ROW =
@@ -38,7 +36,7 @@ export function OpenList() {
   }
 
   return (
-    <Highlight className="shrink-0 px-1.5" pillClassName={PILL}>
+    <div className="shrink-0 px-1.5">
       <button
         onClick={() => setView('sql')}
         data-item
@@ -54,7 +52,7 @@ export function OpenList() {
           <h3 className={HEADING}>
             Open <span className="opacity-60">{openTables.length}</span>
           </h3>
-          <div className="max-h-[30vh] overflow-y-auto">
+          <div data-highlight-clip className="max-h-[30vh] overflow-y-auto">
             {openTables.map(({ ref }) => {
               const current = view !== 'sql' && sameRef(activeRef, ref)
               const name = qualifiedName(ref)
@@ -98,6 +96,6 @@ export function OpenList() {
         </>
       )}
       <h3 className={HEADING}>All</h3>
-    </Highlight>
+    </div>
   )
 }

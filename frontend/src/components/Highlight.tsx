@@ -26,6 +26,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  * over them, and let it slide back to `data-highlight` when it leaves — so the
  * mouse gets the same motion as the keys, and needs no hover colour of its own.
  *
+ * One host can span several lists — the whole sidebar is one — so the pill
+ * glides between them instead of one fading out as another fades in. A
+ * scroller inside it is marked `data-highlight-clip` to trim the pill to it.
+ *
  * This is not in `src/ui` on purpose. That layer exists to quarantine vendor
  * APIs — see ui/README.md — and there is no vendor here to hide.
  */
@@ -56,28 +60,38 @@ export function Highlight({
 
   const measure = useCallback(() => {
     const el = host.current
-    // A virtualised list recycles rows, so a hovered one may have gone.
+    // A virtualised list recycles rows, so a hovered one may have gone. With
+    // several marked, the last is the most specific: a keyboard row in a
+    // nested list outranks the tab it sits in.
     const target = hovered.current?.isConnected
       ? hovered.current
-      : [...(el?.querySelectorAll<HTMLElement>('[data-highlight]') ?? [])].find((t) =>
-          ownedBy(el, t),
-        )
+      : [...(el?.querySelectorAll<HTMLElement>('[data-highlight]') ?? [])]
+          .filter((t) => ownedBy(el, t))
+          .at(-1)
     if (!el || !target) {
       setRect(null)
       return
     }
-    const a = target.getBoundingClientRect()
     const b = el.getBoundingClientRect()
+    let { top, bottom, left, width } = target.getBoundingClientRect()
+    // Trimmed to the scroller it sits in, so a half-scrolled row's pill does
+    // not paint over whatever is above or below that scroller.
+    const clip = target.closest('[data-highlight-clip]')
+    if (clip && el.contains(clip)) {
+      const c = clip.getBoundingClientRect()
+      top = Math.max(top, c.top)
+      bottom = Math.max(top, Math.min(bottom, c.bottom))
+    }
     // Content coordinates, not viewport ones: the pill is a child of the
     // wrapper, so it has to be positioned in the same space the wrapper
     // scrolls. Adding scrollTop covers the case where the wrapper *is* the
     // scroll container; where the scroller is an ancestor it is zero and the
     // rect difference already accounts for the offset.
     const next = {
-      x: a.left - b.left + el.scrollLeft,
-      y: a.top - b.top + el.scrollTop,
-      w: a.width,
-      h: a.height,
+      x: left - b.left + el.scrollLeft,
+      y: top - b.top + el.scrollTop,
+      w: width,
+      h: bottom - top,
     }
     setRect((prev) => (prev && same(prev, next) ? prev : next))
   }, [])
@@ -88,17 +102,26 @@ export function Highlight({
   // check above stops that from looping.
   useLayoutEffect(measure)
 
-  // Dragging the sidebar resizes the rows without re-rendering this.
   useEffect(() => {
     const el = host.current
     if (!el) return
-    const observer = new ResizeObserver(measure)
-    observer.observe(el)
-    // A scroller inside the wrapper moves the target without a render.
-    el.addEventListener('scroll', measure, { capture: true, passive: true })
+    // Dragging the sidebar resizes the rows without re-rendering this.
+    const resized = new ResizeObserver(measure)
+    resized.observe(el)
+    // A nested list moving its marker re-renders itself, not this.
+    const marked = new MutationObserver(measure)
+    marked.observe(el, { subtree: true, childList: true, attributeFilter: ['data-highlight'] })
+    // A scroller inside moves the target without a render. The pill follows
+    // at once rather than springing after it, which would read as lag.
+    const scrolled = () => {
+      setMoving(false)
+      measure()
+    }
+    el.addEventListener('scroll', scrolled, { capture: true, passive: true })
     return () => {
-      observer.disconnect()
-      el.removeEventListener('scroll', measure, { capture: true })
+      resized.disconnect()
+      marked.disconnect()
+      el.removeEventListener('scroll', scrolled, { capture: true })
     }
   }, [measure])
 
