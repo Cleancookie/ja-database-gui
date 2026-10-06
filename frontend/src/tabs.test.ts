@@ -154,15 +154,16 @@ describe('store tabs', () => {
     expect(s().activeRef).toBeNull()
   })
 
-  it('reopens closed tabs newest first, and ignores bare pickers', async () => {
+  it('reopens closed tabs newest first, and ignores empty ones', async () => {
     vi.resetModules()
     vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
     const { useStore } = await import('./store')
     const s = () => useStore.getState()
 
-    useStore.setState({ activeRef: ref('a') })
+    const opened = (name: string) => ({ activeRef: ref(name), openTables: [{ ref: ref(name), controls: FRESH_CONTROLS }] })
+    useStore.setState(opened('a'))
     s().newTab()
-    useStore.setState({ activeRef: ref('b') })
+    useStore.setState(opened('b'))
     s().newTab()
     s().closeTab()
     s().closeTab()
