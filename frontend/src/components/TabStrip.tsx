@@ -1,7 +1,7 @@
-import { Fragment, memo, useMemo, useState } from 'react'
+import { memo, useMemo } from 'react'
 import { tableKey } from '../edits'
 import { useStore } from '../store'
-import { pageTitle, tabHistory, tabTitle, type TabVisit } from '../tabs'
+import { tabTitle } from '../tabs'
 import { Highlight } from './Highlight'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import { TableMark } from './TableMark'
@@ -25,16 +25,6 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
   const newTab = useStore((s) => s.newTab)
   const switchTab = useStore((s) => s.switchTab)
   const closeTab = useStore((s) => s.closeTab)
-  const nav = useStore((s) => s.nav)
-  const navAt = useStore((s) => s.navAt)
-  const goToVisit = useStore((s) => s.goToVisit)
-  const [expanded, setExpanded] = useState<ReadonlySet<number>>(new Set())
-  const toggleExpanded = (id: number) =>
-    setExpanded((cur) => {
-      const next = new Set(cur)
-      if (!next.delete(id)) next.add(id)
-      return next
-    })
 
   const resize = useResizable('sidebarWidthPx', LIMITS.sidebar)
 
@@ -97,100 +87,52 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
           pillClassName="rounded-xl bg-[var(--color-accent-dim)]/55"
         >
           {rows.map((r) => (
-            <Fragment key={r.id}>
-              <div
-                data-highlight={r.live || undefined}
-                className="group relative flex items-center rounded-xl"
-                // Middle-click closes, as in a browser.
-                onAuxClick={(e) => {
-                  if (e.button === 1) {
-                    e.preventDefault()
-                    closeTab(r.id)
-                  }
-                }}
+            <div
+              key={r.id}
+              data-highlight={r.live || undefined}
+              className="group relative flex items-center rounded-xl"
+              // Middle-click closes, as in a browser.
+              onAuxClick={(e) => {
+                if (e.button === 1) {
+                  e.preventDefault()
+                  closeTab(r.id)
+                }
+              }}
+            >
+              <button
+                onClick={() => switchTab(r.id)}
+                title={r.where ? `${r.title} — ${r.where}` : r.title}
+                aria-current={r.live || undefined}
+                className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
+                  r.live ? 'font-bold' : 'hover:bg-[var(--color-elevated)] hover:shadow-xs'
+                }`}
               >
-                <button
-                  onClick={() => switchTab(r.id)}
-                  title={r.where ? `${r.title} — ${r.where}` : r.title}
-                  aria-current={r.live || undefined}
-                  className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
-                    r.live ? 'font-bold' : 'hover:bg-[var(--color-elevated)] hover:shadow-xs'
-                  }`}
-                >
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ background: r.colour || 'var(--color-border-strong)' }}
-                  />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{r.title}</span>
-                    {r.where && (
-                      <span className="block truncate font-normal text-[var(--color-faint)]">
-                        {r.where}
-                      </span>
-                    )}
-                  </span>
-                  {r.dirtyKey && <TableMark tableKey={r.dirtyKey} />}
-                </button>
-                <button
-                  onClick={() => closeTab(r.id)}
-                  title="Close tab (Ctrl+W)"
-                  aria-label={`Close ${r.title}`}
-                  className="relative mr-1 shrink-0 rounded-full px-1.5 text-[var(--color-faint)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)] focus-visible:opacity-100"
-                >
-                  ×
-                </button>
-              </div>
-              <TabHistory
-                visits={tabHistory(nav, navAt, r.id)}
-                expanded={expanded.has(r.id)}
-                onToggle={() => toggleExpanded(r.id)}
-                onPick={goToVisit}
-              />
-            </Fragment>
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded-full"
+                  style={{ background: r.colour || 'var(--color-border-strong)' }}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate">{r.title}</span>
+                  {r.where && (
+                    <span className="block truncate font-normal text-[var(--color-faint)]">
+                      {r.where}
+                    </span>
+                  )}
+                </span>
+                {r.dirtyKey && <TableMark tableKey={r.dirtyKey} />}
+              </button>
+              <button
+                onClick={() => closeTab(r.id)}
+                title="Close tab (Ctrl+W)"
+                aria-label={`Close ${r.title}`}
+                className="relative mr-1 shrink-0 rounded-full px-1.5 text-[var(--color-faint)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)] focus-visible:opacity-100"
+              >
+                ×
+              </button>
+            </div>
           ))}
         </Highlight>
       </aside>
     </div>
   )
 })
-
-const SHOWN = 3
-
-/** A tab's earlier pages, under its name: the latest few, and the rest on request. */
-function TabHistory({
-  visits,
-  expanded,
-  onToggle,
-  onPick,
-}: {
-  visits: TabVisit[]
-  expanded: boolean
-  onToggle: () => void
-  onPick: (at: number) => void
-}) {
-  if (visits.length === 0) return null
-  const shown = expanded ? visits : visits.slice(0, SHOWN)
-  const hidden = visits.length - SHOWN
-  return (
-    <ul className="mb-1 ml-[1.1rem] border-l border-[var(--color-border)] pl-1.5">
-      {shown.map((v) => (
-        <li key={v.at}>
-          <button
-            onClick={() => onPick(v.at)}
-            title={v.page.controls?.filter ? `${pageTitle(v.page)} — ${v.page.controls.filter}` : pageTitle(v.page)}
-            className="block w-full truncate rounded-lg px-2 py-0.5 text-left text-[var(--color-muted)] hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)]"
-          >
-            {pageTitle(v.page)}
-          </button>
-        </li>
-      ))}
-      {hidden > 0 && (
-        <li>
-          <button onClick={onToggle} className="px-2 py-0.5 text-[var(--color-faint)] hover:text-[var(--color-text)]">
-            {expanded ? 'Show less' : `Show ${hidden} more`}
-          </button>
-        </li>
-      )}
-    </ul>
-  )
-}
