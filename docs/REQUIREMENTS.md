@@ -805,3 +805,20 @@ Make each tab a workspace on one database, and move the table picker from the ma
 | Drop, disconnect | A dropped table leaves every tab's open list. Disconnect blanks every tab on that connection |
 | Sample database | "Open the sample database" is a row under the connection list, shown while the active tab has no database |
 | Persistence | None, as before |
+
+## 2026-10-06 — server and database are chosen in the main panel
+
+### Brief
+
+The sidebar's connection and database lists were cramped. Move "choose server, then database" into the main panel for an unbound tab. Amends `docs/adr/0009`.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Invariant | Server and database are chosen in the main panel (`WorkspacePicker`). The sidebar holds tabs and, for a bound tab, its tables only |
+| Unbound tab, main panel | Step header `① Server › ② Database`, current step highlighted, step 2 names the server. Step 2 appears only when the server hosts databases and binding did not happen at once |
+| Unbound tab, sidebar | Its row, and a one-line hint pointing to the main panel |
+| Keys | The list is focused on mount. Arrows and `Ctrl+J` / `Ctrl+K` move (`listNav.ts`), `Enter` picks, `Esc` on step 2 returns to step 1 without disconnecting |
+| Connection actions | New connection, sample database, edit, remove and the context menu stay on the server step |
+| Bound tab, no table open | `EmptyPanel` as before, without the connection wording |

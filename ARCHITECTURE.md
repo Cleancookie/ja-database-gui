@@ -166,10 +166,11 @@ because inside a palette it is already the emacs-style move-up binding.
 The left rail is the tab sidebar (ADR 0006, amended by ADR 0009). A tab is a
 workspace on one connection and one database: the tables opened in it, each
 with its filter, sort and page, plus that tab's own SQL editor and details
-page. The active tab is expanded in the sidebar. With no database chosen it
-lists connections, then databases. With one, it shows a table search, the SQL
-editor, the open tables and every table and view. Other tabs are one line
-each. There is no picker in the main panel; an empty tab says where to go.
+page. The active tab is expanded in the sidebar once it has a database: a
+table search, the SQL editor, the open tables and every table and view. Other
+tabs are one line each. With no database chosen, the main panel shows a
+stepped server, then database picker (`WorkspacePicker`); the sidebar holds
+tabs and tables only. A bound tab with no table open shows `EmptyPanel`.
 
 The store keeps one flat set of "active" fields and nearly every component
 reads them directly. A tab is a saved copy of that set (`frontend/src/tabs.ts`):
