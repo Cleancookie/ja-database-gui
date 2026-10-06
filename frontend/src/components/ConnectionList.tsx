@@ -81,7 +81,7 @@ export function ConnectionList({
               <div
                 data-highlight={i === selected || undefined}
                 className={`group relative flex items-center gap-1 rounded-xl ${
-                  current ? 'font-bold' : 'hover:bg-[var(--color-panel)]'
+                  current ? 'font-bold' : 'hover:bg-[var(--color-elevated)]'
                 }`}
               >
                 <button
@@ -131,14 +131,14 @@ export function ConnectionList({
       <div className="border-t border-[var(--color-border)] px-1.5 py-1.5">
         <button
           onClick={() => setDialog({ kind: 'connection', connection: null })}
-          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[var(--color-muted)] hover:bg-[var(--color-panel)] hover:text-[var(--color-accent)]"
+          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[var(--color-muted)] hover:bg-[var(--color-elevated)] hover:text-[var(--color-accent)]"
         >
           <span className="w-2.5 shrink-0 text-center font-bold">+</span>
           New connection…
         </button>
         <button
           onClick={() => void openSample()}
-          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[var(--color-muted)] hover:bg-[var(--color-panel)] hover:text-[var(--color-accent)]"
+          className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left text-[var(--color-muted)] hover:bg-[var(--color-elevated)] hover:text-[var(--color-accent)]"
         >
           <span className="w-2.5 shrink-0 text-center">▤</span>
           Open the sample database

@@ -218,7 +218,7 @@ function ObjectRow({
       title={qualified}
       data-object={objectKey(o)}
       data-highlight={highlighted || undefined}
-      className="relative flex w-full items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left hover:bg-[var(--color-panel)]"
+      className="relative flex w-full items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left hover:bg-[var(--color-elevated)]"
     >
       <span className="shrink-0 text-[var(--color-faint)]">{OBJECT_ICON[o.type]}</span>
       <span className="min-w-0 flex-1 truncate">{qualified}</span>

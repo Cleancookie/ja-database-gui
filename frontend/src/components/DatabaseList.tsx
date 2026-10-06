@@ -75,7 +75,7 @@ export function DatabaseList({
             title={d}
             data-highlight={i === selected || undefined}
             className={`relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-1.5 text-left ${
-              d === activeDatabase ? 'font-bold' : 'hover:bg-[var(--color-panel)]'
+              d === activeDatabase ? 'font-bold' : 'hover:bg-[var(--color-elevated)]'
             }`}
           >
             <span className="shrink-0 text-[var(--color-faint)]">▪</span>
