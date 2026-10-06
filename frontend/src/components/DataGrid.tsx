@@ -273,9 +273,18 @@ function Grid({
   // rather than left to scrollToIndex or scrollIntoView: neither knows the
   // sticky header covers the top of the viewport, so both would happily stop
   // with the cell behind it. See frontend/src/scroll.ts.
+  //
+  // Only when the focus itself moves: an appended page re-measures the widths,
+  // and following that would yank the user back up to the focused cell.
+  const shownFocus = useRef<typeof focus>(null)
   useEffect(() => {
     const el = scrollRef.current
-    if (!focus || transposed || !el) return
+    if (!focus || transposed || !el) {
+      shownFocus.current = null
+      return
+    }
+    if (focus === shownFocus.current) return
+    shownFocus.current = focus
     scrollTo(
       el,
       offsetToShow(
@@ -908,10 +917,17 @@ function RecordsGrid({
   // scrollToIndex calls — those fought each other, and neither allowed for the
   // record-number header or the sticky column-name strip, which is how a cell
   // could end up "in view" with a pixel of it showing. Both edges of the cell
-  // on both axes is all four of its corners.
+  // on both axes is all four of its corners. Only when the focus moves, for the
+  // same reason as the row grid: an appended page must not pull the view back.
+  const shownFocus = useRef<typeof focus>(null)
   useEffect(() => {
     const el = scrollRef.current
-    if (!focus || !el) return
+    if (!focus || !el) {
+      shownFocus.current = null
+      return
+    }
+    if (focus === shownFocus.current) return
+    shownFocus.current = focus
     scrollTo(
       el,
       offsetToShow(
