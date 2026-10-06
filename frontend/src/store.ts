@@ -37,8 +37,10 @@ import {
   pageOf,
   recordPage,
   samePage,
+  sameRef,
   snapshot,
   type Controls,
+  type OpenTable,
   type Page,
   type Tab,
   type TabFields,
@@ -177,6 +179,8 @@ export interface State extends EditState, EditActions {
 
   // active object
   activeRef: ObjectRef | null
+  /** The tables opened in this tab, each with how it was left (`tabs.ts`). */
+  openTables: OpenTable[]
   /**
    * Objects opened this session, most recent first, as refKey strings.
    *
@@ -720,6 +724,7 @@ export const useStore = create<State>((set, get) => {
     activeDatabase: '',
     objects: [],
     activeRef: null,
+    openTables: [],
     recentObjects: [],
     columns: [],
     result: null,
@@ -1659,10 +1664,6 @@ export const useStore = create<State>((set, get) => {
  */
 export function refLabel(ref: ObjectRef): string {
   return ref.schema ? `${ref.schema}.${ref.name}` : ref.name
-}
-
-function sameRef(a: ObjectRef | null, b: ObjectRef): boolean {
-  return !!a && a.database === b.database && a.schema === b.schema && a.name === b.name
 }
 
 /**

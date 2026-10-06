@@ -1,5 +1,19 @@
 import { describe, expect, it, vi } from 'vitest'
-import { blankFields, recordPage, samePage, tabHistory, tabTitle, type Page } from './tabs'
+import {
+  blankFields,
+  closeOpen,
+  FRESH_CONTROLS,
+  neighbourOf,
+  openTableKeys,
+  recordPage,
+  samePage,
+  TAB_FIELDS,
+  tabHistory,
+  tabTitle,
+  upsertOpen,
+  type Page,
+} from './tabs'
+import { refKey } from './recency'
 
 const ref = (name: string) => ({ database: 'db', schema: '', name })
 
@@ -62,7 +76,36 @@ describe('samePage', () => {
   })
 })
 
+describe('open tables', () => {
+  const open = (...names: string[]) => names.map((n) => ({ ref: ref(n), controls: FRESH_CONTROLS }))
+  const names = (l: { ref: { name: string } }[]) => l.map((t) => t.ref.name)
+  const filtered = { ...FRESH_CONTROLS, filter: 'id > 3' }
+
+  it('appends a new table and updates one already open in place', () => {
+    expect(names(upsertOpen(open('a'), ref('b'), FRESH_CONTROLS))).toEqual(['a', 'b'])
+    const l = upsertOpen(open('a', 'b'), ref('a'), filtered)
+    expect(names(l)).toEqual(['a', 'b'])
+    expect(l[0].controls.filter).toBe('id > 3')
+  })
+  it('closes by ref', () => {
+    expect(names(closeOpen(open('a', 'b', 'c'), ref('b')))).toEqual(['a', 'c'])
+  })
+  it('picks the next table along, else the previous, else none', () => {
+    expect(neighbourOf(open('a', 'b', 'c'), ref('b'))?.ref.name).toBe('c')
+    expect(neighbourOf(open('a', 'b', 'c'), ref('c'))?.ref.name).toBe('b')
+    expect(neighbourOf(open('a'), ref('a'))).toBeNull()
+    expect(neighbourOf(open('a'), ref('x'))).toBeNull()
+  })
+  it('keys open tables the way the recent list does', () => {
+    expect(openTableKeys(open('a')).has(refKey('db', '', 'a'))).toBe(true)
+  })
+})
+
 describe('blankFields', () => {
+  it('names exactly the per-tab fields', () => {
+    expect(Object.keys(blankFields(100, true)).sort()).toEqual([...TAB_FIELDS].sort())
+  })
+
   it('carries the paging defaults and nothing else', () => {
     const f = blankFields(250, false)
     expect(f.pageSize).toBe(250)
