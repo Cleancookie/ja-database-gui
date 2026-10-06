@@ -9,6 +9,7 @@ import { useStore, type ResultSource } from '../store'
 import { editCellClass, useGridEdits, type CellView, type GridEdits } from '../useGridEdits'
 import { ContextMenu, type MenuItem } from '../ui'
 import { CellEditor } from './CellEditor'
+import { GridSelection } from './GridSelection'
 import { RowMark } from './RowMark'
 import type { Cell, Column, ResultColumn, ResultSet, Sort } from '../types'
 
@@ -609,9 +610,9 @@ function Grid({
                           // one. The menu must always act on the cell that was
                           // actually clicked, never on a stale selection.
                           onContextMenu={() => pick(v.index, ci, false)}
-                          className={`absolute top-0 truncate border-r border-[var(--color-border)] px-2 ${
+                          className={`absolute top-0 z-[1] truncate border-r border-[var(--color-border)] px-2 ${
                             m.numeric ? 'text-right' : ''
-                          } ${cellSelectionClass(isFocus, inRange)} ${editCellClass(view.state, isFocus || inRange)}`}
+                          } ${editCellClass(view.state, isFocus || inRange)}`}
                           style={{
                             left: c.start,
                             width: c.size,
@@ -639,6 +640,13 @@ function Grid({
                 </div>
               )
             })}
+            <GridSelection
+              ys={virtualizer.measurementsCache}
+              xs={colV.measurementsCache}
+              top={gm.headerHeight}
+              focus={focus && { y0: focus.row, y1: focus.row, x0: focus.col, x1: focus.col }}
+              range={rect && { y0: rect.top, y1: rect.bottom, x0: rect.left, x1: rect.right }}
+            />
           </div>
         </CellContextMenu>
       </div>
@@ -793,20 +801,6 @@ function ColumnResizer({
       style={{ left, height }}
     />
   )
-}
-
-/**
- * How a cell shows that it is selected.
- *
- * The focus cell keeps the ring it always had, and the rest of the range is a
- * flatter wash: one cell has to stay identifiable as the one the keyboard and
- * the menu are pointing at, or extending a range becomes guesswork.
- */
-function cellSelectionClass(isFocus: boolean, inRange: boolean): string {
-  if (isFocus) {
-    return 'bg-[var(--color-accent-dim)]/60 ring-1 ring-[var(--color-accent)] ring-inset'
-  }
-  return inRange ? 'bg-[var(--color-accent-dim)]/30' : ''
 }
 
 /** One source column, with its introspected metadata where there is any. */
@@ -1033,9 +1027,9 @@ function RecordsGrid({
                             }}
                             onMouseEnter={() => drag.over(c.index, v.index)}
                             onContextMenu={() => pick(c.index, v.index, false)}
-                            className={`absolute top-0 truncate border-r border-b border-[var(--color-border)] px-2 hover:bg-[var(--color-accent-dim)]/25 ${
+                            className={`absolute top-0 z-[1] truncate border-r border-b border-[var(--color-border)] px-2 hover:bg-[var(--color-accent-dim)]/25 ${
                               m.numeric ? 'text-right' : ''
-                            } ${cellSelectionClass(isFocus, inRange)} ${editCellClass(view.state, isFocus || inRange)}`}
+                            } ${editCellClass(view.state, isFocus || inRange)}`}
                             style={{
                               left: c.start - labelWidth,
                               width: c.size,
@@ -1064,6 +1058,15 @@ function RecordsGrid({
                 </div>
               )
             })}
+            {/* Rows here are source columns and columns are source rows. */}
+            <GridSelection
+              ys={rowV.measurementsCache}
+              xs={colV.measurementsCache}
+              top={gm.headerHeight}
+              focus={focus && { y0: focus.col, y1: focus.col, x0: focus.row, x1: focus.row }}
+              range={rect && { y0: rect.left, y1: rect.right, x0: rect.top, x1: rect.bottom }}
+              borderBottom
+            />
           </div>
         </CellContextMenu>
       </div>
