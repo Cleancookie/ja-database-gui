@@ -184,6 +184,26 @@ describe('store tabs', () => {
   })
 })
 
+describe('closing a tab', () => {
+  it('offers to reopen a tab worth keeping, and says nothing for an empty one', async () => {
+    vi.resetModules()
+    vi.doMock('./api', () => ({ api: new Proxy({}, { get: () => async () => ({}) }), transportName: 'test' }))
+    const { useStore } = await import('./store')
+    const s = () => useStore.getState()
+
+    s().closeTab()
+    expect(s().toasts).toEqual([])
+
+    useStore.setState({ activeRef: ref('a'), openTables: [{ ref: ref('a'), controls: FRESH_CONTROLS }] })
+    s().closeTab()
+    const toast = s().toasts.at(-1)
+    expect(toast?.message).toBe('Tab closed')
+    expect(s().activeRef).toBeNull()
+    toast?.action?.run()
+    expect(s().activeRef?.name).toBe('a')
+  })
+})
+
 describe('store routes', () => {
   async function fresh() {
     vi.resetModules()

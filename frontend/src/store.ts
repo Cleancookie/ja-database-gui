@@ -82,6 +82,8 @@ export interface Toast {
   id: number
   kind: 'error' | 'info'
   message: string
+  /** A button on the toast; it is dismissed once the button is used. */
+  action?: { label: string; run: () => void }
 }
 
 /** One cell, as the viewer needs to see it. */
@@ -447,7 +449,7 @@ export interface State extends EditState, EditActions {
   copyText: (text: string) => Promise<void>
   /** Saves the result on screen as a CSV file — the browse page or the editor's. */
   exportCsv: () => void
-  pushToast: (kind: Toast['kind'], message: string) => void
+  pushToast: (kind: Toast['kind'], message: string, action?: Toast['action']) => void
   dismissToast: (id: number) => void
 }
 
@@ -1061,6 +1063,8 @@ export const useStore = create<State>((set, get) => {
         // Reopen brings back the editor text, not the results: they may be sensitive.
         const forgotten = { ...closing, sqlRuns: [], sqlActiveRun: null, sqlResultIndex: 0 }
         closedTabs = [...closedTabs, forgotten].slice(-CLOSED_TABS_LIMIT)
+        // Reopens the last tab closed, which is this one unless another closed since.
+        s.pushToast('info', 'Tab closed', { label: 'Reopen', run: () => get().reopenTab() })
       }
       if (s.tabs.length === 1) {
         const fresh = makeTab(++tabSeq, blank())
@@ -1716,9 +1720,9 @@ export const useStore = create<State>((set, get) => {
       s.pushToast(cut > 0 ? 'error' : 'info', `Exported ${rs.rows.length} rows to ${name}${note}`)
     },
 
-    pushToast(kind, message) {
+    pushToast(kind, message, action) {
       const id = ++toastSeq
-      set({ toasts: [...get().toasts, { id, kind, message }] })
+      set({ toasts: [...get().toasts, { id, kind, message, ...(action ? { action } : {}) }] })
       // Errors stay until dismissed; they often contain the SQL detail the
       // user needs to read carefully.
       if (kind === 'info') {

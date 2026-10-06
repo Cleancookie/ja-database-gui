@@ -30,7 +30,19 @@ export function Toasts() {
           >
             {t.message}
           </span>
-          <CopyButton text={t.message} />
+          {t.action ? (
+            <button
+              onClick={() => {
+                t.action!.run()
+                dismiss(t.id)
+              }}
+              className="shrink-0 rounded-lg border border-[var(--color-border-strong)] px-1.5 py-0.5 font-bold text-[var(--color-text)] hover:border-[var(--color-accent)]"
+            >
+              {t.action.label}
+            </button>
+          ) : (
+            <CopyButton text={t.message} />
+          )}
           <button
             onClick={() => dismiss(t.id)}
             aria-label="Dismiss"
