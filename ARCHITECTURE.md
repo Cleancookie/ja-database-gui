@@ -123,7 +123,7 @@ reverse; dropping was not.
 
 ## Two palettes, and no top bar
 
-There is no menu bar, toolbar or header. The window is a vertical tab strip,
+There is no menu bar, toolbar or header. The window is a tab sidebar,
 content, and the activity tray along the bottom — each a rounded island on a
 gutter (`.island` in `index.css`). Everything that was in the old top bar — the
 palette button, the settings cog, the busy indicator, the active table name —
@@ -163,12 +163,13 @@ because inside a palette it is already the emacs-style move-up binding.
 
 ## Tabs, and a palette that remembers
 
-The left rail is a vertical tab strip (ADR 0006). A tab is a workspace: one
-table, its filter, sort, page and selection, plus that tab's own SQL editor and
-details page. A tab with nothing open shows the picker — connections,
-databases and tables as a centred three-step accordion that collapses each
-step as the next opens — so opening a
-new tab, and the app's first screen, are the same thing.
+The left rail is the tab sidebar (ADR 0006, amended by ADR 0009). A tab is a
+workspace on one connection and one database: the tables opened in it, each
+with its filter, sort and page, plus that tab's own SQL editor and details
+page. The active tab is expanded in the sidebar. With no database chosen it
+lists connections, then databases. With one, it shows a table search, the SQL
+editor, the open tables and every table and view. Other tabs are one line
+each. There is no picker in the main panel; an empty tab says where to go.
 
 The store keeps one flat set of "active" fields and nearly every component
 reads them directly. A tab is a saved copy of that set (`frontend/src/tabs.ts`):
@@ -178,16 +179,24 @@ tray are global. A response meant for a tab the user has left is dropped (row
 fetches by the existing sequence counter, connect / database / details by a
 check of the active tab), and a tab left mid-load reloads when returned to.
 
-`Ctrl+P` retargets the *current* tab; open tabs appear in the same palette as a
-`Tabs` group to jump to.
+Open tables work the same way one level down. `openTables` holds each table's
+filter, sort and page; `activeRef` is the one on screen, and its entry is stale
+while it is. `openObjectAt` in `store.ts` is the single choke point: it writes
+the live controls into the table being left, then restores the target's and
+fetches its rows. Rows are never kept for a table that is not on screen.
+
+`Ctrl+P` opens a table in the *current* tab; open tabs appear in the same
+palette as a `Tabs` group to jump to. Choosing another database goes through
+`openWorkspace`, which opens a new tab unless the current one has no database
+yet.
 
 The main panel is routed. What it shows is a *page* (`pageOf` in `tabs.ts`):
-picker, table, SQL editor, details or activity. A subscription at the bottom of
+empty, table, SQL editor, details or activity. A subscription at the bottom of
 `store.ts` records every change of page, switching tab included, into one list
 (`nav`, `navAt`). The mouse back / forward buttons walk it across tabs, with
 the filter, sort and page a table had when it was left (Shift: between tabs).
 Going back is wrapped in `navigating` so it does not record itself, and pages of
-closed tabs are skipped.
+closed tabs are skipped. Going back to a table that was closed opens it again.
 
 Objects are still offered most-recently-opened first, in a `Recent` group above
 the rest of the catalogue. Alphabetical order is no help when switching between

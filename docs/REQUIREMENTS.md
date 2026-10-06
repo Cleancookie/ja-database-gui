@@ -517,6 +517,9 @@ fire there; it needs `OnBeforeClose` and a dirty flag pushed to Go).
 
 ## 2026-10-01 — tabs replace the sidebar
 
+> What a tab is, the picker, and its keys are superseded by
+> [2026-10-06 — tabs are database workspaces](#2026-10-06--tabs-are-database-workspaces).
+
 ### Brief
 
 Almost all of a session was spent in the main pane; the sidebar was used for the first half-minute and then left alone. Make the left rail a vertical tab strip, with a picker as what a new tab shows.
@@ -712,7 +715,9 @@ test — which is the intended speed bump.
 | The staged-changes bar is global, on the status strip | `ChangesStatus`. Edits outlive the table they were made in, so a bar over one grid would hide work in the others |
 | No component calls a hook after an early return | `hooks.test.ts`. React error 300 crashed the SQL editor when a statement with no result set followed a SELECT |
 | Big-editor Format and Minify touch whitespace only | `bigEdit.test.ts`. Re-stringifying would change the data |
-| No app-shell component subscribes to the staged edits | Same reason as the selection rule above: `DataGrid`, `ChangesStatus`, `ReviewChangesDialog`, `LargeEditorHost` and each picker and tab-strip `TableMark` subscribe — the last with a boolean for its own table — and `App` does not |
+| No app-shell component subscribes to the staged edits | Same reason as the selection rule above: `DataGrid`, `ChangesStatus`, `ReviewChangesDialog`, `LargeEditorHost`, each sidebar `TableMark` and each tab's `TabMark` subscribe — the last two with a boolean — and `App` does not |
+| The sidebar subscribes to no selection, rows or staged edits | It is always mounted beside the grid. `frontend/src/invariants.test.ts` reads its source for those selectors |
+| A tab's open tables change only in the store actions: `openObjectAt`, `closeOpenTable`, `selectDatabase`, `connect`, `disconnect`, `runDrop` | `openObjectAt` is the one place a table's filter, sort and page are saved and restored. `frontend/src/openTables.test.ts` |
 | A context-menu item fires a store action the palette also exposes | The palette is the primary surface. A menu that calls the API directly is a second code path where the confirmation and the refresh afterwards can drift |
 | Truncate and drop are decided in the store action, never at the call site | `runTruncate` / `runDrop` skip the confirmation by design; anything but a confirmation dialog calling them is a destructive statement with no prompt |
 | No DDL builder emits `CASCADE` | The engine refusing is the useful answer. `CASCADE` would act on objects the user never named |
@@ -775,3 +780,28 @@ New users have nothing to play with until they have a database. Ship a sample on
 ### Security
 
 The API takes no path. The only file ever written is the fixed sample file in the config directory (plus its temp file there), created 0600 like the other config files. The seed is embedded and trusted, and runs through the SQLite driver, never a shell. Building the file happens before any connection exists, so it is not a user query and does not appear in the activity log; everything after that goes through the normal middleware chain.
+
+## 2026-10-06 — tabs are database workspaces
+
+### Brief
+
+Make each tab a workspace on one database, and move the table picker from the main panel into the left sidebar. `docs/adr/0009`.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| What a tab is | A connection and a database, and the tables opened in it (`openTables`, in `TAB_FIELDS`), plus its SQL editor and details page. Title `connection / database`; SQLite the connection name only; nothing chosen "New tab" |
+| Sidebar, active tab | Expanded. No database yet: the connections, then the server's databases. With one: a table search (filters `ALL` only), an "SQL editor" row, `OPEN` (the tab's open tables; × or middle-click closes; the one on screen bold; dirty dot; green dot) and `ALL` (tables and views, open ones with a green dot; virtualised). Functions and procedures are not in `ALL` |
+| Sidebar, other tabs | One line: colour, title, number of open tables, and a dot when any open table has staged edits (`TabMark`, a boolean selector). × or middle-click closes |
+| Switching open tables | Restores filter, sort and page and fetches the rows again. Result sets are not kept |
+| Main panel | No picker. With no table open it says where to go (`EmptyPanel`) |
+| Another database | `openWorkspace`. While the tab has no database it is used; otherwise a new tab opens. From the SQL editor's database picker the new tab opens on its SQL editor |
+| Connecting | Binds the saved database, or the chosen one, or the file for SQLite. A server connection with no saved database waits for the user to choose |
+| Closing a table | `Alt+W`, or ×. With staged edits on it, asks first (`ConfirmDiscardDialog`) and discards only that table's |
+| Keys | `Alt+PageUp` / `Alt+PageDown` cycle the open tables. `/` focuses the table search when not typing, showing the sidebar if hidden. `Ctrl+F` stays the WHERE filter. All in the action palette, which also groups a tab's open tables as "Open in this tab" |
+| Back / forward | Unchanged. Going back to a table since closed opens it again |
+| Reopen closed tab | Brings back the open tables and the SQL text, not the runs. A tab with no open table, no SQL and no other page is not kept |
+| Drop, disconnect | A dropped table leaves every tab's open list. Disconnect blanks every tab on that connection |
+| Sample database | "Open the sample database" is a row under the connection list, shown while the active tab has no database |
+| Persistence | None, as before |
