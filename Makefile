@@ -73,6 +73,7 @@ web: $(NODE_MODS)
 .PHONY: check
 check: $(NODE_MODS)
 	gofmt -w $(GO_SRC)
+	cd $(FRONTEND) && npx prettier --write --log-level warn "src/**/*.{ts,tsx,css}"
 	go vet ./...
 	cd $(FRONTEND) && npx tsc --noEmit
 	go test ./...
