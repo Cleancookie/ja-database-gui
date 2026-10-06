@@ -745,11 +745,20 @@
   transition: opacity 160ms var(--ease-snap);
 }
 .highlight-pill-moves {
+  --glide: 300ms var(--ease-spring);
   transition:
-    transform 300ms var(--ease-spring),
-    width 300ms var(--ease-spring),
-    height 300ms var(--ease-spring),
+    transform var(--glide),
+    width var(--glide),
+    height var(--glide),
     opacity 160ms var(--ease-snap);
+}
+/*
+ * The grid's selection (components/GridSelection.tsx) glides faster and
+ * without overshoot: a held arrow key steps about every 33ms, and a pill that
+ * trailed it by a third of a second would read as lag.
+ */
+.grid-glide.highlight-pill-moves {
+  --glide: 130ms var(--ease-snap);
 }
 
 @media (prefers-reduced-motion: reduce) {
