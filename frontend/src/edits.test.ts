@@ -3,6 +3,7 @@ import {
   EMPTY_EDITS,
   EMPTY_STAGED,
   addInsert,
+  addJsonEdit,
   blockReason,
   cellInputText,
   commit,
@@ -13,6 +14,7 @@ import {
   removeInsert,
   setCell,
   setInsertCell,
+  stagedText,
   editsFor,
   removeTable,
   scopeClash,
@@ -24,6 +26,7 @@ import {
   undo,
   type Keyed,
 } from './edits'
+import type { JSONEdit } from './types'
 
 const ref = { database: 'd', schema: '', name: 't' }
 const row1: Keyed = { key: '[1]', values: { id: 1 } }
@@ -296,5 +299,62 @@ describe('blockReason', () => {
   it('uses the column reason, with a fallback', () => {
     expect(blockReason(ok, { editable: false, readOnlyReason: 'generated' })).toBe('generated')
     expect(blockReason(ok, { editable: false })).toBe('this column is read-only')
+  })
+})
+
+describe('JSON path edits', () => {
+  const rename: JSONEdit = { op: 'rename', path: ['a'], newKey: 'b' }
+  const drop: JSONEdit = { op: 'remove', path: ['b'] }
+
+  it('start a json input on a cell with nothing staged', () => {
+    expect(addJsonEdit(undefined, rename)).toEqual({
+      ok: true,
+      input: { kind: 'json', edits: [rename] },
+    })
+  })
+
+  it('pile up on a cell that already has path edits', () => {
+    const first = addJsonEdit(undefined, rename)
+    if (!first.ok) throw new Error(first.reason)
+    expect(addJsonEdit(first.input, drop)).toEqual({
+      ok: true,
+      input: { kind: 'json', edits: [rename, drop] },
+    })
+  })
+
+  it('apply to the text of a staged whole value and keep it whole', () => {
+    expect(addJsonEdit(val('{"a": 1}'), rename)).toEqual({
+      ok: true,
+      input: { kind: 'value', value: '{"b": 1}' },
+    })
+    expect(addJsonEdit(val('{"x": 1}'), rename).ok).toBe(false)
+  })
+
+  it('are refused on a cell staged as NULL, and on the root', () => {
+    expect(addJsonEdit(NULL, rename)).toMatchObject({ ok: false, reason: /NULL/ })
+    expect(addJsonEdit(undefined, { op: 'set', path: [], value: '1' }).ok).toBe(false)
+  })
+
+  it('show through as the staged text, falling back to the loaded value', () => {
+    const input = { kind: 'json' as const, edits: [rename] }
+    expect(stagedText(input, '{"a":1}')).toBe('{"b":1}')
+    expect(stagedText(input, '{"a":1')).toBe('{"a":1')
+    expect(stagedText(val('x'), 'y')).toBe('x')
+    expect(stagedText(NULL, 'y')).toBe('')
+  })
+
+  it('stage as a change that a later whole value replaces', () => {
+    const json = { kind: 'json' as const, edits: [rename] }
+    let e = setCell(EMPTY_EDITS, row1, 'doc', json, '{"a":1}')
+    expect(e.updates[row1.key].set.doc).toBe(json)
+    // A second, different list of edits is a change even with no value text.
+    const more = { kind: 'json' as const, edits: [rename, drop] }
+    e = setCell(e, row1, 'doc', more, '{"a":1}')
+    expect(e.updates[row1.key].set.doc).toBe(more)
+    // The large editor's whole value replaces the path edits outright.
+    e = setCell(e, row1, 'doc', val('{"c":1}'), '{"a":1}')
+    expect(e.updates[row1.key].set.doc).toEqual(val('{"c":1}'))
+    // And setting it back to what was loaded drops the edit, as for any cell.
+    expect(setCell(e, row1, 'doc', val('{"a":1}'), '{"a":1}').updates).toEqual({})
   })
 })

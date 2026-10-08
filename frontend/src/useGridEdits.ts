@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { EMPTY_EDITS, keyIndexes, keyedRow } from './edits'
+import { EMPTY_EDITS, keyIndexes, keyedRow, stagedText } from './edits'
 import { useStore, type ResultSource } from './store'
 import { activeEdits, type Editing } from './storeEdits'
 import type { Cell, ResultSet } from './types'
@@ -67,7 +67,7 @@ export function useGridEdits(source: ResultSource, result: ResultSet): GridEdits
       if (input.kind === 'default')
         return { value: null, isDefault: true, state: 'dirty', was: value }
       return {
-        value: input.kind === 'null' ? null : (input.value ?? ''),
+        value: input.kind === 'null' ? null : stagedText(input, value),
         isDefault: false,
         state: 'dirty',
         was: value,

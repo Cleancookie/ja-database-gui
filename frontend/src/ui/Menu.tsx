@@ -16,6 +16,8 @@ export interface MenuItem {
   onSelect: () => void
   disabled?: boolean
   danger?: boolean
+  /** The key that does the same thing, shown faint at the right. */
+  shortcut?: string
   /** Draws a divider above this item, for grouping unrelated actions. */
   separatorBefore?: boolean
 }
@@ -63,11 +65,16 @@ export function ContextMenu({
               <RadixContextMenu.Item
                 disabled={item.disabled}
                 onSelect={item.onSelect}
-                className={`block cursor-default rounded-lg px-3 py-1.5 outline-none select-none data-[disabled]:opacity-35 data-[highlighted]:bg-[var(--color-accent-dim)]/60 ${
+                className={`flex cursor-default items-baseline gap-6 rounded-lg px-3 py-1.5 outline-none select-none data-[disabled]:opacity-35 data-[highlighted]:bg-[var(--color-accent-dim)]/60 ${
                   item.danger ? 'text-[var(--color-danger)]' : ''
                 }`}
               >
                 {item.label}
+                {item.shortcut && (
+                  <span className="ml-auto font-[var(--font-mono)] text-[var(--color-faint)]">
+                    {item.shortcut}
+                  </span>
+                )}
               </RadixContextMenu.Item>
             </Fragment>
           ))}

@@ -104,6 +104,8 @@ export interface CellTarget {
    * where the offset finds whatever is at that position now.
    */
   key: Record<string, Cell> | null
+  /** Row and column on the browse grid's page, for staging edits; null for ad-hoc results. */
+  at: { row: number; col: number } | null
 }
 
 export type DialogState =
@@ -1672,6 +1674,7 @@ export const useStore = create<State>((set, get) => {
               })
             : null,
         key: source === 'browse' ? rowKeyOf(rs, rowIndex, s.editKey) : null,
+        at: source === 'browse' ? { row: rowIndex, col: colIndex } : null,
       }
     },
 

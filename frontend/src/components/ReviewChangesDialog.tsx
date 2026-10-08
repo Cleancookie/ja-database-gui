@@ -2,7 +2,7 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { describeCounts } from '../edits'
 import { useStore } from '../store'
 import { Dialog, dialogButton } from '../ui'
-import type { RowChange, Statement } from '../types'
+import type { RowChange, Statement, StatementCell } from '../types'
 
 /**
  * Every statement that is about to run, and the button that runs them.
@@ -205,7 +205,7 @@ const StatementRow = memo(function StatementRow({
               className="rounded-full bg-[var(--color-accent-dim)]/50 px-2 text-[var(--color-muted)]"
             >
               {c.column} ·{' '}
-              {c.kind === 'value' ? `${c.chars.toLocaleString()} chars` : c.kind.toUpperCase()}
+              {cellChip(c)}
             </span>
           ))}
           {statement.cells.length > MAX_CHIPS && (
@@ -236,3 +236,13 @@ const StatementRow = memo(function StatementRow({
     </li>
   )
 })
+
+/** What a chip says a column becomes: its size, its path edits, or NULL / DEFAULT. */
+function cellChip(c: StatementCell): string {
+  if (c.kind === 'value') return `${c.chars.toLocaleString()} chars`
+  if (c.kind === 'json') {
+    const n = c.edits ?? 0
+    return `${n} JSON edit${n === 1 ? '' : 's'}`
+  }
+  return c.kind.toUpperCase()
+}

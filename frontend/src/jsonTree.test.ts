@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initialOpen, treeKey, treeRows } from './jsonTree'
+import { editMarks, initialOpen, treeKey, treeRows } from './jsonTree'
 
 const key = (k: string, extra: Partial<KeyboardEvent> = {}) => ({
   key: k,
@@ -60,5 +60,23 @@ describe('treeKey', () => {
 
   it('ignores modified arrows, which belong to someone else', () => {
     expect(treeKey(key('ArrowLeft', { shiftKey: true }), rows, 1)).toBeNull()
+  })
+})
+
+describe('editMarks', () => {
+  it('marks the node each edit changed, and the containers above it', () => {
+    const marks = editMarks([
+      { op: 'set', path: ['a', 'b', 0], value: '1' },
+      { op: 'rename', path: ['c'], newKey: 'd' },
+      { op: 'remove', path: ['e', 'f'] },
+    ])
+    expect(Object.fromEntries(marks)).toEqual({
+      '$.a.b[0]': 'self',
+      '$.a.b': 'inside',
+      '$.a': 'inside',
+      $: 'inside',
+      '$.d': 'self',
+      '$.e': 'self',
+    })
   })
 })

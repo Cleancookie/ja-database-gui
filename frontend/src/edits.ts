@@ -11,7 +11,16 @@
  * keep pointing at the row it was made on.
  */
 
-import type { Cell, CellInput, ChangesRequest, GridColumn, ObjectRef, RowChange } from './types'
+import { applyJsonEdits } from './json'
+import type {
+  Cell,
+  CellInput,
+  ChangesRequest,
+  GridColumn,
+  JSONEdit,
+  ObjectRef,
+  RowChange,
+} from './types'
 
 /** JSON of a row's edit-key values, in key order. */
 export type RowKey = string
@@ -126,9 +135,52 @@ export function blockReason(
   return ''
 }
 
+/**
+ * A path edit made in the JSON tree, folded into what the cell already has
+ * staged. Path edits pile up as kind 'json' and the server applies them to
+ * whatever the column holds. A cell already staged as a whole value has no base
+ * in the database to edit, so the edit is applied here to that text instead.
+ */
+export function addJsonEdit(
+  input: CellInput | undefined,
+  edit: JSONEdit,
+): { ok: true; input: CellInput } | { ok: false; reason: string } {
+  if (input?.kind === 'value') {
+    const r = applyJsonEdits(input.value ?? '', [edit])
+    return r.ok ? { ok: true, input: { kind: 'value', value: r.text } } : r
+  }
+  if (input?.kind === 'null' || input?.kind === 'default') {
+    return { ok: false, reason: `the cell is staged as ${input.kind.toUpperCase()}` }
+  }
+  if (edit.path.length === 0) {
+    return { ok: false, reason: 'a whole-document change is a whole value, not a path edit' }
+  }
+  return { ok: true, input: { kind: 'json', edits: [...(input?.edits ?? []), edit] } }
+}
+
+const jsonTexts = new WeakMap<CellInput, { base: string; text: string }>()
+
+/**
+ * The text a staged input stands for, given the loaded value. Path edits are
+ * applied to it; if they cannot be — the grid holds a capped copy, say — the
+ * loaded text is returned unchanged. Memoised per input, since the grid asks on
+ * every render and the document may be large.
+ */
+export function stagedText(input: CellInput, original: Cell): string {
+  if (input.kind === 'value') return input.value ?? ''
+  if (input.kind !== 'json') return ''
+  const base = cellInputText(original)
+  const hit = jsonTexts.get(input)
+  if (hit && hit.base === base) return hit.text
+  const r = applyJsonEdits(base, input.edits ?? [])
+  const text = r.ok ? r.text : base
+  jsonTexts.set(input, { base, text })
+  return text
+}
+
 function sameInput(input: CellInput, original: Cell): boolean {
   if (input.kind === 'null') return original === null
-  if (input.kind === 'default') return false
+  if (input.kind === 'default' || input.kind === 'json') return false
   return original !== null && input.value === cellInputText(original)
 }
 
@@ -154,7 +206,8 @@ export function setCell(
     delete set[column]
   } else {
     const had = set[column]
-    if (had && had.kind === input.kind && had.value === input.value) return e
+    if (had && had.kind === input.kind && had.value === input.value && had.edits === input.edits)
+      return e
     set[column] = input
   }
   const updates = { ...e.updates }

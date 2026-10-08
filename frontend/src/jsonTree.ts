@@ -10,11 +10,13 @@ import {
   jsonEntries,
   jsonKind,
   jsonPathChild,
+  jsonPathOf,
   JSON_PATH_ROOT,
   type JsonKind,
   type JsonSeg,
 } from './json'
 import { listMove, moveIndex } from './listNav'
+import type { JSONEdit } from './types'
 
 /** Nodes below this depth start collapsed, so a deep document opens readable. */
 const AUTO_OPEN_DEPTH = 2
@@ -112,4 +114,24 @@ export function treeKey(
     return row.parent >= 0 ? { focus: row.parent } : null
   }
   return null
+}
+
+/**
+ * Which rows staged path edits touch: 'self' for the node an edit changed,
+ * 'inside' for each container above it, so a collapsed one still shows that
+ * something in it has changed.
+ */
+export function editMarks(edits: readonly JSONEdit[]): Map<string, 'self' | 'inside'> {
+  const marks = new Map<string, 'self' | 'inside'>()
+  for (const e of edits) {
+    const parent = e.path.slice(0, -1)
+    const at: JsonSeg[] =
+      e.op === 'remove' ? parent : e.op === 'rename' ? [...parent, e.newKey ?? ''] : e.path
+    marks.set(jsonPathOf(at), 'self')
+    for (let n = at.length - 1; n >= 0; n--) {
+      const p = jsonPathOf(at.slice(0, n))
+      if (!marks.has(p)) marks.set(p, 'inside')
+    }
+  }
+  return marks
 }

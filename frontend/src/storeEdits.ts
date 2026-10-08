@@ -18,6 +18,7 @@ import {
   EMPTY_EDITS,
   EMPTY_STAGED,
   addInsert,
+  addJsonEdit,
   blockReason,
   cellInputText,
   commit,
@@ -29,6 +30,7 @@ import {
   scopeClash,
   setCell,
   setInsertCell,
+  stagedText,
   tableKey,
   toChangesRequest,
   toggleDelete,
@@ -44,7 +46,7 @@ import {
 import { wantsLarge } from './bigEdit'
 import { rectOf } from './selection'
 import type { State } from './store'
-import type { Cell, CellInput, ChangesRequest, Statement } from './types'
+import type { Cell, CellInput, ChangesRequest, JSONEdit, Statement } from './types'
 
 /** The cell being typed into. Not staged until Enter. */
 export interface Editing {
@@ -107,6 +109,13 @@ export interface EditActions {
   startEdit: (large?: boolean) => Promise<void>
   commitEdit: (text: string) => void
   cancelEdit: () => void
+  /**
+   * Stages one path edit from the JSON tree on a cell of the page. Returns why
+   * it could not be staged, or null.
+   */
+  stageJsonEdit: (row: number, col: number, edit: JSONEdit) => string | null
+  /** Stages a whole new value for a cell of the page, as Enter in the editor does. */
+  stageCellText: (row: number, col: number, text: string) => string | null
   /** Ctrl+Backspace: stage NULL over the selected cells. */
   setSelectionNull: () => void
   setSelectionDefault: () => void
@@ -161,6 +170,75 @@ export function activeEdits(s: State): EditSet {
   return key ? editsFor(s.staged, key) : EMPTY_EDITS
 }
 
+function columnAt(s: State, col: number) {
+  const name = s.result?.columns[col]?.name
+  return s.columns.find((c) => c.name === name)
+}
+
+/** The row's identity, for a row that came from the database. */
+function keyedAt(s: State, row: number): Keyed | null {
+  const rs = s.result
+  if (!rs || row >= rs.rows.length) return null
+  const idx = keyIndexes(rs.columns, s.editKey)
+  return idx ? keyedRow(rs.rows[row], s.editKey, idx) : null
+}
+
+/** What the cell says now: the staged value if there is one, else the loaded one. */
+export function currentInput(
+  s: State,
+  row: number,
+  col: number,
+): { input?: CellInput; original: Cell } {
+  const rs = s.result!
+  const name = rs.columns[col].name
+  if (row >= rs.rows.length) {
+    return { input: activeEdits(s).inserts[row - rs.rows.length]?.set[name], original: null }
+  }
+  const k = keyedAt(s, row)
+  return {
+    input: k ? activeEdits(s).updates[k.key]?.set[name] : undefined,
+    original: rs.rows[row][col],
+  }
+}
+
+/** Where the staged set lives, for a message: "conn/db". */
+function scopeLabel(s: State, scope: { connectionId: string; database: string }) {
+  const name = s.connections.find((c) => c.id === scope.connectionId)?.name ?? scope.connectionId
+  return scope.database ? `${name}/${scope.database}` : name
+}
+
+/**
+ * Whether the table on screen may take an edit. A change set is one
+ * transaction, so it cannot span connections or databases: a second one is
+ * refused with the way out, not quietly started as a separate set.
+ */
+function clashMessage(s: State): string | null {
+  if (!s.activeConnectionId || !s.activeRef) return null
+  const held = scopeClash(s.staged, {
+    connectionId: s.activeConnectionId,
+    database: s.activeRef.database,
+  })
+  if (!held) return null
+  const n = s.stagedSummary.total
+  return `Apply or discard ${n} staged change${n === 1 ? '' : 's'} in ${scopeLabel(s, held)} first`
+}
+
+/**
+ * Why a loaded cell of the browse grid cannot be edited right now, or '' when
+ * it can. The JSON tree asks this to decide whether to offer editing at all.
+ */
+export function cellEditBlock(s: State, row: number, col: number): string {
+  const rs = s.result
+  if (s.view !== 'data' || !rs || !s.activeRef || !s.activeConnectionId) return 'no table on screen'
+  if (row >= rs.rows.length) return 'a new row is edited in the grid'
+  const why = blockReason(s, columnAt(s, col))
+  if (why) return why
+  const k = keyedAt(s, row)
+  if (!k) return 'this row cannot be addressed by its key'
+  if (activeEdits(s).deletes[k.key]) return 'this row is staged for deletion'
+  return clashMessage(s) ?? ''
+}
+
 /**
  * The state that goes with a new `staged`: its derived summary and table set,
  * each reused when unchanged so a subscriber only wakes for a real difference.
@@ -213,33 +291,6 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
       return null
     }
     return sel
-  }
-
-  function columnAt(s: State, col: number) {
-    const name = s.result?.columns[col]?.name
-    return s.columns.find((c) => c.name === name)
-  }
-
-  /** The row's identity, for a row that came from the database. */
-  function keyedAt(s: State, row: number): Keyed | null {
-    const rs = s.result
-    if (!rs || row >= rs.rows.length) return null
-    const idx = keyIndexes(rs.columns, s.editKey)
-    return idx ? keyedRow(rs.rows[row], s.editKey, idx) : null
-  }
-
-  /** What the cell says now: the staged value if there is one, else the loaded one. */
-  function currentInput(s: State, row: number, col: number): { input?: CellInput; original: Cell } {
-    const rs = s.result!
-    const name = rs.columns[col].name
-    if (row >= rs.rows.length) {
-      return { input: activeEdits(s).inserts[row - rs.rows.length]?.set[name], original: null }
-    }
-    const k = keyedAt(s, row)
-    return {
-      input: k ? activeEdits(s).updates[k.key]?.set[name] : undefined,
-      original: rs.rows[row][col],
-    }
   }
 
   /** Puts `input` on one cell of the current page or of an insert row. */
@@ -303,28 +354,6 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
 
   /** Reason the table on screen cannot be edited at all, or ''. */
   const tableBlock = (s: State) => blockReason(s, { editable: true })
-
-  /** Where the staged set lives, for a message: "conn/db". */
-  function scopeLabel(s: State, scope: { connectionId: string; database: string }) {
-    const name = s.connections.find((c) => c.id === scope.connectionId)?.name ?? scope.connectionId
-    return scope.database ? `${name}/${scope.database}` : name
-  }
-
-  /**
-   * Whether the table on screen may take an edit. A change set is one
-   * transaction, so it cannot span connections or databases: a second one is
-   * refused with the way out, not quietly started as a separate set.
-   */
-  function clashMessage(s: State): string | null {
-    if (!s.activeConnectionId || !s.activeRef) return null
-    const held = scopeClash(s.staged, {
-      connectionId: s.activeConnectionId,
-      database: s.activeRef.database,
-    })
-    if (!held) return null
-    const n = s.stagedSummary.total
-    return `Apply or discard ${n} staged change${n === 1 ? '' : 's'} in ${scopeLabel(s, held)} first`
-  }
 
   /** Stages a change on the table on screen; null, after saying why, if it cannot be. */
   function stage(s: State, change: (e: EditSet) => EditSet): Partial<State> | null {
@@ -410,7 +439,9 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
       // the real one with its first 1024 characters. A capped cell therefore
       // always opens the large editor, in a loading state, and only takes text
       // once the whole value has arrived.
-      if (!input && !isInsert && isCellTruncated(rs, row, col)) {
+      // Staged path edits are applied to the whole value too, so the editor
+      // opens on the document as the tree shows it.
+      if ((!input || input.kind === 'json') && !isInsert && isCellTruncated(rs, row, col)) {
         const pending: Editing = {
           ...base,
           mode: 'large',
@@ -450,12 +481,13 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
         }
         // Cancelled, or the page replaced, while this was in flight.
         if (get().editing !== pending || get().result !== rs) return
-        set({ editing: { ...base, mode: 'large', text: full, original: full, full } })
+        const text = input ? stagedText(input, full) : full
+        set({ editing: { ...base, mode: 'large', text, original: full, full } })
         return
       }
 
       const original = cellInputText(loaded)
-      const text = input ? (input.kind === 'value' ? (input.value ?? '') : '') : original
+      const text = input ? stagedText(input, loaded) : original
       const mode = large || wantsLarge(text, dataType) ? 'large' : 'inline'
       set({ editing: { ...base, mode, text, original } })
     },
@@ -470,6 +502,32 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
         stageOne(s, e, ed.row, ed.col, input, ed.full !== undefined ? ed.full : original),
       )
       set({ ...patch, editing: null })
+    },
+
+    stageJsonEdit(row, col, edit) {
+      const s = get()
+      const why = cellEditBlock(s, row, col)
+      if (why) return why
+      const { input, original } = currentInput(s, row, col)
+      const merged = addJsonEdit(input, edit)
+      if (!merged.ok) return merged.reason
+      const patch = stage(s, (e) => stageOne(s, e, row, col, merged.input, original))
+      if (!patch) return 'could not stage'
+      set(patch)
+      return null
+    },
+
+    stageCellText(row, col, text) {
+      const s = get()
+      const why = cellEditBlock(s, row, col)
+      if (why) return why
+      const { original } = currentInput(s, row, col)
+      const patch = stage(s, (e) =>
+        stageOne(s, e, row, col, { kind: 'value', value: text }, original),
+      )
+      if (!patch) return 'could not stage'
+      set(patch)
+      return null
     },
 
     cancelEdit() {

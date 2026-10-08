@@ -1,9 +1,12 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { api, errorMessage } from '../api'
-import { formatBytes, formatJson, parseJson } from '../json'
+import { applyJsonEdits, formatBytes, formatJson, parseJson } from '../json'
 import { useStore, type CellTarget } from '../store'
+import { rowKeyOf } from '../edits'
+import { cellEditBlock, currentInput } from '../storeEdits'
+import type { JSONEdit } from '../types'
 import { Dialog, dialogButton } from '../ui'
-import { JsonView } from './JsonView'
+import { JsonView, type JsonEditing } from './JsonView'
 
 /**
  * One cell, full size.
@@ -73,12 +76,72 @@ export function CellDialog({ cell }: { cell: CellTarget }) {
     // store would only refetch the same value.
   }, [cell, fetchable, connectionId, activeRef, filter, orderBy, sortChosen])
 
-  const text = full ?? (cell.value === null ? '' : String(cell.value))
-  const isNull = cell.value === null && full === null
+  const loaded = full ?? (cell.value === null ? '' : String(cell.value))
+  // Whole once fetched, or when it was never cut. Only a whole value is edited.
+  const whole = !cell.truncated || full !== null
+  const at = cell.at
+  // Edits go to the row the dialog was opened on, so a page re-read under it
+  // that moved the row ends editing rather than redirecting it.
+  const sameRow = useStore(
+    (s) =>
+      !!at &&
+      !!s.result &&
+      at.col < s.result.columns.length &&
+      JSON.stringify(rowKeyOf(s.result, at.row, s.editKey)) === JSON.stringify(cell.key),
+  )
+  const input = useStore((s) =>
+    at && sameRow && s.result ? currentInput(s, at.row, at.col).input : undefined,
+  )
+  // The staged result, not the loaded one: the tree is where path edits are
+  // made, and it has to show them.
+  const staged = useMemo(() => {
+    if (!input) return null
+    if (input.kind === 'value') return input.value ?? ''
+    if (input.kind !== 'json' || !whole) return null
+    const r = applyJsonEdits(loaded, input.edits ?? [])
+    return r.ok ? r.text : null
+  }, [input, loaded, whole])
+  const text = staged ?? loaded
+  const isNull =
+    input?.kind === 'null' ||
+    input?.kind === 'default' ||
+    (!input && cell.value === null && full === null)
   const parsed = useMemo(() => parseJson(text), [text])
   const tab = pinnedTab ?? (parsed.ok ? 'json' : 'text')
 
-  const close = () => setDialog({ kind: 'none' })
+  const block = useStore((s) =>
+    at && sameRow ? cellEditBlock(s, at.row, at.col) : 'not a row of the table on screen',
+  )
+  const mssql = useStore(
+    (s) => s.connections.find((c) => c.id === s.activeConnectionId)?.kind === 'mssql',
+  )
+  const stageJsonEdit = useStore((s) => s.stageJsonEdit)
+  const stageCellText = useStore((s) => s.stageCellText)
+  const editing = useMemo<JsonEditing | undefined>(() => {
+    if (!at || block || !whole || isNull) return undefined
+    return {
+      mssql,
+      jsonEdits: input?.kind === 'json' ? (input.edits ?? []) : [],
+      apply(edit: JSONEdit) {
+        // Tried on the text on screen first, so a bad edit is refused with a
+        // reason before anything is staged.
+        const r = applyJsonEdits(text, [edit])
+        if (!r.ok) return r.reason
+        // A change to the root is the whole document: there is no path for the
+        // server to apply, so it is staged as the new value outright.
+        return edit.path.length === 0
+          ? stageCellText(at.row, at.col, r.text)
+          : stageJsonEdit(at.row, at.col, edit)
+      },
+    }
+  }, [at, block, whole, isNull, mssql, input, text, stageJsonEdit, stageCellText])
+
+  // Escape belongs to an open tree editor before it belongs to the dialog.
+  const escape = useRef<(() => boolean) | null>(null)
+  const close = () => {
+    if (escape.current?.()) return
+    setDialog({ kind: 'none' })
+  }
 
   return (
     <Dialog
@@ -128,6 +191,7 @@ export function CellDialog({ cell }: { cell: CellTarget }) {
           onClick={() => setPinnedTab('json')}
         />
         <span className="ml-auto text-[var(--color-faint)]">
+          {input && <span className="mr-2 text-[var(--color-warn)]">staged edit shown</span>}
           {loading
             ? 'fetching the full value…'
             : error
@@ -146,9 +210,11 @@ export function CellDialog({ cell }: { cell: CellTarget }) {
           stretch the dialog past the screen. */}
       <div className="max-h-[65vh] min-h-[8rem] overflow-auto">
         {isNull ? (
-          <p className="p-4 text-[var(--color-faint)] italic">NULL</p>
+          <p className="p-4 text-[var(--color-faint)] italic">
+            {input?.kind === 'default' ? 'DEFAULT' : 'NULL'}
+          </p>
         ) : tab === 'json' && parsed.ok ? (
-          <JsonView value={parsed.value} />
+          <JsonView value={parsed.value} text={text} editing={editing} escape={escape} />
         ) : (
           // Deliberately larger than the grid's 0.75rem. The grid is dense
           // because it shows hundreds of rows at once; this dialog shows one

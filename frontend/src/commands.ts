@@ -561,6 +561,7 @@ export function buildActionCommands(s: Store): Command[] {
   }
 
   cmds.push(...buildEditCommands(s))
+  cmds.push(...(jsonTreeCommands?.() ?? []))
 
   // Only a batch that answered more than once has tabs to move between.
   const activeSqlRun = s.sqlRuns.find((r) => r.id === s.sqlActiveRun)
@@ -1003,6 +1004,17 @@ function buildEditCommands(s: Store): Command[] {
     add('discard', 'Discard changes', 'drop throw away cancel reset', () => s.discardChanges())
   }
   return cmds
+}
+
+/**
+ * The JSON tree's actions on its focused node, while a tree that can edit is on
+ * screen. Registered by the tree the way the filter registers its focus handle:
+ * which node is focused lives in the component, not the store.
+ */
+let jsonTreeCommands: (() => Command[]) | null = null
+
+export function registerJsonTreeCommands(fn: (() => Command[]) | null) {
+  jsonTreeCommands = fn
 }
 
 /** The filter editor owns this id, for `aria` wiring and for tests. */

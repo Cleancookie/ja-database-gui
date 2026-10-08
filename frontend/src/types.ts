@@ -265,9 +265,26 @@ export interface ReadRowsResult {
  * renamed here because CellValue above is the result of readCell.
  */
 export interface CellInput {
-  kind: 'value' | 'null' | 'default'
+  kind: 'value' | 'null' | 'default' | 'json'
   /** Text to store, for kind 'value'. Coerced server-side by the column's type. */
   value?: string
+  /** Kind 'json': applied in order to the column's current value in the database. */
+  edits?: JSONEdit[]
+}
+
+/**
+ * One change inside a JSON value, addressed by path. Go: api.JSONEdit.
+ * set: replace the value at path, or add an object key (path ends in the new
+ * key). remove: delete a key or element. rename: path ends in an object key,
+ * renamed to newKey. append: path names an array; value is pushed onto it.
+ */
+export interface JSONEdit {
+  op: 'set' | 'remove' | 'rename' | 'append'
+  /** Object keys and array indexes, outermost first. */
+  path: (string | number)[]
+  /** JSON text, for set and append. */
+  value?: string
+  newKey?: string
 }
 
 export interface RowChange {
@@ -291,9 +308,11 @@ export interface ChangesRequest {
 /** What one column of a statement is set to. Go: api.StatementCell. */
 export interface StatementCell {
   column: string
-  kind: 'value' | 'null' | 'default'
+  kind: 'value' | 'null' | 'default' | 'json'
   /** Characters of the new text; 0 unless kind is 'value'. */
   chars: number
+  /** Kind 'json': how many path edits. */
+  edits?: number
 }
 
 export interface Statement {
