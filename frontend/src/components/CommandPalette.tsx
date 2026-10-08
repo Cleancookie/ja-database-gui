@@ -3,6 +3,7 @@ import { buildActionCommands, buildNavigationCommands, type Command } from '../c
 import { matchPositions, rankCandidates, type Scored } from '../fuzzy'
 import { listMove, moveIndex } from '../listNav'
 import { useStore } from '../store'
+import { Layer } from '../ui'
 import { Highlight } from './Highlight'
 
 /**
@@ -106,66 +107,66 @@ export function CommandPalette() {
   }
 
   return (
-    <div
-      className="chrome animate-fade-in fixed inset-0 z-50 flex items-start justify-center bg-[var(--color-scrim)] pt-[12vh] backdrop-blur-[3px]"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) setPalette(null)
-      }}
-    >
+    // A layer of its own, so the palette works over an open dialog — the JSON
+    // tree's actions are offered from inside the cell viewer.
+    <Layer label={mode === 'go' ? 'Go to' : 'Run a command'} onClose={() => setPalette(null)}>
       <div
-        className="animate-pop-in w-[min(680px,92vw)] overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-elevated)] shadow-2xl"
-        role="dialog"
-        aria-label={mode === 'go' ? 'Go to' : 'Run a command'}
+        className="chrome animate-fade-in fixed inset-0 z-50 flex items-start justify-center bg-[var(--color-scrim)] pt-[12vh] backdrop-blur-[3px]"
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) setPalette(null)
+        }}
       >
-        <div className="flex items-center gap-2.5 border-b border-[var(--color-border)] px-5">
-          {/* Which palette this is, stated rather than implied: the two look
+        <div className="animate-pop-in w-[min(680px,92vw)] overflow-hidden rounded-3xl border border-[var(--color-border)] bg-[var(--color-elevated)] shadow-2xl">
+          <div className="flex items-center gap-2.5 border-b border-[var(--color-border)] px-5">
+            {/* Which palette this is, stated rather than implied: the two look
               otherwise identical, and typing into the wrong one is the obvious
               way to be confused by a split palette. */}
-          <span className="shrink-0 rounded-full bg-[var(--color-accent-dim)]/50 px-2.5 py-0.5 font-bold tracking-wide text-[var(--color-accent)]">
-            {mode === 'go' ? 'Go to' : 'Run'}
-          </span>
-          <input
-            autoFocus
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder={
-              mode === 'go' ? 'Table, database or connection…' : 'Settings, editor, activity…'
-            }
-            spellCheck={false}
-            aria-label={mode === 'go' ? 'Go to' : 'Command'}
-            className="min-w-0 flex-1 bg-transparent py-3.5 outline-none placeholder:text-[var(--color-faint)] focus-visible:shadow-none focus-visible:outline-none"
-          />
-          <kbd className="shrink-0 rounded-lg border border-[var(--color-border-strong)] px-1.5 py-0.5 font-[var(--font-mono)] text-[var(--color-faint)]">
-            Ctrl+Shift+P
-          </kbd>
-        </div>
+            <span className="shrink-0 rounded-full bg-[var(--color-accent-dim)]/50 px-2.5 py-0.5 font-bold tracking-wide text-[var(--color-accent)]">
+              {mode === 'go' ? 'Go to' : 'Run'}
+            </span>
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onKeyDown}
+              placeholder={
+                mode === 'go' ? 'Table, database or connection…' : 'Settings, editor, activity…'
+              }
+              spellCheck={false}
+              aria-label={mode === 'go' ? 'Go to' : 'Command'}
+              className="min-w-0 flex-1 bg-transparent py-3.5 outline-none placeholder:text-[var(--color-faint)] focus-visible:shadow-none focus-visible:outline-none"
+            />
+            <kbd className="shrink-0 rounded-lg border border-[var(--color-border-strong)] px-1.5 py-0.5 font-[var(--font-mono)] text-[var(--color-faint)]">
+              Ctrl+Shift+P
+            </kbd>
+          </div>
 
-        <div ref={listRef} className="max-h-[52vh] overflow-y-auto">
-          <Highlight className="p-2">
-            {results.length === 0 && (
-              <div className="px-4 py-6 text-center text-[var(--color-faint)]">
-                {mode === 'go'
-                  ? 'Nothing to go to — connect first, or try Ctrl+Shift+P'
-                  : 'No matching commands'}
-              </div>
-            )}
-            {results.map(({ item }, i) => (
-              <Row
-                key={item.id}
-                item={item}
-                query={query}
-                index={i}
-                selected={i === selected}
-                heading={i > 0 && results[i - 1].item.group === item.group ? null : item.group}
-                onHover={onHover}
-                onRun={run}
-              />
-            ))}
-          </Highlight>
+          <div ref={listRef} className="max-h-[52vh] overflow-y-auto">
+            <Highlight className="p-2">
+              {results.length === 0 && (
+                <div className="px-4 py-6 text-center text-[var(--color-faint)]">
+                  {mode === 'go'
+                    ? 'Nothing to go to — connect first, or try Ctrl+Shift+P'
+                    : 'No matching commands'}
+                </div>
+              )}
+              {results.map(({ item }, i) => (
+                <Row
+                  key={item.id}
+                  item={item}
+                  query={query}
+                  index={i}
+                  selected={i === selected}
+                  heading={i > 0 && results[i - 1].item.group === item.group ? null : item.group}
+                  onHover={onHover}
+                  onRun={run}
+                />
+              ))}
+            </Highlight>
+          </div>
         </div>
       </div>
-    </div>
+    </Layer>
   )
 }
 

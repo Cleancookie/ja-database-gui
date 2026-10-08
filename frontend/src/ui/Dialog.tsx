@@ -20,7 +20,14 @@ function useRestoreFocusOnUnmount() {
     return () => {
       if (!(opener instanceof HTMLElement) || !document.contains(opener)) return
       // After the unmount paint, or the browser resets focus to <body> again.
-      requestAnimationFrame(() => opener.focus())
+      // Only when focus was lost with the dialog: if something has taken it
+      // since — or this is StrictMode's rehearsal unmount, with the dialog
+      // still open and focused — it is not ours to move.
+      requestAnimationFrame(() => {
+        const now = document.activeElement
+        if (now && now !== document.body) return
+        opener.focus()
+      })
     }
   }, [opener])
 }
@@ -131,3 +138,33 @@ export const dialogButton = {
   dangerFilled:
     'rounded-xl bg-[var(--color-danger)] px-4 py-1.5 font-bold text-[var(--color-on-accent)] shadow-sm hover:brightness-110 hover:shadow-md',
 } as const
+
+/**
+ * A layer for an overlay that draws itself — the command palette — so it can
+ * open over a dialog. Without one, the dialog beneath still owns the page: it
+ * takes Escape, blocks the pointer and pulls focus back. As a layer of its own
+ * the overlay is the top one while open, and the dialog gets focus back after.
+ */
+export function Layer({
+  label,
+  onClose,
+  children,
+}: {
+  /** Names the overlay for assistive tech. */
+  label: string
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  useRestoreFocusOnUnmount()
+
+  return (
+    <RadixDialog.Root open onOpenChange={(next) => !next && onClose()}>
+      <RadixDialog.Portal>
+        <RadixDialog.Content aria-describedby={undefined}>
+          <RadixDialog.Title className="sr-only">{label}</RadixDialog.Title>
+          {children}
+        </RadixDialog.Content>
+      </RadixDialog.Portal>
+    </RadixDialog.Root>
+  )
+}
