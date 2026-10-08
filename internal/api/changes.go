@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -21,15 +23,31 @@ import (
 // Nothing here trusts the grid: the key must be the table's own, every column
 // must exist and be writable, and values are coerced and bound, never spliced in.
 
-// CellValue is what one cell is to become. Three kinds, because "empty string",
-// "NULL" and "whatever the column defaults to" are three different intents that
-// a bare string cannot tell apart.
+// CellValue is what one cell is to become. "empty string", "NULL" and "whatever
+// the column defaults to" are three different intents that a bare string cannot
+// tell apart; "json" changes part of the JSON already there.
 type CellValue struct {
-	// Kind is "value", "null" or "default".
+	// Kind is "value", "null", "default" or "json".
 	Kind string `json:"kind"`
 	// Value is the text to store, for kind "value". It is coerced by the
 	// column's type, so "42" is written as a number to an integer column.
 	Value string `json:"value,omitempty"`
+	// Edits, for kind "json", are applied in order to the column's current value.
+	// Update only, on a json or text column.
+	Edits []JSONEdit `json:"edits,omitempty"`
+}
+
+// JSONEdit changes one place in a JSON value.
+type JSONEdit struct {
+	// Op is "set", "remove", "rename" or "append".
+	Op string `json:"op"`
+	// Path runs from the root: a string is an object key, a number an array
+	// index. Only append may have an empty path, for an array at the root.
+	Path []any `json:"path"`
+	// Value is JSON text, for set and append.
+	Value string `json:"value,omitempty"`
+	// NewKey is where a rename moves the key at Path, in the same object.
+	NewKey string `json:"newKey,omitempty"`
 }
 
 // RowChange is one row's edit.
@@ -59,10 +77,13 @@ type ChangesRequest struct {
 // show "data: 48,211 chars" without reading the SQL.
 type StatementCell struct {
 	Column string `json:"column"`
-	// Kind is "value", "null" or "default".
+	// Kind is "value", "null", "default" or "json".
 	Kind string `json:"kind"`
-	// Chars is the length in characters of the new text, for kind "value".
+	// Chars is the length in characters of the new text, for kind "value", or
+	// of all the edits' values together, for kind "json".
 	Chars int `json:"chars"`
+	// Edits is how many JSON edits, for kind "json".
+	Edits int `json:"edits,omitempty"`
 }
 
 // Statement is one change as SQL. SQL is what runs, with parameter markers.
@@ -289,8 +310,14 @@ func statementCells(ch driver.Change, rc RowChange) []StatementCell {
 	for _, a := range ch.Set {
 		cv := rc.Set[a.Column]
 		cell := StatementCell{Column: a.Column, Kind: cv.Kind}
-		if cv.Kind == "value" {
+		switch cv.Kind {
+		case "value":
 			cell.Chars = utf8.RuneCountInString(cv.Value)
+		case "json":
+			cell.Edits = len(cv.Edits)
+			for _, e := range cv.Edits {
+				cell.Chars += utf8.RuneCountInString(e.Value)
+			}
 		}
 		cells = append(cells, cell)
 	}
@@ -347,6 +374,9 @@ func toDriverChange(cols []driver.Column, facts driver.EditFacts, rc RowChange) 
 		if why, ro := facts.ReadOnlyColumns[c.Name]; ro {
 			return ch, fmt.Errorf("column %q is read-only: %s", c.Name, why)
 		}
+		if cv.Kind == "json" && ch.Op != driver.ChangeUpdate {
+			return ch, fmt.Errorf("column %q: JSON edits change an existing value, so only an update can make them", c.Name)
+		}
 		a, err := toAssignment(c, cv)
 		if err != nil {
 			return ch, err
@@ -398,6 +428,81 @@ func toAssignment(c driver.Column, cv CellValue) (driver.Assignment, error) {
 		return driver.Assignment{Column: c.Name}, nil
 	case "default":
 		return driver.Assignment{Column: c.Name, Default: true}, nil
+	case "json":
+		edits, err := toJSONEdits(c, cv.Edits)
+		return driver.Assignment{Column: c.Name, DataType: c.DataType, Edits: edits}, err
 	}
-	return driver.Assignment{}, fmt.Errorf("column %q: unknown value kind %q (want value, null or default)", c.Name, cv.Kind)
+	return driver.Assignment{}, fmt.Errorf("column %q: unknown value kind %q (want value, null, default or json)", c.Name, cv.Kind)
+}
+
+// toJSONEdits checks the edits' shape; what a dialect cannot express it refuses
+// when building.
+func toJSONEdits(c driver.Column, in []JSONEdit) ([]driver.JSONEdit, error) {
+	if !driver.HoldsJSON(c) {
+		return nil, fmt.Errorf("column %q is %s, which cannot hold JSON to edit by path", c.Name, c.DataType)
+	}
+	if len(in) == 0 {
+		return nil, fmt.Errorf("column %q: no JSON edits given", c.Name)
+	}
+	out := make([]driver.JSONEdit, 0, len(in))
+	for i, e := range in {
+		de, err := toJSONEdit(e)
+		if err != nil {
+			return nil, fmt.Errorf("column %q, JSON edit %d: %w", c.Name, i+1, err)
+		}
+		out = append(out, de)
+	}
+	return out, nil
+}
+
+func toJSONEdit(e JSONEdit) (driver.JSONEdit, error) {
+	de := driver.JSONEdit{Op: driver.JSONOp(e.Op), Value: e.Value, NewKey: e.NewKey}
+	for _, raw := range e.Path {
+		step, err := toPathStep(raw)
+		if err != nil {
+			return de, err
+		}
+		de.Path = append(de.Path, step)
+	}
+	switch de.Op {
+	case driver.JSONSet, driver.JSONAppend:
+		if !json.Valid([]byte(e.Value)) {
+			return de, fmt.Errorf("%s: the value is not valid JSON", e.Op)
+		}
+	case driver.JSONRemove:
+	case driver.JSONRename:
+		if len(de.Path) > 0 && de.Path[len(de.Path)-1].IsIndex {
+			return de, fmt.Errorf("rename: the path must end at an object key, not an array index")
+		}
+		if e.NewKey == "" {
+			return de, fmt.Errorf("rename: no new key given")
+		}
+		if len(de.Path) > 0 && e.NewKey == de.Path[len(de.Path)-1].Key {
+			return de, fmt.Errorf("rename: the new key is the key it already has")
+		}
+	default:
+		return de, fmt.Errorf("unknown op %q (want set, remove, rename or append)", e.Op)
+	}
+	if len(de.Path) == 0 && de.Op != driver.JSONAppend {
+		return de, fmt.Errorf("%s: the path is empty; to replace the whole value, send kind \"value\"", e.Op)
+	}
+	return de, nil
+}
+
+// toPathStep reads one step as JSON decoded it: a key is a string, an index a
+// whole non-negative number (float64).
+func toPathStep(raw any) (driver.PathStep, error) {
+	switch v := raw.(type) {
+	case string:
+		return driver.PathStep{Key: v}, nil
+	case float64:
+		if v >= 0 && v == math.Trunc(v) && v <= math.MaxInt32 {
+			return driver.PathStep{Index: int(v), IsIndex: true}, nil
+		}
+	case int:
+		if v >= 0 {
+			return driver.PathStep{Index: v, IsIndex: true}, nil
+		}
+	}
+	return driver.PathStep{}, fmt.Errorf("path step %v is neither an object key nor an array index", raw)
 }

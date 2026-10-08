@@ -272,7 +272,7 @@ func TestPreviewRunsNothingAndMatchesWhatApplyRuns(t *testing.T) {
 			Display: `UPDATE "orders" SET "customer" = 'it''s', "note" = NULL WHERE "id" = 1`,
 			Short:   `UPDATE "orders" SET "customer" = 'it''s', "note" = NULL WHERE "id" = 1`,
 			Table:   "orders",
-			Cells:   []StatementCell{{"customer", "value", 4}, {"note", "null", 0}}},
+			Cells:   []StatementCell{{"customer", "value", 4, 0}, {"note", "null", 0, 0}}},
 		{SQL: `DELETE FROM "orders" WHERE "id" = ?`, Display: `DELETE FROM "orders" WHERE "id" = 2`,
 			Short: `DELETE FROM "orders" WHERE "id" = 2`, Table: "orders", Cells: []StatementCell{}},
 	}

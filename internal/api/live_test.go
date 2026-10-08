@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -206,5 +207,88 @@ func TestLiveIsolationLevelsApply(t *testing.T) {
 		if _, err := run("", "VACUUM"); err != nil {
 			t.Errorf("VACUUM on the default path should work: %v", err)
 		}
+	}
+}
+
+// JSON path edits on a real server, for each column type a dialect edits JSON
+// in. Also runs for JADB_LIVE=mssql (user sa, database master), which the cancel
+// tests skip. JADB_LIVE_USER and JADB_LIVE_DATABASE override the defaults.
+func TestLiveJSONEdits(t *testing.T) {
+	kind := driver.Kind(os.Getenv("JADB_LIVE"))
+	port, _ := strconv.Atoi(os.Getenv("JADB_LIVE_PORT"))
+	pw := os.Getenv("JADB_LIVE_PASSWORD")
+	conn := config.Connection{Name: "live", Kind: kind, Host: "127.0.0.1", Port: port}
+	var types []string
+	var schema string
+	switch kind {
+	case driver.KindMySQL:
+		conn.User, conn.Database, conn.SSLMode = "root", "shop", "false"
+		types = []string{"JSON", "LONGTEXT"}
+	case driver.KindPostgres:
+		conn.User, conn.Database, conn.SSLMode, schema = "postgres", "postgres", "disable", "public"
+		types = []string{"jsonb", "json", "text"}
+	case driver.KindMSSQL:
+		conn.User, conn.Database, schema = "sa", "master", "dbo"
+		types = []string{"nvarchar(max)"}
+	default:
+		t.Skip("set JADB_LIVE=mysql|postgres|mssql")
+	}
+	if u := os.Getenv("JADB_LIVE_USER"); u != "" {
+		conn.User = u
+	}
+	if db := os.Getenv("JADB_LIVE_DATABASE"); db != "" {
+		conn.Database = db
+	}
+	svc := newService(t, t.TempDir())
+	saved, err := svc.SaveConnection(SaveConnectionRequest{Connection: conn, Password: &pw})
+	if err != nil {
+		t.Fatal(err)
+	}
+	run := func(t *testing.T, text string) *RunSQLResult {
+		t.Helper()
+		res, err := svc.RunSQL(context.Background(), RunSQLRequest{ConnectionID: saved.ID, Database: conn.Database, SQL: text})
+		if err != nil {
+			t.Fatalf("%s: %v", text, err)
+		}
+		return res
+	}
+
+	// SQL Server cannot remove an array element by path; the rest is the same.
+	edits, after := jsonScenario.edits, jsonScenario.after
+	if kind == driver.KindMSSQL {
+		edits = edits[: len(edits)-2 : len(edits)-2]
+		edits = append(edits, jsonScenario.edits[len(jsonScenario.edits)-1])
+		after = strings.Replace(after, `"tags":[{"t":2},null]`, `"tags":["t1",{"t":2},null]`, 1)
+	}
+
+	for i, typ := range types {
+		t.Run(typ, func(t *testing.T) {
+			// A table per type: pgx caches the SELECT's plan by its text, and a
+			// column whose type changed under it fails that plan.
+			table := "jadb_json_edit_" + strconv.Itoa(i)
+			run(t, "DROP TABLE IF EXISTS "+table)
+			run(t, "CREATE TABLE "+table+" (id INT PRIMARY KEY, doc "+typ+")")
+			defer run(t, "DROP TABLE "+table)
+			ref := driver.ObjectRef{Database: conn.Database, Schema: schema, Name: table}
+			do := func(rc RowChange) {
+				t.Helper()
+				res, err := svc.ApplyChanges(context.Background(), changes(saved.ID, ref, rc))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if res.Conflict != nil {
+					t.Fatal(res.Conflict.Message)
+				}
+			}
+			do(RowChange{Op: "insert", Set: map[string]CellValue{"id": val("1"), "doc": val(jsonScenario.before)}})
+			do(update(1, map[string]CellValue{"doc": jsonCell(edits...)}))
+			got := run(t, "SELECT doc FROM "+table+" WHERE id = 1").Results[0].Rows[0][0]
+			sameJSON(t, fmt.Sprint(got), after)
+
+			do(update(1, map[string]CellValue{"doc": val(`[1]`)}))
+			do(update(1, map[string]CellValue{"doc": jsonCell(appendTo(`"x"`), appendTo(`[2]`))}))
+			got = run(t, "SELECT doc FROM "+table+" WHERE id = 1").Results[0].Rows[0][0]
+			sameJSON(t, fmt.Sprint(got), `[1,"x",[2]]`)
+		})
 	}
 }
