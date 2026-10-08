@@ -486,9 +486,14 @@ export function JsonView({
                 draft?.mode === 'value' && draft.row.path === row.path ? editorFor(draft) : null
               }
               childEditor={
-                (draft?.mode === 'add' || draft?.mode === 'append') && draft.row.path === row.path
-                  ? editorFor(draft)
-                  : null
+                (draft?.mode === 'add' || draft?.mode === 'append') &&
+                draft.row.path === row.path ? (
+                  <>
+                    {/* The key chosen in the first step, beside its value. */}
+                    {draft.mode === 'add' && <Key name={draft.key} />}
+                    {editorFor(draft)}
+                  </>
+                ) : null
               }
               onClick={() => {
                 focusRow(row)
