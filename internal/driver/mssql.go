@@ -3,6 +3,7 @@ package driver
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/url"
@@ -746,4 +747,148 @@ func (d mssqlDriver) describeChecks(ctx context.Context, db *sql.DB, dbq, obj st
 		out = append(out, CheckConstraint{Name: name, Expression: def})
 	}
 	return out, rows.Err()
+}
+
+// jsonEdit uses JSON_MODIFY, which stores whatever it is given by its SQL type:
+// text becomes a JSON string unless it comes from JSON_QUERY. So the value is
+// decoded here and bound as the type that makes the JSON it was (mssqlJSONValue).
+// Lax mode treats a NULL value as "delete", which is how a key is removed, and
+// why a JSON null is set in strict mode once the key exists.
+func (d mssqlDriver) jsonEdit(x func() string, e JSONEdit, val func(any) string) (string, error) {
+	path, err := jsonPath(e.Path, jsonQuoteKey)
+	if err != nil {
+		return "", err
+	}
+	switch e.Op {
+	case JSONSet:
+		doc := x()
+		if isJSONNull(e.Value) {
+			made := "JSON_MODIFY(" + doc + ", " + val(path) + ", N'')"
+			return "JSON_MODIFY(" + made + ", " + val("strict "+path) + ", NULL)", nil
+		}
+		p := val(path)
+		v, err := mssqlJSONValue(e.Value, val)
+		if err != nil {
+			return "", err
+		}
+		return "JSON_MODIFY(" + doc + ", " + p + ", " + v + ")", nil
+	case JSONAppend:
+		doc := x()
+		if isJSONNull(e.Value) {
+			return "JSON_MODIFY(" + doc + ", " + val("append strict "+path) + ", NULL)", nil
+		}
+		p := val("append " + path)
+		v, err := mssqlJSONValue(e.Value, val)
+		if err != nil {
+			return "", err
+		}
+		return "JSON_MODIFY(" + doc + ", " + p + ", " + v + ")", nil
+	case JSONRemove:
+		if e.Path[len(e.Path)-1].IsIndex {
+			return "", fmt.Errorf("SQL Server cannot remove an array element by path; edit the whole value instead")
+		}
+		doc := x()
+		return "JSON_MODIFY(" + doc + ", " + val(path) + ", NULL)", nil
+	case JSONRename:
+		return d.jsonRename(x, e, val)
+	}
+	return "", fmt.Errorf("unknown JSON edit %q", e.Op)
+}
+
+// jsonRename rebuilds the parent object from OPENJSON with the key renamed,
+// since there is no expression that reads a value at a path with its JSON type
+// intact. Members keep their raw JSON text; strings, which OPENJSON unescapes,
+// are escaped again. A member already called NewKey is replaced, as elsewhere.
+// JSON_MODIFY cannot address the root, so a root-level rename is the rebuilt
+// object itself.
+func (mssqlDriver) jsonRename(x func() string, e JSONEdit, val func(any) string) (string, error) {
+	parent, err := jsonPath(e.Path[:len(e.Path)-1], jsonQuoteKey)
+	if err != nil {
+		return "", err
+	}
+	root := len(e.Path) == 1
+	var doc, p string
+	if !root {
+		doc, p = x(), val(parent)
+	}
+	from, to := val(e.Path[len(e.Path)-1].Key), val(e.NewKey)
+	member := `CAST(N'"' + STRING_ESCAPE(IIF([key] = ` + from + `, ` + to + `, [key]), 'json') + N'":' + ` +
+		`CASE [type] WHEN 0 THEN N'null' WHEN 1 THEN N'"' + STRING_ESCAPE([value], 'json') + N'"' ELSE [value] END AS nvarchar(max))`
+	obj := "(SELECT N'{' + ISNULL(STRING_AGG(" + member + ", N','), N'') + N'}' FROM OPENJSON(" + x() + ", " + val(parent) + ") WHERE [key] <> " + val(e.NewKey) + ")"
+	if root {
+		return obj, nil
+	}
+	return "JSON_MODIFY(" + doc + ", " + p + ", JSON_QUERY(" + obj + "))", nil
+}
+
+func isJSONNull(v string) bool { return strings.TrimSpace(v) == "null" }
+
+// mssqlJSONValue renders a non-null JSON value as an expression JSON_MODIFY
+// stores as that same JSON: containers through JSON_QUERY, strings and booleans
+// bound as such, numbers as bigint or as a decimal sized to their digits.
+func mssqlJSONValue(v string, val func(any) string) (string, error) {
+	t := strings.TrimSpace(v)
+	if t == "" {
+		return "", fmt.Errorf("no JSON value")
+	}
+	switch t[0] {
+	case '{', '[':
+		return "JSON_QUERY(" + val(t) + ")", nil
+	case '"':
+		var s string
+		if err := json.Unmarshal([]byte(t), &s); err != nil {
+			return "", err
+		}
+		return val(s), nil
+	case 't', 'f':
+		return "CAST(" + val(t == "true") + " AS bit)", nil
+	}
+	if n, err := strconv.ParseInt(t, 10, 64); err == nil {
+		return val(n), nil
+	}
+	text, scale, err := decimalDigits(t)
+	if err != nil {
+		return "", err
+	}
+	p := len(strings.Trim(text, "-.")) - min(scale, 1) // digits only: drop sign and point
+	p = max(p, scale, 1)
+	if p > 38 {
+		return "", fmt.Errorf("SQL Server cannot store %s exactly in JSON (more than 38 digits); edit the whole value instead", t)
+	}
+	return "CAST(" + val(text) + " AS decimal(" + strconv.Itoa(p) + ", " + strconv.Itoa(scale) + "))", nil
+}
+
+// decimalDigits rewrites a JSON number without its exponent, as plain decimal
+// text and its scale: "1.5e-3" is ("0.0015", 4).
+func decimalDigits(num string) (string, int, error) {
+	if !json.Valid([]byte(num)) || !strings.ContainsAny(num[:1], "-0123456789") {
+		return "", 0, fmt.Errorf("%q is not a JSON number", num)
+	}
+	sign := ""
+	if num[0] == '-' {
+		sign, num = "-", num[1:]
+	}
+	mant, exp := num, 0
+	if i := strings.IndexAny(num, "eE"); i >= 0 {
+		var err error
+		if exp, err = strconv.Atoi(strings.TrimPrefix(num[i+1:], "+")); err != nil || exp > 100 || exp < -100 {
+			return "", 0, fmt.Errorf("%s is out of the range SQL Server can store exactly", sign+num)
+		}
+		mant = num[:i]
+	}
+	intPart, frac, _ := strings.Cut(mant, ".")
+	digits := strings.TrimLeft(intPart+frac, "0")
+	scale := len(frac) - exp
+	if scale < 0 {
+		digits += strings.Repeat("0", -scale)
+		scale = 0
+	}
+	if len(digits) <= scale {
+		digits = strings.Repeat("0", scale-len(digits)+1) + digits
+	}
+	text := digits[:len(digits)-scale]
+	if scale > 0 {
+		text += "." + digits[len(digits)-scale:]
+	}
+	return sign + text, scale, nil
 }

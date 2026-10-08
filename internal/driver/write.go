@@ -27,11 +27,15 @@ const (
 )
 
 // Assignment sets one column. Value is what is bound; nil binds NULL. Default
-// wins over Value and writes the DEFAULT keyword instead of a parameter.
+// wins over Value and writes the DEFAULT keyword instead of a parameter. Edits,
+// on an update, change the column's current JSON by path instead (jsonedit.go);
+// DataType is the column's declared type, which some dialects cast by.
 type Assignment struct {
-	Column  string
-	Value   any
-	Default bool
+	Column   string
+	Value    any
+	Default  bool
+	Edits    []JSONEdit
+	DataType string
 }
 
 // KeyCond is one column of the WHERE that addresses a row: Column = Value.
@@ -124,7 +128,16 @@ func renderChange(d writerDriver, target string, ch Change, val func(any) string
 			if a.Default && !d.Caps().SetToDefault {
 				return "", fmt.Errorf("column %q: %s has no DEFAULT to set a column back to", a.Column, d.Caps().DisplayName)
 			}
-			sets = append(sets, d.QuoteIdent(a.Column)+" = "+assignedValue(a, val))
+			var v string
+			if len(a.Edits) > 0 {
+				var err error
+				if v, err = jsonEditExpr(d, a, val); err != nil {
+					return "", err
+				}
+			} else {
+				v = assignedValue(a, val)
+			}
+			sets = append(sets, d.QuoteIdent(a.Column)+" = "+v)
 		}
 		where, err := whereKey(d, ch.Key, val)
 		if err != nil {
@@ -142,6 +155,9 @@ func renderChange(d writerDriver, target string, ch Change, val func(any) string
 	case ChangeInsert:
 		var cols, vals []string
 		for _, a := range ch.Set {
+			if len(a.Edits) > 0 {
+				return "", fmt.Errorf("column %q: an insert has no value to edit by path", a.Column)
+			}
 			// Where there is no DEFAULT keyword, leaving the column out of an
 			// insert says the same thing.
 			if a.Default && !d.Caps().SetToDefault {

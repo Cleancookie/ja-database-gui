@@ -410,3 +410,34 @@ func (d sqliteDriver) describeTriggers(ctx context.Context, db *sql.DB, ref Obje
 	}
 	return out, rows.Err()
 }
+
+// jsonEdit uses SQLite's JSON functions. A JSON-text argument goes through
+// json() so it is stored as JSON rather than as a string; `->` already returns
+// JSON. Path keys are quoted JSON strings, which SQLite decodes before matching.
+func (sqliteDriver) jsonEdit(x func() string, e JSONEdit, val func(any) string) (string, error) {
+	path, err := jsonPath(e.Path, jsonQuoteKey)
+	if err != nil {
+		return "", err
+	}
+	switch e.Op {
+	case JSONSet:
+		doc := x()
+		return "json_set(" + doc + ", " + val(path) + ", json(" + val(e.Value) + "))", nil
+	case JSONRemove:
+		doc := x()
+		return "json_remove(" + doc + ", " + val(path) + ")", nil
+	case JSONAppend:
+		doc := x()
+		return "json_insert(" + doc + ", " + val(path+"[#]") + ", json(" + val(e.Value) + "))", nil
+	case JSONRename:
+		to, err := jsonPath(renamedPath(e), jsonQuoteKey)
+		if err != nil {
+			return "", err
+		}
+		removed := "json_remove(" + x() + ", " + val(path) + ")"
+		toArg := val(to)
+		from := x() + " -> " + val(path)
+		return "json_set(" + removed + ", " + toArg + ", " + from + ")", nil
+	}
+	return "", fmt.Errorf("unknown JSON edit %q", e.Op)
+}

@@ -636,3 +636,52 @@ func (d postgresDriver) describeChecks(ctx context.Context, db *sql.DB, target s
 	}
 	return out, rows.Err()
 }
+
+// jsonColumn works in jsonb: a json or text column is cast in and back out.
+func (postgresDriver) jsonColumn(col, dataType string) (string, func(string) string) {
+	switch strings.ToLower(dataType) {
+	case "jsonb":
+		return col, func(s string) string { return s }
+	case "json":
+		return col + "::jsonb", func(s string) string { return "(" + s + ")::json" }
+	}
+	return col + "::jsonb", func(s string) string { return "(" + s + ")::text" }
+}
+
+// jsonEdit uses jsonb's path functions, whose path is a text[] of keys and
+// indexes: a step means a key or an index by what it meets, so no quoting.
+// jsonb_set is STRICT, so a rename of a missing key moves a JSON null rather
+// than nulling the whole column.
+func (postgresDriver) jsonEdit(x func() string, e JSONEdit, val func(any) string) (string, error) {
+	switch e.Op {
+	case JSONSet:
+		doc := x()
+		path := pgPath(e.Path, val)
+		return "jsonb_set(" + doc + ", " + path + ", " + val(e.Value) + "::jsonb, true)", nil
+	case JSONRemove:
+		doc := x()
+		return "(" + doc + " #- " + pgPath(e.Path, val) + ")", nil
+	case JSONAppend:
+		doc := x()
+		path := pgPath(append(append([]PathStep(nil), e.Path...), PathStep{Index: -1, IsIndex: true}), val)
+		return "jsonb_insert(" + doc + ", " + path + ", " + val(e.Value) + "::jsonb, true)", nil
+	case JSONRename:
+		removed := "(" + x() + " #- " + pgPath(e.Path, val) + ")"
+		to := pgPath(renamedPath(e), val)
+		from := "COALESCE(" + x() + " #> " + pgPath(e.Path, val) + ", 'null')"
+		return "jsonb_set(" + removed + ", " + to + ", " + from + ", true)", nil
+	}
+	return "", fmt.Errorf("unknown JSON edit %q", e.Op)
+}
+
+func pgPath(path []PathStep, val func(any) string) string {
+	steps := make([]string, len(path))
+	for i, s := range path {
+		if s.IsIndex {
+			steps[i] = val(strconv.Itoa(s.Index))
+		} else {
+			steps[i] = val(s.Key)
+		}
+	}
+	return "ARRAY[" + strings.Join(steps, ", ") + "]::text[]"
+}

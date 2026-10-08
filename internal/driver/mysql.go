@@ -565,3 +565,34 @@ func (d mysqlDriver) describeTriggers(ctx context.Context, db *sql.DB, ref Objec
 	}
 	return out, rows.Err()
 }
+
+// jsonEdit uses the JSON functions MySQL and MariaDB share. A JSON-text argument
+// is parsed with JSON_EXTRACT(?, '$'): MariaDB has no CAST(… AS JSON), and a
+// bare string would be stored as a JSON string.
+func (mysqlDriver) jsonEdit(x func() string, e JSONEdit, val func(any) string) (string, error) {
+	path, err := jsonPath(e.Path, jsonQuoteKey)
+	if err != nil {
+		return "", err
+	}
+	switch e.Op {
+	case JSONSet:
+		doc := x()
+		return "JSON_SET(" + doc + ", " + val(path) + ", JSON_EXTRACT(" + val(e.Value) + ", '$'))", nil
+	case JSONRemove:
+		doc := x()
+		return "JSON_REMOVE(" + doc + ", " + val(path) + ")", nil
+	case JSONAppend:
+		doc := x()
+		return "JSON_ARRAY_APPEND(" + doc + ", " + val(path) + ", JSON_EXTRACT(" + val(e.Value) + ", '$'))", nil
+	case JSONRename:
+		to, err := jsonPath(renamedPath(e), jsonQuoteKey)
+		if err != nil {
+			return "", err
+		}
+		removed := "JSON_REMOVE(" + x() + ", " + val(path) + ")"
+		toArg := val(to)
+		from := "JSON_EXTRACT(" + x() + ", " + val(path) + ")"
+		return "JSON_SET(" + removed + ", " + toArg + ", " + from + ")", nil
+	}
+	return "", fmt.Errorf("unknown JSON edit %q", e.Op)
+}
