@@ -1,13 +1,13 @@
 import { useEffect, useImperativeHandle, useRef } from 'react'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { json } from '@codemirror/lang-json'
-import { HighlightStyle, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle, codeFolding, foldGutter, foldKeymap, syntaxHighlighting } from '@codemirror/language'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
 
 /**
- * A large-text editor: line numbers, wrapping, JSON highlighting.
+ * A large-text editor: line numbers, wrapping, JSON highlighting and folding.
  *
  * The other CodeMirror in `Editor.tsx` is a SQL editor with completion and a
  * controlled value, which is the wrong shape for editing a document of several
@@ -59,6 +59,14 @@ const theme = EditorView.theme({
     border: 'none',
     borderRight: '1px solid var(--color-border)',
   },
+  '.cm-foldGutter span': { cursor: 'pointer', padding: '0 0.25rem' },
+  '.cm-foldGutter span:hover': { color: 'var(--color-accent)' },
+  '.cm-foldPlaceholder': {
+    backgroundColor: 'var(--color-panel)',
+    color: 'var(--color-muted)',
+    border: '1px solid var(--color-border)',
+    padding: '0 0.25rem',
+  },
   '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--color-accent)' },
   '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, ::selection': {
     backgroundColor: 'var(--color-accent-dim)',
@@ -101,6 +109,8 @@ export function CodeEditor({
         doc: initialValue,
         extensions: [
           lineNumbers(),
+          codeFolding(),
+          foldGutter(),
           history(),
           syntaxHighlighting(highlight),
           theme,
@@ -117,7 +127,7 @@ export function CodeEditor({
               },
             },
           ]),
-          keymap.of([...historyKeymap, ...defaultKeymap]),
+          keymap.of([...foldKeymap, ...historyKeymap, ...defaultKeymap]),
           EditorView.updateListener.of((u) => {
             if (!u.docChanged) return
             clearTimeout(timer)
