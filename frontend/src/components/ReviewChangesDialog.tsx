@@ -204,8 +204,7 @@ const StatementRow = memo(function StatementRow({
               key={c.column}
               className="rounded-full bg-[var(--color-accent-dim)]/50 px-2 text-[var(--color-muted)]"
             >
-              {c.column} ·{' '}
-              {cellChip(c)}
+              {c.column} · {cellChip(c)}
             </span>
           ))}
           {statement.cells.length > MAX_CHIPS && (

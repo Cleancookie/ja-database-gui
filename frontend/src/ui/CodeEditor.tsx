@@ -1,7 +1,13 @@
 import { useEffect, useImperativeHandle, useRef } from 'react'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { json } from '@codemirror/lang-json'
-import { HighlightStyle, codeFolding, foldGutter, foldKeymap, syntaxHighlighting } from '@codemirror/language'
+import {
+  HighlightStyle,
+  codeFolding,
+  foldGutter,
+  foldKeymap,
+  syntaxHighlighting,
+} from '@codemirror/language'
 import { Compartment, EditorState, type Extension } from '@codemirror/state'
 import { EditorView, keymap, lineNumbers } from '@codemirror/view'
 import { tags } from '@lezer/highlight'
