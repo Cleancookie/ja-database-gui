@@ -75,3 +75,27 @@ assembles from a gesture — so the app has to be the one that refuses to guess.
   before the dialect quotes it, so it cannot split an escape. `Display` and the
   bound value stay whole. `Statement.Cells` gives each set column's kind and
   character count.
+
+## Amendment 2026-10-08: path edits inside a JSON value
+
+- **A fourth cell kind, `json`.** `CellValue.edits` lists `set`, `remove`,
+  `rename` and `append` ops, each with a path from the root. They are applied in
+  order and render as nested dialect functions over the column's current value
+  (`json_set`, `JSON_SET`, `jsonb_set`, `JSON_MODIFY`). A 1 MB value is never
+  sent back to change one key.
+- **Merge-friendly by construction.** Only the touched paths are written, so a
+  concurrent change to another key of the same value survives.
+- **Update only.** The kind is refused on insert and delete. It is allowed on
+  json and text-like columns: the user chose path SQL even for text holding JSON,
+  accepting that postgres renormalises such text through `jsonb`.
+- **Paths and values are bound.** Keys come from data, so they are never
+  spliced into the SQL. The dialect quirks live in each dialect's file behind an
+  optional `jsonEditor`, and `Driver` is unchanged.
+- **Known limits.** A rename re-reads the value before it, so each rename in one
+  cell doubles the statement. A renamed key moves to the end of its object. SQL
+  Server cannot remove an array element by path, so that one op is refused and
+  the UI points to editing the whole value.
+- **The client splices text.** A staged JSON edit shows in the grid and the tree
+  through `applyJsonEdits`. It replaces only the edited node's text, so big
+  numbers and key order elsewhere stay byte-identical. A cell already staged as a
+  whole value takes tree edits as text and stays a whole value.
