@@ -715,6 +715,7 @@ test — which is the intended speed bump.
 | The staged-changes bar is global, on the status strip | `ChangesStatus`. Edits outlive the table they were made in, so a bar over one grid would hide work in the others |
 | No component calls a hook after an early return | `hooks.test.ts`. React error 300 crashed the SQL editor when a statement with no result set followed a SELECT |
 | Big-editor Format and Minify touch whitespace only | `bigEdit.test.ts`. Re-stringifying would change the data |
+| JSON tree edits splice the text: bytes outside an edited node are unchanged | `jsonEdits.test.ts` (`applyJsonEdits`). Same reason: a parse-edit-stringify round trip rounds big integers and drops repeated keys |
 | No app-shell component subscribes to the staged edits | Same reason as the selection rule above: `DataGrid`, `ChangesStatus`, `ReviewChangesDialog`, `LargeEditorHost`, each sidebar `TableMark` and each tab's `TabMark` subscribe — the last two with a boolean — and `App` does not |
 | The sidebar subscribes to no selection, rows or staged edits | It is always mounted beside the grid. `frontend/src/invariants.test.ts` reads its source for those selectors |
 | A tab's open tables change only in the store actions: `openObjectAt`, `closeOpenTable`, `selectDatabase`, `connect`, `disconnect`, `runDrop` | `openObjectAt` is the one place a table's filter, sort and page are saved and restored. `frontend/src/openTables.test.ts` |
@@ -822,3 +823,24 @@ The sidebar's connection and database lists were cramped. Move "choose server, t
 | Keys | The list is focused on mount. Arrows and `Ctrl+J` / `Ctrl+K` move (`listNav.ts`), `Enter` picks, `Esc` on step 2 returns to step 1 without disconnecting |
 | Connection actions | New connection, sample database, edit, remove and the context menu stay on the server step |
 | Bound tab, no table open | `EmptyPanel` as before, without the connection wording |
+
+## 2026-10-08 — editing inside a JSON cell
+
+### Brief
+
+Open a huge JSON cell, collapse down to one key deep inside it and edit it there, through the same staged-edit flow as the grid. The tree needed the focus model the 2026-08-27 entry left out.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Focus model | One focused row, held by the tree via `aria-activedescendant`; the tree is a flat list of visible rows (`jsonTree.ts`). Up/Down/Home/End move, Right opens or steps in, Left closes or steps out, Enter toggles a container. The focused row carries the shared `Highlight` pill. The menu key and Shift+F10 open the one tree menu at the focused row |
+| Edit keys | F2 or Enter on a leaf: edit value. Shift+F2: edit as JSON (how a string becomes another type). R: rename key. Insert or A: add key to an object / append to an array (a leaf acts on its parent). Delete: remove. Ctrl+Z: undo the last staged edit. Same actions on the right-click menu, with their keys, and in Ctrl+Shift+P for the focused node |
+| Editors | Inline, in place of the key or value. A string edits as raw text; anything else as a JSON literal, opened on its exact source text so a 20-digit integer is not rounded; a container as re-indented JSON in a small textarea (Ctrl+Enter). Invalid JSON is refused inline. Esc cancels the editor, not the dialog |
+| When editing is offered | Only on a whole, loaded cell of the browse grid that `startEdit` would accept (`cellEditBlock`). Otherwise the tree is read-only exactly as before |
+| How it is staged | `CellInput` kind `json` with an ordered `edits` list (set / remove / rename / append, by path), applied by the server to the stored value. A cell already staged as a whole value takes the edit client-side and stays a whole value. A whole-value edit later (F2) replaces the path edits, and opens on the value with them applied. An edit to the root (append to a root array) is staged as a whole value: a path edit has no empty path |
+| What is shown | `applyJsonEdits` (json.ts) splices each edit into the text, so the tree, the grid cell and the large editor show the staged result with every other byte untouched. Edited nodes carry the grid's dirty colour; containers above them a dot |
+| SQL Server | Cannot remove an array element by path: Delete element is disabled there with the reason, pointing to F2 |
+| Palette over a dialog | `ui.Layer` makes the palette its own Radix layer, so it can open over the cell viewer without Escape or a click closing the viewer |
+
+Not built: inserting mid-array; editing an ad-hoc result; marking nodes for an edit staged as a whole value. Number display in the tree still goes through JSON.parse, so a big integer *shows* rounded (the editor and the stored value do not).

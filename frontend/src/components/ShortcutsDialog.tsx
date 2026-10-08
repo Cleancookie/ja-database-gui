@@ -41,6 +41,14 @@ const SHORTCUTS: [string, string][] = [
     'Shift+F2',
     'Edit the cell in the large editor — long, multi-line and JSON values open there on F2',
   ],
+  [
+    'JSON viewer: arrows',
+    'Move through the tree — Right opens or steps in, Left closes or steps out',
+  ],
+  [
+    'JSON viewer: F2 / R / Insert / Delete',
+    'Edit a value (Shift+F2 as JSON) / rename a key / add a key or element / remove — staged',
+  ],
   ['Ctrl+Backspace', 'Stage NULL over the selected cells'],
   ['Ctrl+Z', 'Undo the last staged edit'],
   [
