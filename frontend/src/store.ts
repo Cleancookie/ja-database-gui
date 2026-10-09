@@ -71,6 +71,7 @@ import type {
   Sort,
 } from './types'
 import { isPasswordRequired, needsPasswordPrompt } from './secrets'
+import { addToast } from './toasts'
 
 export const PAGE_SIZES = [50, 100, 200, 500, 1000] as const
 
@@ -85,6 +86,11 @@ export interface Toast {
   message: string
   /** A button on the toast; it is dismissed once the button is used. */
   action?: { label: string; run: () => void }
+  /** How many times this same toast was raised while it was on screen. */
+  count: number
+  /** When it was last raised — a repeat restarts its timer. */
+  at: number
+  autoDismiss: boolean
 }
 
 /** One cell, as the viewer needs to see it. */
@@ -463,6 +469,7 @@ export interface State extends EditState, EditActions {
     sticky?: boolean,
   ) => void
   dismissToast: (id: number) => void
+  dismissAllToasts: () => void
   /** Asks GitHub for the newest release. `quiet` reports only a newer one. */
   checkUpdate: (quiet?: boolean) => Promise<void>
   /** Installs the newest release and relaunches into it. */
@@ -1797,16 +1804,28 @@ export const useStore = create<State>((set, get) => {
 
     pushToast(kind, message, action, sticky) {
       const id = ++toastSeq
-      set({ toasts: [...get().toasts, { id, kind, message, ...(action ? { action } : {}) }] })
       // Errors stay until dismissed; they often contain the SQL detail the
-      // user needs to read carefully.
-      if (kind === 'info' && !sticky) {
-        setTimeout(() => get().dismissToast(id), 4000)
+      // user needs to read carefully. The timer itself lives in <Toasts>, so
+      // it can pause while the stack is open.
+      const autoDismiss = kind === 'info' && !sticky
+      const t: Toast = {
+        id,
+        kind,
+        message,
+        count: 1,
+        at: Date.now(),
+        autoDismiss,
+        ...(action ? { action } : {}),
       }
+      set({ toasts: addToast(get().toasts, t) })
     },
 
     dismissToast(id) {
       set({ toasts: get().toasts.filter((t) => t.id !== id) })
+    },
+
+    dismissAllToasts() {
+      set({ toasts: [] })
     },
 
     async checkUpdate(quiet) {

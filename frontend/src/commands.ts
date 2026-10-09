@@ -207,6 +207,15 @@ export function buildActionCommands(s: Store): Command[] {
     candidate: { name: 'Reopen closed tab', keywords: 'restore undo close' },
     run: () => s.reopenTab(),
   })
+  if (s.toasts.length > 0) {
+    cmds.push({
+      id: 'toast:clear',
+      title: 'Clear all notifications',
+      group: 'App',
+      candidate: { name: 'Clear all notifications', keywords: 'toast dismiss errors close hide' },
+      run: () => s.dismissAllToasts(),
+    })
+  }
   if (s.tabs.length > 1) {
     cmds.push({
       id: 'tab:next',
