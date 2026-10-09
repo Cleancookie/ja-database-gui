@@ -39,7 +39,7 @@ func main() {
 
 	err = wails.Run(&options.App{
 		// The version is in the title so a stale build is visible at a glance.
-		Title:  "ja-db " + version,
+		Title:  "Just Another Database GUI " + version,
 		Width:  1440,
 		Height: 900,
 		// Below this the sidebar and grid stop being usable together.
