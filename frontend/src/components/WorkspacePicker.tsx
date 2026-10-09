@@ -20,8 +20,26 @@ export function WorkspacePicker() {
   const [back, setBack] = useState(false)
   const step = hostsDatabases && !back ? 2 : 1
 
-  const stepClass = (n: number) =>
-    n === step ? 'font-bold text-[var(--color-accent)]' : 'text-[var(--color-faint)]'
+  const stepMark = (n: number, label: string) => (
+    <span
+      className={`flex items-center gap-2 ${
+        n === step ? 'font-bold text-[var(--color-text)]' : 'text-[var(--color-faint)]'
+      }`}
+    >
+      <span
+        className={`grid h-6 w-6 place-items-center rounded-full font-bold tabular-nums ${
+          n === step
+            ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-xs'
+            : n < step
+              ? 'bg-[var(--color-accent-dim)]/60 text-[var(--color-accent)]'
+              : 'bg-[var(--color-elevated)] text-[var(--color-muted)]'
+        }`}
+      >
+        {n < step ? '✓' : n}
+      </span>
+      {label}
+    </span>
+  )
 
   return (
     <div
@@ -34,10 +52,10 @@ export function WorkspacePicker() {
       }}
     >
       <div className="flex max-h-full w-full max-w-md flex-col gap-3 py-4">
-        <h1 className="flex items-center gap-2">
-          <span className={stepClass(1)}>① Server</span>
-          <span className="text-[var(--color-faint)]">›</span>
-          <span className={stepClass(2)}>② Database</span>
+        <h1 className="flex items-center gap-3">
+          {stepMark(1, 'Server')}
+          <span className="h-px w-6 bg-[var(--color-border-strong)]" />
+          {stepMark(2, 'Database')}
           {step === 2 && connectionName && (
             <span className="min-w-0 truncate text-[var(--color-muted)]">on {connectionName}</span>
           )}
