@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<!--
+  Plan page for the `visualise` skill.
+
+  Everything above <body> — this comment included — is the theme. Carry it over
+  untouched. Everything inside <body> is placeholder content to be replaced,
+  section 4 (the diagram reference) included.
+
+  Diagram theme: "Playful Doodle" (theme key `doodle`) from
+  https://github.com/gotoailab/modern_mermaid — pastel fills, heavy hand-drawn
+  borders, hard offset drop shadows, Comic Neue. Carried here as the light
+  scheme, with a dark counterpart, both following the system setting.
+
+  Diagram types the theme covers — reach for whichever fits the mechanism, they
+  all render in the doodle style. Section 4 has a worked example of each.
+
+    graph TD / graph LR    control flow, data flow, branching decisions
+    sequenceDiagram        who calls whom, in what order, and what comes back
+    stateDiagram-v2        one record moving between states over time
+    classDiagram           classes, their members, and how they relate
+    erDiagram              tables, columns, cardinality
+
+  NOT covered: gantt, pie, gitGraph, journey, timeline, quadrantChart. Those
+  fall back to mermaid's own `base` theme and look washed out beside a themed
+  diagram. Port the rules from https://github.com/gotoailab/modern_mermaid
+  before using one.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>ja-db — Grid Editing Scope &amp; Plan</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Comic Neue is the theme's face. Without this the page falls back silently
+       to Comic Sans MS, or to a generic cursive on Linux. -->
+  <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <script>
+    // Bootstrap reads data-bs-theme, which has no "follow the system" value —
+    // so mirror the media query onto it, before first paint and on every change.
+    (function () {
+      var dark = matchMedia('(prefers-color-scheme: dark)');
+      var apply = function () {
+        document.documentElement.dataset.bsTheme = dark.matches ? 'dark' : 'light';
+      };
+      apply();
+      dark.addEventListener('change', apply);
+    })();
+  </script>
+  <style>
+    /* Diagrams sit on the theme's own canvas colour rather than the page
+       background, keeping the surface the theme was designed for. */
+    :root { --diagram-canvas: #ffeef8; }
+    @media (prefers-color-scheme: dark) { :root { --diagram-canvas: #2b2233; } }
+    /* Diagrams render at natural size so label text never drops below 1rem.
+       A wide graph breaks out of the text column, and only scrolls once it
+       runs out of viewport — it is never scaled down to fit. */
+    .mermaid {
+      background: var(--diagram-canvas);
+      border-radius: 1rem;
+      padding: 1.25rem;
+      text-align: center;
+      width: max-content;
+      max-width: calc(100vw - 3rem);
+      margin-left: 50%;
+      transform: translateX(-50%);
+      overflow-x: auto;
+    }
+    .mermaid svg { max-width: none; height: auto; }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+    // The theme's face, in one place — every diagram type below refers to it.
+    const FACE = '"Comic Neue", "Comic Sans MS", "Noto Sans SC", cursive, sans-serif';
+
+    // Playful Doodle, in the two schemes. Same shapes and weights throughout;
+    // only the fills, ink and shadow depth differ.
+    const doodle = (c) => ({
+      themeVariables: {
+        background: c.canvas,
+        primaryColor: c.fills[0],
+        primaryTextColor: c.ink,
+        primaryBorderColor: c.ink,
+        lineColor: c.ink,
+        secondaryColor: c.fills[1],
+        tertiaryColor: c.fills[2],
+        fontFamily: FACE,
+        fontSize: '16px',
+      },
+      themeCSS: `
+        .node rect, .node polygon {
+          fill: ${c.fills[0]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          rx: 20px !important;
+          ry: 20px !important;
+          filter: drop-shadow(4px 4px 0px ${c.shadow});
+        }
+        .node circle {
+          fill: ${c.fills[0]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          filter: drop-shadow(3px 3px 0px ${c.shadow});
+        }
+        .node .label {
+          font-family: ${FACE};
+          font-weight: 600;
+          fill: ${c.ink} !important;
+          font-size: 16px;
+        }
+        .node:nth-child(2n) rect,
+        .node:nth-child(2n) circle,
+        .node:nth-child(2n) polygon { fill: ${c.fills[1]} !important; }
+        .node:nth-child(3n) rect,
+        .node:nth-child(3n) circle,
+        .node:nth-child(3n) polygon { fill: ${c.fills[2]} !important; }
+        .node:nth-child(5n) rect,
+        .node:nth-child(5n) circle,
+        .node:nth-child(5n) polygon { fill: ${c.fills[3]} !important; }
+        .node:nth-child(7n) rect,
+        .node:nth-child(7n) circle,
+        .node:nth-child(7n) polygon { fill: ${c.fills[4]} !important; }
+        .edgePath .path {
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        .arrowheadPath {
+          fill: ${c.ink} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 2px !important;
+        }
+        .edgeLabel {
+          color: ${c.ink} !important;
+          background: ${c.labelFill} !important;
+          font-family: ${FACE};
+          font-size: 16px;
+          font-weight: 600;
+        }
+        .edgeLabel p, .edgeLabel span { background: ${c.labelFill} !important; color: ${c.ink} !important; }
+        .edgeLabel rect {
+          fill: ${c.labelFill} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 2px !important;
+          rx: 12px !important;
+          filter: drop-shadow(2px 2px 0px ${c.shadow});
+        }
+
+        /* ---- sequenceDiagram ---- */
+        .actor {
+          fill: ${c.fills[1]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          rx: 14px !important;
+          ry: 14px !important;
+          filter: drop-shadow(4px 4px 0px ${c.shadow});
+        }
+        text.actor, text.actor > tspan {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 700;
+          font-size: 16px;
+        }
+        .actor-line { stroke: ${c.ink} !important; stroke-width: 2px !important; stroke-dasharray: 5 5; }
+        .messageLine0 { stroke: ${c.ink} !important; stroke-width: 3px !important; fill: none !important; }
+        .messageLine1 { stroke: ${c.ink} !important; stroke-width: 3px !important; stroke-dasharray: 7 4; fill: none !important; }
+        .messageText {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 600;
+          font-size: 15px;
+        }
+        .sequenceNumber { fill: ${c.labelFill} !important; }
+        .activation0, .activation1, .activation2 {
+          fill: ${c.fills[4]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 2px !important;
+        }
+        .note {
+          fill: ${c.fills[3]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          rx: 10px !important;
+          ry: 10px !important;
+          filter: drop-shadow(3px 3px 0px ${c.shadow});
+        }
+        .noteText, .noteText > tspan {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 600;
+        }
+        .labelBox {
+          fill: ${c.fills[2]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 2px !important;
+        }
+        .labelText, .labelText > tspan, .loopText, .loopText > tspan {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 600;
+        }
+        .loopLine { stroke: ${c.ink} !important; stroke-width: 2px !important; fill: none !important; }
+
+        /* ---- stateDiagram-v2 (nodes also pick up the .node rules above) ---- */
+        .stateGroup rect, .statediagram-state rect {
+          fill: ${c.fills[2]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          rx: 16px !important;
+          ry: 16px !important;
+          filter: drop-shadow(4px 4px 0px ${c.shadow});
+        }
+        .stateGroup text, .stateLabel, .stateLabel text, .stateLabel tspan {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 600;
+        }
+        .start-state, .node circle.state-start,
+        .end-state-outer, .end-state-inner, .node circle.state-end {
+          fill: ${c.ink} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 2px !important;
+        }
+        .transition {
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          fill: none !important;
+          stroke-linecap: round;
+        }
+        .statediagram-cluster rect, .stateGroup .composit {
+          fill: ${c.labelFill} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 2px !important;
+          rx: 12px !important;
+        }
+        .statediagram-note rect {
+          fill: ${c.fills[3]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 2px !important;
+        }
+
+        /* ---- classDiagram ---- */
+        g.classGroup rect {
+          fill: ${c.fills[0]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          filter: drop-shadow(4px 4px 0px ${c.shadow});
+        }
+        g.classGroup text, g.classGroup text tspan, g.classGroup .title {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 600;
+        }
+        g.classGroup .title { font-weight: 700; }
+        g.classGroup line, .divider {
+          stroke: ${c.ink} !important;
+          stroke-width: 2px !important;
+        }
+        .relation { stroke: ${c.ink} !important; stroke-width: 3px !important; fill: none !important; }
+        #compositionStart, #compositionEnd,
+        #aggregationStart, #aggregationEnd,
+        #extensionStart, #extensionEnd,
+        #dependencyStart, #dependencyEnd {
+          fill: ${c.ink} !important;
+          stroke: ${c.ink} !important;
+        }
+        .classLabel .box { fill: ${c.labelFill} !important; stroke: none !important; opacity: 1 !important; }
+        .classLabel .label {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 600;
+        }
+
+        /* ---- erDiagram ---- */
+        .er.entityBox {
+          fill: ${c.fills[0]} !important;
+          stroke: ${c.ink} !important;
+          stroke-width: 3px !important;
+          filter: drop-shadow(4px 4px 0px ${c.shadow});
+        }
+        .er.attributeBoxOdd  { fill: ${c.labelFill} !important; stroke: ${c.ink} !important; stroke-width: 2px !important; }
+        .er.attributeBoxEven { fill: ${c.fills[1]} !important; stroke: ${c.ink} !important; stroke-width: 2px !important; }
+        .er.entityLabel {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 700;
+        }
+        .er.relationshipLine { stroke: ${c.ink} !important; stroke-width: 3px !important; fill: none !important; }
+        .er.relationshipLabel {
+          fill: ${c.ink} !important;
+          stroke: none !important;
+          font-family: ${FACE};
+          font-weight: 600;
+        }
+        .er.relationshipLabelBox { fill: ${c.labelFill} !important; opacity: 1 !important; }
+
+        /* Arrowheads and markers, whichever renderer drew them. */
+        marker path, marker polygon { fill: ${c.ink} !important; stroke: ${c.ink} !important; }
+      `,
+    });
+
+    const LIGHT = doodle({
+      canvas: '#ffeef8',
+      ink: '#000000',
+      labelFill: '#ffffff',
+      shadow: 'rgba(0,0,0,0.2)',
+      fills: ['#ffdff6', '#dff4ff', '#f0e7ff', '#fff4e6', '#e7f9f5'],
+    });
+
+    const DARK = doodle({
+      canvas: '#2b2233',
+      ink: '#f6ecf4',
+      labelFill: '#3a3042',
+      shadow: 'rgba(0,0,0,0.55)',
+      fills: ['#5a3550', '#2c4a5e', '#413764', '#5c452a', '#245049'],
+    });
+
+    // Mermaid bakes the theme in at render time, so a scheme change means a
+    // full re-render. Keep the source text; the rendered SVG replaces it.
+    // Graphs added after load must be registered here too.
+    const blocks = Array.from(document.querySelectorAll('pre.mermaid'));
+    blocks.forEach((el) => { el.dataset.src = el.textContent; });
+
+    const dark = matchMedia('(prefers-color-scheme: dark)');
+
+    const draw = async () => {
+      mermaid.initialize({
+        startOnLoad: false,
+        // What lets themeCSS apply reliably. Fine for a local file we generate
+        // ourselves; do not carry it into a page that renders untrusted input.
+        securityLevel: 'loose',
+        theme: 'base',
+        // Without this mermaid caps the svg at its container width, scaling the
+        // whole diagram — text included — down to fit. Natural size instead.
+        // It is per diagram type, so every type in use needs its own entry.
+        flowchart: { useMaxWidth: false },
+        sequence: { useMaxWidth: false },
+        state: { useMaxWidth: false },
+        class: { useMaxWidth: false },
+        er: { useMaxWidth: false },
+        ...(dark.matches ? DARK : LIGHT),
+      });
+      blocks.forEach((el) => {
+        el.removeAttribute('data-processed');
+        el.textContent = el.dataset.src;
+      });
+      await mermaid.run({ nodes: blocks });
+    };
+
+    draw();
+    dark.addEventListener('change', draw);
+  </script>
+</head>
+<body class="p-4">
+  <div class="container" style="max-width: 48rem;">
+
+    <h1 class="h3 mb-2">Grid Editing &mdash; Scope &amp; Plan</h1>
+    <p class="text-secondary">
+      You keep going back to TablePlus for edits. Two scouts checked ja-db and
+      ten other database GUIs. This is what they found, and a plan that keeps
+      your fast truncated loading.
+    </p>
+
+    <hr class="my-4">
+
+    <h2 class="h5">1. What the other tools do</h2>
+    <table class="table table-sm">
+      <thead><tr><th>Tool</th><th>Staging</th><th>Row key</th><th>Stale check</th></tr></thead>
+      <tbody>
+        <tr><td>DBeaver</td><td>Buffer + SQL script</td><td>PK, ctid, or all columns</td><td>None</td></tr>
+        <tr><td>TablePlus</td><td>Buffer, Cmd+S, SQL review</td><td>Not documented</td><td>Unknown</td></tr>
+        <tr><td>Beekeeper</td><td>Buffer, one transaction</td><td>PK only</td><td>None</td></tr>
+        <tr><td>pgAdmin</td><td>Buffer, savepoint</td><td>PK or OID</td><td>Row count shown</td></tr>
+        <tr><td>HeidiSQL</td><td>Per row</td><td>Best key, else all columns</td><td>Errors on 0 rows</td></tr>
+        <tr><td>DataGrip</td><td>Buffer + preview</td><td>PK</td><td>3-way merge</td></tr>
+        <tr class="table-info"><td><b>ja-db (proposed)</b></td><td>Buffer, review, one transaction</td><td>PK or unique NOT NULL</td><td>Row count must be 1</td></tr>
+      </tbody>
+    </table>
+
+    <hr class="my-4">
+
+    <h2 class="h5">2. Mistakes to avoid</h2>
+    <p>Each one is a real bug report elsewhere. Each gets a guard.</p>
+    <pre class="mermaid">
+graph LR
+  A["DBeaver: all-columns key can hit many rows"] -->|"our guard"| A2["PK or unique index only"]
+  B["pgAdmin 6316: says saved, changed nothing"] -->|"our guard"| B2["rowcount must equal 1"]
+  C["Beekeeper: sort silently drops edits"] -->|"our guard"| C2["block or confirm when dirty"]
+  D["DBeaver 5644: truncated text edited"] -->|"our guard"| D2["fetch full value first"]
+    </pre>
+
+    <hr class="my-4">
+
+    <h2 class="h5">3. Edit lifecycle</h2>
+    <pre class="mermaid">
+stateDiagram-v2
+  [*] --> Browsing
+  Browsing --> Editing: F2 on editable cell
+  Editing --> Staged: Enter
+  Editing --> Browsing: Esc
+  Staged --> Editing: edit another cell
+  Staged --> Review: Ctrl+S
+  Review --> Applying: Enter
+  Review --> Staged: Esc
+  Applying --> Browsing: all rows matched, committed
+  Applying --> Conflict: rowcount not 1, rolled back
+  Conflict --> Review: skip, reload or overwrite
+    </pre>
+
+    <hr class="my-4">
+
+    <h2 class="h5">4. Which cells can be edited</h2>
+    <pre class="mermaid">
+graph TD
+  A["Open table"] --> B{"Primary key?"}
+  B -->|"yes"| OK["Editable by PK"]
+  B -->|"no"| C{"Unique NOT NULL index?"}
+  C -->|"yes"| OK
+  C -->|"no"| RO["Read-only, reason in status bar"]
+  OK --> D{"Cell kind"}
+  D -->|"plain"| E["Edit inline"]
+  D -->|"truncated"| F["Fetch full value, then edit in viewer"]
+  D -->|"binary"| G["Read-only for now"]
+    </pre>
+
+    <hr class="my-4">
+
+    <h2 class="h5">5. Apply path</h2>
+    <p>One door: the existing runner chain, so every write reaches the activity log.</p>
+    <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  participant UI
+  participant API as internal/api
+  participant R as Runner chain
+  participant DB
+  UI->>API: ApplyChanges(ChangeSet)
+  API->>R: Do as KindWrite
+  R->>DB: BEGIN
+  loop each staged change
+    R->>DB: UPDATE with bound params, WHERE key and old value
+    DB-->>R: rows affected
+  end
+  alt any count is not 1
+    R->>DB: ROLLBACK
+    API-->>UI: conflict at row and cell
+  else all 1
+    R->>DB: COMMIT
+    API-->>UI: applied
+  end
+    </pre>
+
+    <hr class="my-4">
+
+    <h2 class="h5">6. Where the code goes</h2>
+    <pre class="mermaid">
+graph LR
+  CS["ChangeSet in internal/api"] -->|"renders preview and apply"| DR["Driver: BuildUpdate, BuildInsert, BuildDelete"]
+  CS -->|"transaction"| RN["Runner chain plus KindWrite"]
+  CS -->|"thin pass-through"| TR["app.go and devserver"]
+  TR --> TS["api.ts and types.ts"]
+  TS --> ED["edits.ts pure module keyed by PK"]
+  ED --> GR["DataGrid and CellEditor"]
+    </pre>
+
+    <hr class="my-4">
+
+    <h2 class="h5">7. Keys</h2>
+    <table class="table table-sm">
+      <thead><tr><th>Key</th><th>Action</th></tr></thead>
+      <tbody>
+        <tr><td><kbd>F2</kbd></td><td>Edit cell (<kbd>Enter</kbd> still opens viewer)</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Backspace</kbd></td><td>Set NULL</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>Z</kbd></td><td>Undo last staged edit</td></tr>
+        <tr><td><kbd>Ctrl</kbd>+<kbd>S</kbd></td><td>Review SQL, then apply</td></tr>
+        <tr><td>Palette</td><td>Commit, Discard, Insert, Delete, Set DEFAULT, Read-only</td></tr>
+      </tbody>
+    </table>
+
+    <hr class="my-4">
+
+    <h2 class="h5">8. Clean up first</h2>
+    <pre class="mermaid">
+graph LR
+  A["Restore cmd/devserver, fix .gitignore"] --> B["ListColumns gains identity, generated, unique key"]
+  B --> C["Merge copy-pasted driver builders"]
+  C --> D["Split DataGrid.tsx 1057 lines: keys and cell renderer"]
+  D --> E["Fix doc contradictions, dead code"]
+    </pre>
+
+    <hr class="my-4">
+
+    <h2 class="h5">9. Delivery in atomic commits</h2>
+    <pre class="mermaid">
+graph LR
+  P0["P0 Cleanup"] --> P1["P1 Backend: ChangeSet, builders, tx apply, tests"]
+  P1 --> P2["P2 Edit state and cell editor, dirty styling"]
+  P2 --> P3["P3 Review pane, guards, palette commands"]
+  P3 --> P4["P4 Insert, delete, duplicate, read-only flag"]
+    </pre>
+
+    <hr class="my-4">
+
+    <h2 class="h5">10. Open questions</h2>
+    <ul>
+      <li>Is <kbd>F2</kbd> right, or should <kbd>Enter</kbd> edit and the viewer move?</li>
+      <li>Ship a per-connection read-only flag in P1 or P4?</li>
+      <li>Old-value guard on edited cells: include, or rowcount only?</li>
+      <li>Tables with no key: read-only, or opt-in user-defined key later?</li>
+      <li>Null-safe equality differs per dialect. SQL Server needs a hook.</li>
+    </ul>
+
+    <hr class="my-4">
+
+    <h2 class="h5">Summary</h2>
+    <p>
+      ja-db has no row-write path today, so this is a clean addition behind
+      the existing runner. Stage edits, review the SQL, apply in one
+      transaction, and refuse anything that cannot be addressed by key.
+      Start with the cleanup, because the devserver source is missing from the
+      repo and edits must work on both transports.
+    </p>
+
+  </div>
+</body>
+</html>

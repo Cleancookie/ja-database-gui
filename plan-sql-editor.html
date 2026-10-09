@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ja-db — SQL Editor Work</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    .mermaid { background: #ffeef8; border-radius: 1rem; padding: 1.25rem; text-align: center; }
+  </style>
+  <script type="module">
+    import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+    mermaid.initialize({
+      startOnLoad: true,
+      securityLevel: 'loose',
+      theme: 'base',
+      themeVariables: {
+        background: '#ffeef8',
+        primaryColor: '#ffdff6',
+        primaryTextColor: '#000000',
+        primaryBorderColor: '#000000',
+        lineColor: '#000000',
+        secondaryColor: '#dff4ff',
+        tertiaryColor: '#f0e7ff',
+        fontFamily: '"Comic Neue", "Comic Sans MS", "Noto Sans SC", cursive, sans-serif',
+        fontSize: '15px',
+      },
+      themeCSS: `
+        .node rect, .node polygon {
+          fill: #ffdff6 !important;
+          stroke: #000000 !important;
+          stroke-width: 3px !important;
+          rx: 20px !important;
+          ry: 20px !important;
+          filter: drop-shadow(4px 4px 0px rgba(0,0,0,0.2));
+        }
+        .node circle {
+          fill: #ffdff6 !important;
+          stroke: #000000 !important;
+          stroke-width: 3px !important;
+          filter: drop-shadow(3px 3px 0px rgba(0,0,0,0.15));
+        }
+        .node .label {
+          font-family: "Comic Neue", "Comic Sans MS", "Noto Sans SC", cursive, sans-serif;
+          font-weight: 600;
+          fill: #000000 !important;
+          font-size: 15px;
+        }
+        .node:nth-child(2n) rect,
+        .node:nth-child(2n) circle,
+        .node:nth-child(2n) polygon { fill: #dff4ff !important; }
+        .node:nth-child(3n) rect,
+        .node:nth-child(3n) circle,
+        .node:nth-child(3n) polygon { fill: #f0e7ff !important; }
+        .node:nth-child(5n) rect,
+        .node:nth-child(5n) circle,
+        .node:nth-child(5n) polygon { fill: #fff4e6 !important; }
+        .node:nth-child(7n) rect,
+        .node:nth-child(7n) circle,
+        .node:nth-child(7n) polygon { fill: #e7f9f5 !important; }
+        .edgePath .path {
+          stroke: #000000 !important;
+          stroke-width: 3px !important;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        .arrowheadPath {
+          fill: #000000 !important;
+          stroke: #000000 !important;
+          stroke-width: 2px !important;
+        }
+        .edgeLabel {
+          color: #000000 !important;
+          font-family: "Comic Neue", "Comic Sans MS", "Noto Sans SC", cursive, sans-serif;
+          font-size: 14px;
+          font-weight: 600;
+        }
+        .edgeLabel rect {
+          fill: #ffffff !important;
+          stroke: #000000 !important;
+          stroke-width: 2px !important;
+          rx: 12px !important;
+          filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.1));
+        }
+      `,
+    });
+  </script>
+</head>
+<body class="p-4">
+  <div class="container" style="max-width: 62rem;">
+
+    <h1 class="h3 mb-1">SQL Editor — Database Selection &amp; Crash Handling</h1>
+    <p class="text-muted">
+      Shipped
+      <span class="badge text-bg-success">5 commits</span>
+      <span class="badge text-bg-secondary"><code class="text-reset">make check</code> green</span>
+    </p>
+
+    <div class="alert alert-warning" role="alert">
+      <h2 class="h6 alert-heading">The dropdown was a feature request. It uncovered a bug.</h2>
+      On MySQL and SQL Server the app <strong>never</strong> gave the connection a current
+      database. Every other feature hid that by fully qualifying object names — the SQL editor
+      is the one path that cannot.
+    </div>
+
+    <hr class="my-4">
+
+    <h2 class="h5">1. Root cause — Error 1046 (3D000)</h2>
+
+    <p>
+      <code>Service.session</code> decided the connection's database from
+      <code>Caps().DatabasePerConnection</code>, which is <code>true</code> for Postgres alone.
+      Two different questions were being conflated:
+    </p>
+
+    <ul class="list-group list-group-flush mb-3">
+      <li class="list-group-item">
+        <strong>DatabasePerConnection</strong> asks <em>“does switching database require a new
+        connection?”</em> — Postgres: yes. MySQL and SQL Server: no.
+      </li>
+      <li class="list-group-item">
+        <strong>What the session actually needed</strong> is <em>“what should the current
+        database be?”</em> — always the one the user picked.
+      </li>
+    </ul>
+
+    <pre class="mermaid">
+graph TD
+  UI["SQL editor header<br/>shows global4_laravel"] --> RS["Service.RunSQL"]
+  RS --> SESS["Service.session connID, database"]
+  SESS --> GATE{"Caps.DatabasePerConnection ?"}
+  GATE -->|"true — postgres only"| KEEP["target = database"]
+  GATE -->|"false — mysql, mssql"| DROP["target = empty string"]
+  KEEP --> DSNOK["DSN carries the database"]
+  DROP --> DSNBAD["DSN ends at tcp host:3306 slash<br/>no current database"]
+  DSNBAD --> ERR["Error 1046 3D000<br/>No database selected"]
+    </pre>
+
+    <p class="mt-3">Why only the editor broke:</p>
+
+    <pre class="mermaid">
+graph LR
+  A["Browse · count · DDL"] --> Q["driver target quotes<br/>global4_laravel.seq_orders"]
+  Q --> OK["Works with no default database"]
+  B["SQL editor"] --> R["User's own raw text<br/>select star from seq_orders"]
+  R --> NEED["Connection itself must be scoped"]
+  NEED --> FAIL["1046"]
+    </pre>
+
+    <p class="text-muted mt-3">
+      <code>global4_laravel</code> in the dropdown was genuinely selected — it just never
+      reached the connection. The old header chip's comment claimed “the connection is already
+      scoped to it, so <code>use</code> is never needed”, which had been false for MySQL and
+      SQL Server the whole time.
+    </p>
+
+    <hr class="my-4">
+
+    <h2 class="h5">2. The fix</h2>
+
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">Before</div>
+<pre class="card-body mb-0"><code>target := ""
+if d.Caps().DatabasePerConnection {
+    target = database
+}
+return s.engine.Acquire(
+    ctx, connID, cfg, target)</code></pre>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="card h-100">
+          <div class="card-header">After</div>
+<pre class="card-body mb-0"><code>return s.engine.Acquire(
+    ctx, connID, cfg,
+    sessionDatabase(database))</code></pre>
+        </div>
+      </div>
+    </div>
+
+    <p>
+      <code>sessionDatabase</code> is a named pass-through: it is where a dialect exception
+      would go, and the regression test calls it, so re-adding a gate fails the build.
+    </p>
+
+    <table class="table table-sm">
+      <thead><tr><th>Dialect</th><th>Before</th><th>After</th></tr></thead>
+      <tbody>
+        <tr><td><code>postgres</code></td><td>scoped</td><td>scoped — unchanged</td></tr>
+        <tr><td><code>mysql</code></td><td class="text-danger">no database</td><td>scoped</td></tr>
+        <tr><td><code>mssql</code></td><td class="text-danger">no database</td><td>scoped</td></tr>
+        <tr><td><code>sqlite</code></td><td>n/a</td><td>ignores it — DSN is the file</td></tr>
+      </tbody>
+    </table>
+
+    <div class="alert alert-secondary" role="alert">
+      <strong>Tradeoff.</strong> MySQL now gets one pool per database rather than one per
+      server, as Postgres always had. Capped at 4 connections each with idle reaping after
+      5 minutes, so the cost is bounded — but the activity tray's session list will show more
+      entries if you browse many databases. Cross-database queries are unaffected; the DSN
+      database is only a default.
+    </div>
+
+    <hr class="my-4">
+
+    <h2 class="h5">3. The dropdown</h2>
+
+    <p>
+      The old header showed a read-only chip, and only when a database was already chosen — so
+      it went missing in exactly the case where you needed guidance. The picker is always
+      rendered and adapts to what there is to choose. All decisions live in
+      <code>picker.ts</code>, tested without a DOM.
+    </p>
+
+    <nav class="navbar bg-body-secondary rounded mb-3 px-3">
+      <span class="navbar-brand mb-0 fs-6 text-uppercase text-secondary">SQL</span>
+      <div class="d-flex gap-2 align-items-center">
+        <select class="form-select form-select-sm" style="width: 14rem;">
+          <option selected>global4_laravel</option>
+          <option>global4_laravel_test</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" type="button">Run · Ctrl+Enter</button>
+      </div>
+    </nav>
+
+    <table class="table table-sm">
+      <thead><tr><th>State</th><th>Shows</th><th>Choosing an option</th></tr></thead>
+      <tbody>
+        <tr><td>Connected to a server</td><td>the databases</td><td>switches database</td></tr>
+        <tr><td>Not connected</td><td>“Not connected” + the connections</td><td>connects, which auto-selects a database</td></tr>
+        <tr><td>SQLite</td><td>the connection name, static</td><td>n/a — <code>serverHostsDatabases</code> is false</td></tr>
+        <tr><td>No connections saved</td><td>“New connection…”</td><td>opens the connection dialog</td></tr>
+      </tbody>
+    </table>
+
+    <hr class="my-4">
+
+    <h2 class="h5">4. Commits</h2>
+
+    <table class="table table-sm align-middle">
+      <thead><tr><th>Commit</th><th>Subject</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><code>413cef4</code></td>
+          <td>🐛 Show a crash instead of blanking the window</td>
+          <td>No error boundary existed. A render throw unmounted the tree to white, and nothing reached the log — which is why <code>ja-db.log</code> held only startup lines.</td>
+        </tr>
+        <tr>
+          <td><code>06d256c</code></td>
+          <td>✨ Reload the app with Ctrl+Shift+R</td>
+          <td>Registered at module scope in <code>main.tsx</code>, not in <code>useGlobalHotkeys</code> — that hook lives inside <code>App</code>, so its cleanup would unbind the key at the exact moment it is needed.</td>
+        </tr>
+        <tr>
+          <td><code>cbe3709</code></td>
+          <td>✨ Pick the database from a dropdown in the SQL editor</td>
+          <td>The requested feature. Native <code>&lt;select&gt;</code> per <code>ui/README.md</code>.</td>
+        </tr>
+        <tr>
+          <td><code>9af7bb1</code></td>
+          <td>🛠️ Reach the database picker from the command palette</td>
+          <td>The palette is the primary surface, so a new capability must be reachable from it.</td>
+        </tr>
+        <tr class="table-warning">
+          <td><code>a8b70b7</code></td>
+          <td>🐛 Scope the connection to the selected database on MySQL and SQL Server</td>
+          <td>The actual bug — found only because the dropdown made it easy to hit.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <hr class="my-4">
+
+    <h2 class="h5">5. Still open</h2>
+
+    <div class="list-group">
+      <div class="list-group-item">
+        <strong>The blank screen is still unexplained.</strong> Nothing in the picker code
+        would have caused it, and the crash left no trace. The boundary will now name and log
+        it if it recurs.
+      </div>
+      <div class="list-group-item">
+        <strong>Not verified in the running app.</strong> <code>make check</code> passes and
+        the bundle builds; the dropdown has not been checked by eye.
+      </div>
+      <div class="list-group-item">
+        <strong>No MySQL coverage in CI.</strong> Tests are SQLite-only, so the 1046 path is
+        guarded by a DSN-level invariant test rather than a live reproduction.
+      </div>
+      <div class="list-group-item">
+        <strong><code>ui/README.md</code> has drifted.</strong> It claims a 126 kB startup
+        chunk; it is 140.6 kB, and was before this work. Left alone as out of scope.
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
