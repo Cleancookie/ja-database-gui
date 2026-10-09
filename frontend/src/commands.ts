@@ -796,6 +796,13 @@ export function buildActionCommands(s: Store): Command[] {
       run: () => s.reload(),
     })
     cmds.push({
+      id: 'data:count',
+      title: 'Count rows',
+      group: 'Query',
+      candidate: { name: 'Count rows', keywords: 'count total how many size' },
+      run: () => s.countRows(),
+    })
+    cmds.push({
       id: 'data:focus-filter',
       title: 'Filter rows (SQL after WHERE)',
       group: 'Query',

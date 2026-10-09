@@ -20,6 +20,9 @@ export function Paginator() {
   const setPage = useStore((s) => s.setPage)
   const setPageSize = useStore((s) => s.setPageSize)
   const setPaginationEnabled = useStore((s) => s.setPaginationEnabled)
+  const countRows = useStore((s) => s.countRows)
+  const autoCount = useStore((s) => s.settings.autoCount)
+  const [counting, setCounting] = useState(false)
   const rowCap = useStore((s) => s.settings.rowCap)
   const infinite = useStore(isInfinite)
 
@@ -184,6 +187,19 @@ export function Paginator() {
             {enabled ? `${formatCount(firstRow)}–${formatCount(lastRow)}` : formatCount(rowCount)}
             {totalCount != null && ` of ${formatCount(totalCount)}`}
           </span>
+        )}
+        {result && !autoCount && totalCount == null && (
+          <button
+            onClick={() => {
+              setCounting(true)
+              void countRows().finally(() => setCounting(false))
+            }}
+            disabled={counting}
+            title="Run COUNT(*) for this table and filter"
+            className="rounded-full px-2 py-0.5 disabled:opacity-50 enabled:hover:bg-[var(--color-accent-dim)]/50 enabled:hover:text-[var(--color-accent)]"
+          >
+            {counting ? 'Counting…' : 'Count'}
+          </button>
         )}
         {result?.truncated && (
           <span className="text-[var(--color-warn)]" title="The 100k row safety cap was reached">

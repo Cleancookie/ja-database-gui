@@ -343,6 +343,8 @@ export interface State extends EditState, EditActions {
   /** Shows the next (1) or previous (-1) of the tab's open tables, wrapping. */
   cycleOpenTable: (delta: number) => Promise<void>
   reload: () => Promise<void>
+  /** Counts the open table's rows under the current filter, once. */
+  countRows: () => Promise<void>
   /** Infinite scroll: appends the next page below the rows on screen. */
   loadMore: () => Promise<void>
   /** Opens a blank tab and switches to it. */
@@ -648,27 +650,25 @@ export const useStore = create<State>((set, get) => {
     }
 
     // The count is deliberately not awaited above: COUNT(*) on a large table
-    // is slow and must not delay the rows the user asked for.
-    if (!get().settings.autoCount) {
-      set({ totalCount: null })
-      return
-    }
-    void (async () => {
-      set({ totalCount: null })
-      try {
-        const n = await tracked(() =>
-          api.countRows({
-            connectionId: activeConnectionId,
-            ref: activeRef,
-            filter,
-          }),
-        )
-        if (seq === requestSeq) set({ totalCount: n })
-      } catch {
-        // A failed count is not worth interrupting the user over — the grid
-        // simply shows no total.
-      }
-    })()
+    // is slow and must not delay the rows the user asked for. Without
+    // autoCount, a total counted on demand outlives paging; opening a table or
+    // changing the filter is what clears it.
+    if (!get().settings.autoCount) return
+    set({ totalCount: null })
+    countTotal(seq).catch(() => {
+      // A failed count is not worth interrupting the user over — the grid
+      // simply shows no total.
+    })
+  }
+
+  /** Runs COUNT(*) for the open table and filter; a newer read drops the result. */
+  async function countTotal(seq: number) {
+    const { activeConnectionId, activeRef, filter } = get()
+    if (!activeConnectionId || !activeRef) return
+    const n = await tracked(() =>
+      api.countRows({ connectionId: activeConnectionId, ref: activeRef, filter }),
+    )
+    if (seq === requestSeq) set({ totalCount: n })
   }
 
   const edits = createEditSlice(set, get, { tracked, fetchRows })
@@ -1154,6 +1154,14 @@ export const useStore = create<State>((set, get) => {
 
     async reload() {
       await fetchRows()
+    },
+
+    async countRows() {
+      try {
+        await countTotal(requestSeq)
+      } catch (e) {
+        get().pushToast('error', errorMessage(e))
+      }
     },
 
     async loadMore() {
