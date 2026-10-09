@@ -22,9 +22,11 @@ describe('theme ids', () => {
     const list = goSettings.match(/var ThemeIDs = \[\]string\{([^}]*)\}/)
     expect(list, 'ThemeIDs not found in settings.go').not.toBeNull()
     const goIDs = [...list![1].matchAll(/"([^"]+)"/g)].map((m) => m[1])
-    // Order matters: Go takes ThemeIDs[0] as the default.
     expect(goIDs).toEqual(ids)
-    expect(goIDs[0]).toBe(DEFAULT_THEME)
+  })
+
+  it('share a default with Go', () => {
+    expect(goSettings).toContain(`const DefaultTheme = "${DEFAULT_THEME}"`)
   })
 
   it('are unique', () => {

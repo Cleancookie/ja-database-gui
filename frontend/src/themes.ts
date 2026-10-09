@@ -70,25 +70,23 @@ export const THEMES: Theme[] = [
   },
 ]
 
-export const DEFAULT_THEME = 'sherbet'
+export const DEFAULT_THEME = 'one-dark'
+
+/** The theme written as the bare `:root` block, and so the one with no attribute. */
+const BARE_THEME = 'sherbet'
 
 export function themeName(id: string): string {
   return THEMES.find((t) => t.id === id)?.name ?? id
 }
 
 /**
- * Applies a theme by writing the attribute the CSS keys off.
- *
- * Sherbet is the bare `:root` block, so it is expressed as *no* attribute
- * rather than as `data-theme="sherbet"`. That way an unstyled first paint —
- * before any settings have loaded — is already the default theme rather than
- * an unthemed one.
+ * Applies a theme by writing the attribute the CSS keys off. An unknown id
+ * falls back to the default. index.html carries the default's attribute too,
+ * so the first paint — before any settings have loaded — is already themed.
  */
 export function applyTheme(id: string) {
   const root = document.documentElement
-  if (id === DEFAULT_THEME || !THEMES.some((t) => t.id === id)) {
-    root.removeAttribute('data-theme')
-  } else {
-    root.setAttribute('data-theme', id)
-  }
+  const known = THEMES.some((t) => t.id === id) ? id : DEFAULT_THEME
+  if (known === BARE_THEME) root.removeAttribute('data-theme')
+  else root.setAttribute('data-theme', known)
 }

@@ -12,9 +12,11 @@ import (
 // allowed to hold. Each one is a `:root[data-theme='…']` block in
 // frontend/src/index.css and an entry in frontend/src/themes.ts; this copy
 // exists so a hand-edited settings file cannot leave the app with no palette.
-// The first is the default.
 var ThemeIDs = []string{"sherbet", "gruvbox-dark", "gruvbox-light", "one-dark",
 	"catppuccin-latte", "catppuccin-frappe", "catppuccin-macchiato", "catppuccin-mocha"}
+
+// DefaultTheme matches DEFAULT_THEME in frontend/src/themes.ts.
+const DefaultTheme = "one-dark"
 
 // Settings are the user's preferences, persisted alongside connections.
 type Settings struct {
@@ -68,7 +70,7 @@ type Settings struct {
 // DefaultSettings is also the fallback for any field missing from disk.
 func DefaultSettings() Settings {
 	return Settings{
-		Theme:             ThemeIDs[0],
+		Theme:             DefaultTheme,
 		FontSizePx:        16,
 		DefaultPageSize:   100,
 		PaginationEnabled: true,

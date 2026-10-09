@@ -127,8 +127,8 @@ func TestEveryThemeHasAPalette(t *testing.T) {
 		t.Fatalf("reading index.css: %v", err)
 	}
 	for _, id := range ThemeIDs {
-		// The default is the bare :root block, so it has no selector of its own.
-		if id == ThemeIDs[0] {
+		// Sherbet is the bare :root block, so it has no selector of its own.
+		if id == "sherbet" {
 			continue
 		}
 		want := fmt.Sprintf(":root[data-theme='%s']", id)
