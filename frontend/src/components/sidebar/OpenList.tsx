@@ -12,7 +12,7 @@ const ROW =
 
 /**
  * The top of an expanded tab, between the table search and the list of every
- * table: the tab's SQL editor, and the tables open in it. The pill slides to
+ * table: the tab's SQL editor once opened, and the tables open in it. The pill slides to
  * whichever is on screen. Each table closes with its ×.
  */
 export function OpenList() {
@@ -20,6 +20,8 @@ export function OpenList() {
   const activeRef = useStore((s) => s.activeRef)
   const activeConnectionId = useStore((s) => s.activeConnectionId)
   const view = useStore((s) => s.view)
+  // The editor is listed once it has been opened, like a table.
+  const sqlOpen = useStore((s) => s.view === 'sql' || !!s.sqlText || s.sqlRuns.length > 0)
   const setView = useStore((s) => s.setView)
   const openObject = useStore((s) => s.openObject)
   const closeOpenTable = useStore((s) => s.closeOpenTable)
@@ -37,22 +39,24 @@ export function OpenList() {
 
   return (
     <div className="shrink-0 px-1.5">
-      <button
-        onClick={() => setView('sql')}
-        data-item
-        data-highlight={view === 'sql' || undefined}
-        className={`${ROW} mt-1 w-full ${view === 'sql' ? 'font-bold' : ''}`}
-        title="SQL editor (Ctrl+E)"
-      >
-        <span className="shrink-0 text-[var(--color-faint)]">›_</span>
-        <span className="min-w-0 flex-1 truncate">SQL editor</span>
-      </button>
-      {openTables.length > 0 && (
+      {(sqlOpen || openTables.length > 0) && (
         <>
           <h3 className={HEADING}>
-            Open <span className="opacity-60">{openTables.length}</span>
+            Open <span className="opacity-60">{openTables.length + (sqlOpen ? 1 : 0)}</span>
           </h3>
           <div data-highlight-clip className="max-h-[30vh] overflow-y-auto">
+            {sqlOpen && (
+              <button
+                onClick={() => setView('sql')}
+                data-item
+                data-highlight={view === 'sql' || undefined}
+                className={`${ROW} w-full ${view === 'sql' ? 'font-bold' : ''}`}
+                title="SQL editor (Ctrl+E)"
+              >
+                <span className="shrink-0 text-[var(--color-faint)]">›_</span>
+                <span className="min-w-0 flex-1 truncate">SQL editor</span>
+              </button>
+            )}
             {openTables.map(({ ref }) => {
               const current = view !== 'sql' && sameRef(activeRef, ref)
               const name = qualifiedName(ref)
