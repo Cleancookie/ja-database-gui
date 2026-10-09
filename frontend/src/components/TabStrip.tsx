@@ -79,7 +79,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
       key={r.id}
       data-item
       data-highlight={r.live || undefined}
-      className="group relative flex items-center rounded-xl"
+      className="group relative flex items-center rounded-lg"
       // Middle-click closes, as in a browser.
       onAuxClick={(e) => {
         if (e.button === 1) {
@@ -93,7 +93,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
         title={r.title}
         aria-current={r.live || undefined}
         aria-expanded={r.live ? !folded : undefined}
-        className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
+        className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
           r.live ? 'font-bold' : ''
         }`}
       >
@@ -171,7 +171,8 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
             // One card, sized to what it holds: a database with three tables
             // leaves the tabs below it in view rather than at the far bottom.
             // Past the space there is, the table list scrolls inside it.
-            <section className="my-1 flex min-h-0 flex-initial flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)] p-1 shadow-xs">
+            // A shade, not a border; rounded-xl is the rows' rounded-lg plus p-1.
+            <section className="my-1 flex min-h-0 flex-initial flex-col rounded-xl bg-[var(--color-panel)] p-1">
               {row(live)}
               {/* Rows of 1fr ↔ 0fr: a grid track animates to and from the
                 content's own height, which `height: auto` cannot. */}
@@ -181,7 +182,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
                   folded ? 'grid-rows-[0fr] opacity-0' : 'mt-1 grid-rows-[1fr]'
                 }`}
               >
-                <div className="ml-2.5 flex min-h-0 flex-col overflow-hidden border-l-2 border-[var(--color-accent)]/35">
+                <div className="flex min-h-0 flex-col overflow-hidden">
                   {bound ? (
                     <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
                   ) : (
