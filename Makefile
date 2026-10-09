@@ -98,10 +98,12 @@ vuln: $(NODE_MODS)
 release: check
 	@test -z "$$(git status --porcelain --untracked-files=no)" || { echo 'commit or stash first'; exit 1; }
 	@test "$$(git branch --show-current)" = main || { echo 'release from main'; exit 1; }
+	git fetch -q origin main
+	@git merge-base --is-ancestor origin/main HEAD || { echo 'origin/main has commits main lacks: pull first'; exit 1; }
 	$(eval V ?= $(shell scripts/next-version.sh))
 	@[[ "$(V)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] || { echo 'V must look like v1.2.3'; exit 1; }
 	git tag -a $(V) -m "ja-db $(V)"
-	git push origin main $(V)
+	git push --atomic origin main $(V)
 	@echo "released $(V): https://github.com/Cleancookie/ja-db/actions"
 
 # --- housekeeping ------------------------------------------------------------------
