@@ -100,6 +100,41 @@ Worth doing only when someone needs a multi-statement edit session across runs.
 
 ---
 
+## 4. Sidebar: fewer borders, matching radii
+
+Three related polish items in the left pane, asked for together:
+
+> left pane - the tab is left aligned and then there is a veritcal line to the
+> left of everything under it, this was added to group all the table list etc
+> together and not get mixed up with the other tabs. we have borders around the
+> entire tab and its children now. lets drop this vertical line
+
+The line is the `border-l-2` wrapper around `ObjectList` in
+`components/TabStrip.tsx`. The tab's own border now does that grouping.
+
+> card on card on card on card on card. the left pane has a border, then the tab
+> itself has a border, all with mismatching radius values. lets rely on contrast
+> in some places and borders on more important boundaries. I think the tab can do
+> with being its own shade and drop the border maybe - lets give it a try
+
+Keep a border on the pane edge, and give the tab a shade of its own instead of
+a border. Settle the nested radii while there: an inner radius should be the
+outer radius minus the padding between them.
+
+> left panel - if I collapse the tab the border radius of the tab background and
+> the highlight are not the same. also the gliding highlight I think doesnt
+> match. the gliding highlight should mirror the selected item highlight. this
+> is across the board where we have the gliding highligh (correct in the command
+> pallete, wrong in the settings section headings, etc)
+
+Every `Highlight` host should give its hover pill the same radius as its
+selection pill, and both should match the row they sit on. The command palette
+is right. The sidebar, a collapsed tab and the Settings section headings are
+wrong. `PILL` and `HOVER_PILL` in `components/sidebar/listKit.ts` are the shared
+classes; check each `Highlight` call site against them.
+
+---
+
 ## Built since
 
 - **Manual page size** — a free-text page size beside the presets, as a one-off
