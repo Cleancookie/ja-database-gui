@@ -4,6 +4,7 @@ import { useStore } from '../../store'
 import { sameRef } from '../../tabs'
 import type { ObjectRef } from '../../types'
 import { Highlight } from '../Highlight'
+import { LIMITS, Resizer, useResizable } from '../Resizer'
 import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
 import { HOVER_PILL, PILL } from './listKit'
@@ -26,6 +27,7 @@ export function OpenList() {
   const setView = useStore((s) => s.setView)
   const openObject = useStore((s) => s.openObject)
   const closeOpenTable = useStore((s) => s.closeOpenTable)
+  const resize = useResizable('openListHeightPx', LIMITS.openList)
 
   const show = (ref: ObjectRef) => {
     if (sameRef(activeRef, ref)) {
@@ -41,8 +43,14 @@ export function OpenList() {
   return (
     <div className="shrink-0 px-1.5">
       {(sqlOpen || openTables.length > 0) && (
-        <>
-          <div data-highlight-clip className="mt-1 max-h-[30vh] overflow-y-auto">
+        // Open above, every table below. The divider is the drag handle; the
+        // size is a cap, so a short list stays short.
+        <div className="relative mx-0.5 mb-1.5 border-b border-[var(--color-border)] pb-1.5">
+          <div
+            data-highlight-clip
+            className="mt-1 overflow-y-auto"
+            style={{ maxHeight: resize.size }}
+          >
             <Highlight pillClassName={PILL} hoverClassName={HOVER_PILL}>
               {sqlOpen && (
                 <button
@@ -97,9 +105,8 @@ export function OpenList() {
               })}
             </Highlight>
           </div>
-          {/* Open above, every table below. */}
-          <hr className="mx-2 my-1.5 border-[var(--color-border)]" />
-        </>
+          <Resizer {...resize} axis="y" label="Resize the open tables" className="-bottom-1" />
+        </div>
       )}
     </div>
   )

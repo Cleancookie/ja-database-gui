@@ -57,6 +57,9 @@ type Settings struct {
 	// SqlEditorHeightPx is the SQL editor pane's height above the results,
 	// dragged on the divider between them.
 	SqlEditorHeightPx int `json:"sqlEditorHeightPx"`
+	// OpenListHeightPx caps the sidebar's open tables list, dragged on the
+	// divider between it and the table list.
+	OpenListHeightPx int `json:"openListHeightPx"`
 	// TabStripHidden hides the tab strip down the left edge (Ctrl+B).
 	TabStripHidden bool `json:"tabStripHidden"`
 	// DrawerDurationMs is how long the tab strip and the activity tray take to
@@ -84,6 +87,7 @@ func DefaultSettings() Settings {
 		SidebarWidthPx:     256,
 		TrayHeightPx:       260,
 		SqlEditorHeightPx:  160,
+		OpenListHeightPx:   160,
 		DrawerDurationMs:   260,
 	}
 }
@@ -115,6 +119,9 @@ func (s Settings) clamp() Settings {
 	}
 	if s.SqlEditorHeightPx < 64 || s.SqlEditorHeightPx > 720 {
 		s.SqlEditorHeightPx = d.SqlEditorHeightPx
+	}
+	if s.OpenListHeightPx < 48 || s.OpenListHeightPx > 720 {
+		s.OpenListHeightPx = d.OpenListHeightPx
 	}
 	// 0 is meaningful for the drawer too — no animation — so only a negative or
 	// absurd duration falls back.

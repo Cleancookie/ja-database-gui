@@ -393,6 +393,7 @@ export interface Settings {
   sidebarWidthPx: number
   trayHeightPx: number
   sqlEditorHeightPx: number
+  openListHeightPx: number
   /** Whether the tab strip is hidden (Ctrl+B). */
   tabStripHidden: boolean
   /** Slide time of the tab strip and the activity tray, in ms. 0 is instant. */

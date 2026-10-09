@@ -162,6 +162,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sidebarWidthPx: 256,
   trayHeightPx: 260,
   sqlEditorHeightPx: 160,
+  openListHeightPx: 160,
   tabStripHidden: false,
   drawerDurationMs: 260,
   infiniteScroll: false,
