@@ -25,7 +25,7 @@ const (
 	Asset = "ja-db.exe"
 	Sums  = "SHA256SUMS"
 
-	latestURL = "https://api.github.com/repos/Cleancookie/ja-db/releases/latest"
+	latestURL = "https://api.github.com/repos/Cleancookie/ja-database-gui/releases/latest"
 	maxAsset  = 256 << 20
 	maxSums   = 64 << 10
 )

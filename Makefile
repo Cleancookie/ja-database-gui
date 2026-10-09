@@ -104,7 +104,7 @@ release: check
 	@[[ "$(V)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] || { echo 'V must look like v1.2.3'; exit 1; }
 	git tag -a $(V) -m "ja-db $(V)"
 	git push --atomic origin main $(V)
-	@echo "released $(V): https://github.com/Cleancookie/ja-db/actions"
+	@echo "released $(V): https://github.com/Cleancookie/ja-database-gui/actions"
 
 # --- housekeeping ------------------------------------------------------------------
 

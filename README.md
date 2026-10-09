@@ -9,7 +9,7 @@ https://github.com/user-attachments/assets/68eaeb8b-89b3-4112-9794-8ace52972fb6
 
 ## Try it
 
-Download `ja-db.exe` from the [latest release](https://github.com/Cleancookie/ja-db/releases/latest)
+Download `ja-db.exe` from the [latest release](https://github.com/Cleancookie/ja-database-gui/releases/latest)
 and run it. There is no installer. It checks for new versions and updates itself.
 
 No database handy? Click **Open the sample database** on the first screen. It is a
