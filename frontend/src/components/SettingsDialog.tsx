@@ -3,6 +3,8 @@ import { PAGE_SIZES, useStore } from '../store'
 import { applyTheme, THEMES } from '../themes'
 import { dialogButton, FormDialog } from '../ui'
 import type { Settings } from '../types'
+import { Highlight } from './Highlight'
+import { HOVER_PILL, PILL } from './sidebar/listKit'
 
 /**
  * Settings, reachable with Ctrl+, or from the palette.
@@ -83,22 +85,30 @@ export function SettingsDialog() {
       }
     >
       <div className="flex h-[min(32rem,65vh)]">
-        <nav className="flex w-36 shrink-0 flex-col gap-0.5 border-r border-[var(--color-border)] bg-[var(--color-panel)] p-2">
-          {SECTIONS.map((label) => (
-            <button
-              key={label}
-              type="button"
-              aria-current={active === label}
-              onClick={() => jumpTo(label)}
-              className={`rounded-lg px-2.5 py-1.5 text-left ${
-                active === label
-                  ? 'bg-[var(--color-accent-dim)]/40 font-semibold text-[var(--color-text)]'
-                  : 'text-[var(--color-muted)] hover:bg-[var(--color-accent-dim)]/20'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
+        <nav className="w-36 shrink-0 border-r border-[var(--color-border)] bg-[var(--color-panel)]">
+          <Highlight
+            className="flex flex-col gap-0.5 p-2"
+            pillClassName={PILL}
+            hoverClassName={HOVER_PILL}
+          >
+            {SECTIONS.map((label) => (
+              <button
+                key={label}
+                type="button"
+                aria-current={active === label}
+                onClick={() => jumpTo(label)}
+                data-item
+                data-highlight={active === label || undefined}
+                className={`relative rounded-lg px-2.5 py-1.5 text-left ${
+                  active === label
+                    ? 'font-semibold text-[var(--color-text)]'
+                    : 'text-[var(--color-muted)]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </Highlight>
         </nav>
         <div ref={body} onScroll={onScroll} className="relative min-w-0 flex-1 overflow-y-auto">
           <Group label="Appearance">
