@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Prints the next release version from the commit subjects since the last tag,
-# as docs/adr/0004 lays out: 🔥 or ✨ → major, else 🛠️ → minor, else 🐛 → patch.
+# as docs/adr/0004 lays out: 🔥 → major, else ✨ or 🛠️ → minor, else 🐛 → patch.
 set -euo pipefail
 
 last=$(git describe --tags --abbrev=0 --match 'v*.*.*' 2>/dev/null || true)
@@ -16,9 +16,9 @@ if [[ -z $subjects ]]; then
 fi
 
 IFS=. read -r major minor patch <<<"${last#v}"
-if grep -qE '^(🔥|✨)' <<<"$subjects"; then
+if grep -q '^🔥' <<<"$subjects"; then
   echo "v$((major + 1)).0.0"
-elif grep -q '^🛠' <<<"$subjects"; then
+elif grep -qE '^(✨|🛠)' <<<"$subjects"; then
   echo "v$major.$((minor + 1)).0"
 else
   echo "v$major.$minor.$((patch + 1))"

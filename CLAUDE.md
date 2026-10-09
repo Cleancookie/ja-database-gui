@@ -16,7 +16,7 @@ are the enforcement.
 | | | |
 | --- | --- | --- |
 | 🔥 | breaking change | major |
-| ✨ | major change — a new capability | major |
+| ✨ | new capability | minor |
 | 🛠️ | minor change — refactor, docs, tooling, polish | minor |
 | 🐛 | bug fix | patch |
 
@@ -27,7 +27,7 @@ are the enforcement.
 
 Only these four. Emoji names the *size* of the change, not the area — 📝/♻️/🔧
 all land on 🛠️. No `AB#<ticket>` prefix in this repo; the subject is the whole
-record. ✨ is deliberately major, not minor — see
+record. 🔥 is the only major — see
 [docs/adr/0004](docs/adr/0004-commit-message-convention.md).
 
 Before committing, check the subject you are about to write against that table.

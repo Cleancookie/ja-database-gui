@@ -95,7 +95,7 @@ and on anything committing on your behalf.
 | | | |
 | --- | --- | --- |
 | 🔥 | breaking change | major |
-| ✨ | major change | major |
+| ✨ | new capability | minor |
 | 🛠️ | minor change — refactor, docs, tooling | minor |
 | 🐛 | bug fix | patch |
 
@@ -104,7 +104,7 @@ and on anything committing on your behalf.
 🐛 Stop Enter in the filter box opening the cell viewer
 ```
 
-Rationale, and the reason ✨ is major rather than minor, in
+Rationale in
 [docs/adr/0004-commit-message-convention.md](docs/adr/0004-commit-message-convention.md).
 
 ## Credential storage

@@ -27,7 +27,7 @@ description:
 | Emoji | Means | Semver |
 | --- | --- | --- |
 | 🔥 | Breaking change | major |
-| ✨ | Major change — a new capability | major |
+| ✨ | New capability | minor |
 | 🛠️ | Minor change — refactors, docs, tooling, polish | minor |
 | 🐛 | Bug fix | patch |
 
@@ -71,3 +71,12 @@ agent writing a commit will already be looking.
 - History before this ADR is unconverted. Rewriting it was considered and
   rejected: the subjects are already descriptive, and rewriting shared history
   to add decoration is a bad trade.
+
+## Amendment 2026-10-09: ✨ is minor
+
+The table above now says what this one did not: ✨ is a minor bump and 🔥 is
+the only major. The first release script (`scripts/next-version.sh`, ADR 0010)
+made the cost concrete before anything had shipped — a new capability is not a
+breaking change, and a version that jumped a major for every feature would
+stop saying anything. The paragraph under Consequences that called ✨-as-major
+deliberate is superseded; the rest stands.
