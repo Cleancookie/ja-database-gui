@@ -78,7 +78,6 @@ export function CommandPalette() {
     },
     [setPalette],
   )
-  const onHover = useCallback((i: number) => setSelected(i), [])
 
   if (!open) return null
 
@@ -158,7 +157,6 @@ export function CommandPalette() {
                   index={i}
                   selected={i === selected}
                   heading={i > 0 && results[i - 1].item.group === item.group ? null : item.group}
-                  onHover={onHover}
                   onRun={run}
                 />
               ))}
@@ -189,7 +187,6 @@ const Row = memo(function Row({
   index,
   selected,
   heading,
-  onHover,
   onRun,
 }: {
   item: Command
@@ -198,7 +195,6 @@ const Row = memo(function Row({
   selected: boolean
   /** The group name, when this row is the first of its group. */
   heading: string | null
-  onHover: (index: number) => void
   onRun: (cmd: Command) => void
 }) {
   return (
@@ -210,12 +206,10 @@ const Row = memo(function Row({
       )}
       <button
         data-index={index}
-        onMouseEnter={() => onHover(index)}
+        data-item
         onClick={() => onRun(item)}
         data-highlight={selected || undefined}
-        className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left ${
-          selected ? '' : 'hover:bg-[var(--color-accent-dim)]/25'
-        }`}
+        className="relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left"
       >
         <span className="min-w-0 flex-1">
           <span className="block truncate">

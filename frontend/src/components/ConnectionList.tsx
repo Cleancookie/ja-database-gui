@@ -4,7 +4,7 @@ import { useStore } from '../store'
 import { ConnectionMenu } from './ConnectionMenu'
 import { Highlight } from './Highlight'
 import { TlsTag } from './TlsTag'
-import { ICON_BUTTON, PILL, useFocusWhen, useListKeys } from './sidebar/listKit'
+import { ICON_BUTTON, HOVER_PILL, PILL, useFocusWhen, useListKeys } from './sidebar/listKit'
 
 /**
  * The saved connections, with edit and remove on each row, a New connection
@@ -67,7 +67,11 @@ export function ConnectionList({
       onKeyDown={onKeyDown}
       className="outline-none focus-visible:outline-none"
     >
-      <Highlight className={`overflow-y-auto px-1.5 pb-1.5 ${className}`} pillClassName={PILL}>
+      <Highlight
+        className={`overflow-y-auto px-1.5 pb-1.5 ${className}`}
+        pillClassName={PILL}
+        hoverClassName={HOVER_PILL}
+      >
         {connections.length === 0 && (
           <p className="px-2 py-3 leading-relaxed text-[var(--color-faint)]">
             No connections yet. Add one to get started, or look around the sample database first.

@@ -1,7 +1,7 @@
 import { memo, useMemo, useState } from 'react'
 import { isBound, useStore } from '../store'
 import { Highlight } from './Highlight'
-import { PILL } from './sidebar/listKit'
+import { HOVER_PILL, PILL } from './sidebar/listKit'
 import { tabTitle } from '../tabs'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import { ObjectList } from './sidebar/ObjectList'
@@ -156,7 +156,11 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
             +
           </button>
         </div>
-        <Highlight className="flex min-h-0 flex-1 flex-col p-1.5" pillClassName={PILL}>
+        <Highlight
+          className="flex min-h-0 flex-1 flex-col p-1.5"
+          pillClassName={PILL}
+          hoverClassName={HOVER_PILL}
+        >
           {before.length > 0 && (
             <div data-highlight-clip className="max-h-[30%] shrink-0 overflow-y-auto">
               {before.map(row)}

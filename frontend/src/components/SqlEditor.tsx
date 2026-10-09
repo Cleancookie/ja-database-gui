@@ -169,6 +169,7 @@ export function SqlEditor() {
                   return (
                     <span
                       key={r.id}
+                      data-item
                       data-highlight={active || undefined}
                       title={runTooltip(r)}
                       onMouseDown={(e) => e.button === 1 && e.preventDefault()}
@@ -177,9 +178,7 @@ export function SqlEditor() {
                         e.preventDefault()
                         closeSqlRun(r.id)
                       }}
-                      className={`relative flex shrink-0 items-center rounded-lg ${
-                        active ? '' : 'hover:bg-[var(--color-elevated)]'
-                      }`}
+                      className="relative flex shrink-0 items-center rounded-lg"
                     >
                       <button
                         onClick={() => selectSqlRun(r.id)}
@@ -257,11 +256,12 @@ export function SqlEditor() {
                     key={i}
                     onClick={() => selectSqlResult(i)}
                     title={r.query}
+                    data-item
                     data-highlight={i === sqlResultIndex || undefined}
                     className={`relative shrink-0 rounded-lg px-2 py-0.5 ${
                       i === sqlResultIndex
                         ? 'font-bold text-[var(--color-accent)]'
-                        : 'text-[var(--color-muted)] hover:bg-[var(--color-elevated)]'
+                        : 'text-[var(--color-muted)]'
                     }`}
                   >
                     Result {i + 1}{' '}

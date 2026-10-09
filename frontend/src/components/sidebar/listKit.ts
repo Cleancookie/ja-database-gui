@@ -4,6 +4,7 @@ import { listMove, moveIndex } from '../../listNav'
 export const INPUT =
   'w-full rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-2 py-1 outline-none placeholder:text-[var(--color-faint)]'
 export const PILL = 'rounded-lg bg-[var(--color-accent-dim)]/55'
+export const HOVER_PILL = 'rounded-lg bg-[var(--color-accent-dim)]/25'
 export const ICON_BUTTON =
   'relative shrink-0 rounded-full px-2 leading-6 text-[var(--color-faint)] opacity-40 group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)]'
 

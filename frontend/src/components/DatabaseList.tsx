@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { rankCandidates } from '../fuzzy'
 import { useStore } from '../store'
 import { Highlight } from './Highlight'
-import { INPUT, PILL, useFocusWhen, useListKeys } from './sidebar/listKit'
+import { INPUT, HOVER_PILL, PILL, useFocusWhen, useListKeys } from './sidebar/listKit'
 
 /** The databases on the tab's server, with a filter once there are more than a few. */
 export function DatabaseList({
@@ -67,7 +67,11 @@ export function DatabaseList({
           />
         </div>
       )}
-      <Highlight className={`overflow-y-auto px-1.5 pb-1.5 ${className}`} pillClassName={PILL}>
+      <Highlight
+        className={`overflow-y-auto px-1.5 pb-1.5 ${className}`}
+        pillClassName={PILL}
+        hoverClassName={HOVER_PILL}
+      >
         {visible.map((d, i) => (
           <button
             key={d}
