@@ -6,7 +6,6 @@ import type { ObjectRef } from '../../types'
 import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
 
-const HEADING = 'px-3 pt-2 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase'
 const ROW =
   'relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left'
 
@@ -41,10 +40,7 @@ export function OpenList() {
     <div className="shrink-0 px-1.5">
       {(sqlOpen || openTables.length > 0) && (
         <>
-          <h3 className={HEADING}>
-            Open <span className="opacity-60">{openTables.length + (sqlOpen ? 1 : 0)}</span>
-          </h3>
-          <div data-highlight-clip className="max-h-[30vh] overflow-y-auto">
+          <div data-highlight-clip className="mt-1 max-h-[30vh] overflow-y-auto">
             {sqlOpen && (
               <button
                 onClick={() => setView('sql')}
@@ -97,9 +93,10 @@ export function OpenList() {
               )
             })}
           </div>
+          {/* Open above, every table below. */}
+          <hr className="mx-2 my-1.5 border-[var(--color-border)]" />
         </>
       )}
-      <h3 className={HEADING}>All</h3>
     </div>
   )
 }
