@@ -634,6 +634,12 @@
   :is(button, input, select, textarea):focus-visible {
     box-shadow: 0 0 0 4px rgb(var(--color-accent-rgb) / 0.18);
   }
+  /* A list row already wears a pill, often in a shaded group a few pixels
+     wider: a ring and halo outside it crowd that gap, so the ring goes inside. */
+  :is([data-item], [data-item] button):focus-visible {
+    outline-offset: -2px;
+    box-shadow: none;
+  }
 }
 
 /* Indeterminate progress, used by the activity tray. A query's duration cannot
