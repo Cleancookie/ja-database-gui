@@ -25,6 +25,7 @@ help:
 	@echo '  make open         build, then launch $(EXE) in the background'
 	@echo '  make check        fmt + vet + typecheck + all tests'
 	@echo '  make vuln         govulncheck + npm audit (needs network)'
+	@echo '  make release      tag the next version and push it; CI publishes it'
 	@echo
 	@echo '  make dev          run the API dev server (pair with: make web)'
 	@echo '  make web          run the Vite dev server on :5173'
@@ -87,6 +88,21 @@ check: $(NODE_MODS)
 vuln: $(NODE_MODS)
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 	cd $(FRONTEND) && npm audit --omit=dev
+
+# --- release -----------------------------------------------------------------------
+
+# Tags the next version — worked out from the commit emoji (docs/adr/0004), or
+# V=vX.Y.Z to choose — then pushes main and the tag. The tag is what
+# .github/workflows/release.yml builds and publishes; running apps update from it.
+.PHONY: release
+release: check
+	@test -z "$$(git status --porcelain --untracked-files=no)" || { echo 'commit or stash first'; exit 1; }
+	@test "$$(git branch --show-current)" = main || { echo 'release from main'; exit 1; }
+	$(eval V ?= $(shell scripts/next-version.sh))
+	@[[ "$(V)" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$$ ]] || { echo 'V must look like v1.2.3'; exit 1; }
+	git tag -a $(V) -m "ja-db $(V)"
+	git push origin main $(V)
+	@echo "released $(V): https://github.com/Cleancookie/ja-db/actions"
 
 # --- housekeeping ------------------------------------------------------------------
 
