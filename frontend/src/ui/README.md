@@ -49,7 +49,7 @@ in them, so they are unit-tested without a DOM and would survive a swap.
   and is tuned against a real failure case. `cmdk` would replace it with its own
   matcher.
 - **The data grid.** Virtualised and performance-critical.
-- **The JSON tree** (`src/components/JsonView.tsx`). Eighty lines of our own,
+- **The JSON tree** (`src/components/JsonView.tsx`). Hand-rolled,
   against tens of kilobytes and a theme to fight for any of the viewer
   libraries. There is no vendor API to quarantine, so there is nothing for this
   layer to do.

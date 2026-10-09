@@ -27,7 +27,7 @@
 ### Why two transports
 
 `internal/api.Service` contains all behaviour and knows nothing about Wails. `app.go`
-and `cmd/devserver` are both ~100 lines of pass-through. That buys three things:
+and `cmd/devserver` are both thin pass-throughs. That buys three things:
 
 1. Development on Linux/WSL, where no native webview is installed.
 2. The frontend can be exercised in a normal browser with normal devtools.
@@ -169,8 +169,8 @@ with its filter, sort and page, plus that tab's own SQL editor and details
 page. The active tab is expanded in the sidebar once it has a database: a
 table search, the SQL editor, the open tables and every table and view. Other
 tabs are one line each. With no database chosen, the main panel shows a
-stepped server, then database picker (`WorkspacePicker`); the sidebar holds
-tabs and tables only. A bound tab with no table open shows `EmptyPanel`.
+stepped picker (`WorkspacePicker`), headed by a `Servers / server / Databases`
+path; the sidebar holds tabs and tables only. A bound tab with no table open shows `EmptyPanel`.
 
 The store keeps one flat set of "active" fields and nearly every component
 reads them directly. A tab is a saved copy of that set (`frontend/src/tabs.ts`):
@@ -198,6 +198,10 @@ empty, table, SQL editor, details or activity. A subscription at the bottom of
 the filter, sort and page a table had when it was left (Shift: between tabs).
 Going back is wrapped in `navigating` so it does not record itself, and pages of
 closed tabs are skipped. Going back to a table that was closed opens it again.
+
+Focus moves with the panes (`frontend/src/paneFocus.ts`): each pane's root
+carries `data-pane`, and the control its keys drive carries `data-focus-home`.
+Opening a pane focuses its home; closing one returns focus to the page.
 
 Objects are still offered most-recently-opened first, in a `Recent` group above
 the rest of the catalogue. Alphabetical order is no help when switching between
