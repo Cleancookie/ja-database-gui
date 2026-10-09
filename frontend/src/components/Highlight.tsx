@@ -24,8 +24,8 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  *
  * Items marked `data-item` get a second, dimmer hover pill. It slides out from
  * the selection to the item under the pointer, follows it between items, and
- * fades where it is when the pointer leaves. Coming back mid-fade picks it up
- * from there; coming back after starts again from the selection.
+ * fades where it is when the pointer leaves. Coming back within RESUME_MS
+ * picks it up from there; coming back later starts again from the selection.
  *
  * `relative` on every item is what keeps the text painting above the pills,
  * since an absolutely positioned sibling would otherwise cover it.
@@ -65,6 +65,7 @@ export function Highlight({
   const [rect, setRect] = useState<Rect | null>(null)
   const [moving, setMoving] = useState(false)
   const hovered = useRef<HTMLElement | null>(null)
+  const leftAt = useRef(-Infinity)
 
   const selected = useCallback(() => {
     const el = host.current
@@ -91,13 +92,20 @@ export function Highlight({
       if (!el || !pill) return
       hovered.current = item
       if (!item?.isConnected) {
+        if (hovered.current !== null || pill.style.opacity !== '0')
+          leftAt.current = performance.now()
         hovered.current = null
         pill.style.opacity = '0'
         return
       }
       const to = rectIn(el, item)
-      // Fully faded: start again from the selection, so it slides out of it.
-      if (getComputedStyle(pill).opacity === '0') {
+      // Long gone: start again from the selection, so it slides out of it. A
+      // quick return — a pointer skimming the list's edge — resumes from where
+      // it faded instead, or every bounce would fly in from the selection.
+      if (
+        getComputedStyle(pill).opacity === '0' &&
+        performance.now() - leftAt.current > RESUME_MS
+      ) {
         const from = selected()
         place(pill, from ? rectIn(el, from) : to, false)
         void pill.offsetWidth
@@ -189,6 +197,9 @@ export function Highlight({
     </div>
   )
 }
+
+/** How soon after leaving the pointer can return and pick the hover pill up where it faded. */
+const RESUME_MS = 2000
 
 /** Where `target` sits in `host`'s content box, trimmed to its scroller. */
 function rectIn(host: HTMLElement, target: HTMLElement): Rect {
