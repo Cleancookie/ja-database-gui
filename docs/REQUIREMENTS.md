@@ -818,7 +818,7 @@ The sidebar's connection and database lists were cramped. Move "choose server, t
 | Question | Choice |
 | --- | --- |
 | Invariant | Server and database are chosen in the main panel (`WorkspacePicker`). The sidebar holds tabs and, for a bound tab, its tables only |
-| Unbound tab, main panel | Step header `① Server › ② Database`, current step highlighted, step 2 names the server. Step 2 appears only when the server hosts databases and binding did not happen at once |
+| Unbound tab, main panel | A path header, `Servers` then `Servers / <server> / Databases`: the current step is bold, `Servers` goes back (Esc). Step 2 appears only when the server hosts databases and binding did not happen at once |
 | Unbound tab, sidebar | Its row, and a one-line hint pointing to the main panel |
 | Keys | The list is focused on mount. Arrows and `Ctrl+J` / `Ctrl+K` move (`listNav.ts`), `Enter` picks, `Esc` on step 2 returns to step 1 without disconnecting |
 | Connection actions | New connection, sample database, edit, remove and the context menu stay on the server step |
@@ -844,3 +844,15 @@ Open a huge JSON cell, collapse down to one key deep inside it and edit it there
 | Palette over a dialog | `ui.Layer` makes the palette its own Radix layer, so it can open over the cell viewer without Escape or a click closing the viewer |
 
 Not built: inserting mid-array; editing an ad-hoc result; marking nodes for an edit staged as a whole value. Number display in the tree still goes through JSON.parse, so a big integer *shows* rounded (the editor and the stored value do not).
+
+## 2026-10-09 — default theme, notifications, pane focus
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Default theme | One Dark (`DefaultTheme` in `settings.go`, `DEFAULT_THEME` in `themes.ts`). Only new installs: a settings file that names a theme keeps it |
+| Window title | "Just Another Database GUI" |
+| Notifications | Toasts stack (`Toasts.tsx`, layout in `toasts.ts`): collapsed they peek out behind the newest, hover or focus fans them out and pauses every timer. An identical toast (same kind and message, no action) folds into one with a count ×N and moves to the front. Errors stay until dismissed; info auto-dismisses after `TOAST_MS` (4 s). A "Clear all" pill appears over the stack, and the palette has "Clear all notifications" |
+| Focus follows the panes | `paneFocus.ts`. Each pane marks a focus home (`data-focus-home`: picker list, table search, tray header). Opening the tab strip or tray focuses its home; closing one returns focus to the main pane |
+| Focus lost to the background | A click on empty background leaves `document.body` focused. List keys, Enter and a printable key are handed to the main pane's home (`recoverFocus`), so the picker list keeps answering after a stray click. Skipped while a palette or dialog is open |
