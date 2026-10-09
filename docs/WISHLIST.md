@@ -135,6 +135,20 @@ classes; check each `Highlight` call site against them.
 
 ---
 
+## 5. Count rows on demand from the paginator
+
+> can we add a count button next to the pagination options so i can easily
+> trigger a count(*)?
+
+The count already exists: `fetchRows` in `store.ts` calls `api.countRows`
+after the rows arrive, but only when the `autoCount` setting is on. With it off,
+`totalCount` stays `null` and the paginator has no total. A button beside the
+page controls would run that same count once for the current table and filter.
+It should go through `tracked`, so it shows in the activity log and can be
+cancelled. It also wants a palette command.
+
+---
+
 ## Built since
 
 - **Manual page size** — a free-text page size beside the presets, as a one-off
