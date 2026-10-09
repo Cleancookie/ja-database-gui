@@ -50,3 +50,12 @@ gone as soon as a table opened. Going back to it meant `Ctrl+P` or a new tab.
   (`frontend/src/invariants.test.ts`).
 - `/` now focuses the table search, not the WHERE filter. `Ctrl+F` still
   focuses the filter.
+
+## Amendment 2026-10-09: no headings, editor on demand
+
+- The `OPEN` and `ALL` headings are gone. A rule separates the open items from
+  every table, and appears only when something is open.
+- The SQL editor is listed with the open tables once it has been opened, typed
+  in or run, rather than always.
+- Clicking the active tab's name folds its tables away and back. The fold is
+  per tab: switching tab always lands unfolded.
