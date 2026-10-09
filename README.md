@@ -5,7 +5,7 @@ Built as a replacement for TablePlus.
 
 **MySQL / MariaDB · PostgreSQL · SQL Server · SQLite**
 
-![The orders table open in the grid, in One Dark](docs/media/themes/one-dark.webp)
+https://github.com/user-attachments/assets/68eaeb8b-89b3-4112-9794-8ace52972fb6
 
 ## Try it
 
@@ -55,11 +55,11 @@ across every table you touched. Run it, or back out.
 
 ![The review dialog listing the UPDATE statements for two staged edits](docs/media/review.webp)
 
-### 6. Four databases
+### 6. Multiple Database Drivers
 
 MySQL / MariaDB, PostgreSQL, SQL Server and SQLite, behind one interface. TLS is
 verified by default for any server off this machine. Passwords live in the OS
-keyring.
+keyring.  Support for more databases to come.
 
 ![The new connection dialog with its choice of database](docs/media/databases.webp)
 
