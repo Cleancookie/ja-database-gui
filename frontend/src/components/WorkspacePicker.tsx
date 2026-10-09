@@ -20,26 +20,7 @@ export function WorkspacePicker() {
   const [back, setBack] = useState(false)
   const step = hostsDatabases && !back ? 2 : 1
 
-  const stepMark = (n: number, label: string) => (
-    <span
-      className={`flex items-center gap-2 ${
-        n === step ? 'font-bold text-[var(--color-text)]' : 'text-[var(--color-faint)]'
-      }`}
-    >
-      <span
-        className={`grid h-6 w-6 place-items-center rounded-full font-bold tabular-nums ${
-          n === step
-            ? 'bg-[var(--color-accent)] text-[var(--color-on-accent)] shadow-xs'
-            : n < step
-              ? 'bg-[var(--color-accent-dim)]/60 text-[var(--color-accent)]'
-              : 'bg-[var(--color-elevated)] text-[var(--color-muted)]'
-        }`}
-      >
-        {n < step ? '✓' : n}
-      </span>
-      {label}
-    </span>
-  )
+  const sep = <span className="text-[var(--color-faint)]">/</span>
 
   return (
     <div
@@ -52,12 +33,25 @@ export function WorkspacePicker() {
       }}
     >
       <div className="flex max-h-full w-full max-w-md flex-col gap-3 py-4">
-        <h1 className="flex items-center gap-3">
-          {stepMark(1, 'Server')}
-          <span className="h-px w-6 bg-[var(--color-border-strong)]" />
-          {stepMark(2, 'Database')}
-          {step === 2 && connectionName && (
-            <span className="min-w-0 truncate text-[var(--color-muted)]">on {connectionName}</span>
+        {/* A path, as in a repo header: where you are is the last segment,
+            and the ones before it lead back. */}
+        <h1 className="flex min-w-0 items-center gap-2">
+          {step === 1 ? (
+            <span className="font-bold">Servers</span>
+          ) : (
+            <>
+              <button
+                onClick={() => setBack(true)}
+                title="Back to servers (Esc)"
+                className="text-[var(--color-muted)] hover:text-[var(--color-accent)] hover:underline"
+              >
+                Servers
+              </button>
+              {sep}
+              <span className="min-w-0 truncate text-[var(--color-muted)]">{connectionName}</span>
+              {sep}
+              <span className="font-bold">Databases</span>
+            </>
           )}
         </h1>
         <div className="min-h-0 overflow-y-auto rounded-xl border border-[var(--color-border)] bg-[var(--color-panel)] py-1.5">
