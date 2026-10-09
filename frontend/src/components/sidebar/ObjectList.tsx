@@ -135,18 +135,25 @@ export const ObjectList = memo(function ObjectList({
 
   if (!activeConnectionId) return null
 
+  // The children sit inside this list but are not it: focus or keys in the
+  // open tables above must not move this list's cursor or pill.
+  const ours = (n: EventTarget | null) =>
+    n instanceof Node && !!(field.current?.contains(n) || scroller.current?.contains(n))
+
   return (
     <div
-      onKeyDown={onKeyDown}
-      onFocus={() => {
-        if (focused) return
+      onKeyDown={(e) => {
+        if (ours(e.target)) onKeyDown(e)
+      }}
+      onFocus={(e) => {
+        if (focused || !ours(e.target)) return
         setFocused(true)
         // The key cursor starts where the pill already is, not back at the top.
         const at = order.findIndex((o) => refKey(activeDatabase, o.schema, o.name) === current)
         if (at >= 0) setSelected(at)
       }}
       onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false)
+        if (!ours(e.relatedTarget)) setFocused(false)
       }}
       className="flex min-h-0 flex-col"
     >
