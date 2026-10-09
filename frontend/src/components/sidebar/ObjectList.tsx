@@ -169,8 +169,15 @@ export const ObjectList = memo(function ObjectList({
                       <h3 className="flex items-center gap-1.5 px-2.5 pt-2 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase">
                         {GROUP_LABEL[row.type]}
                         <span
-                          className="rounded-full px-1.5 font-semibold text-[var(--color-text)]/70"
-                          style={{ background: GROUP_TINT[row.type] }}
+                          // Tinted text on a wash of the same tint: a pastel
+                          // fill under theme text fails contrast on dark themes.
+                          // Mixing in the text colour keeps pastels legible on
+                          // light ones.
+                          className="rounded-full px-1.5 font-semibold"
+                          style={{
+                            color: `color-mix(in srgb, ${GROUP_TINT[row.type]} 55%, var(--color-text))`,
+                            background: `color-mix(in srgb, ${GROUP_TINT[row.type]} 18%, transparent)`,
+                          }}
                         >
                           {row.count}
                         </span>
