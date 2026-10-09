@@ -361,6 +361,8 @@ export interface State extends EditState, EditActions {
   toggleSort: (column: string) => Promise<void>
   clearSort: () => Promise<void>
   setView: (v: View) => void
+  /** Opens the SQL editor in a new tab on the current connection and database, or leaves it. */
+  toggleSql: () => void
   toggleTransposed: () => void
   /** Starts a new selection at one cell — a plain click, or an arrow key. */
   selectCell: (source: ResultSource, pos: CellPos) => void
@@ -1303,6 +1305,28 @@ export const useStore = create<State>((set, get) => {
       // Opening it is the point of having made it, and an empty grid with the
       // new columns across the top is the quickest confirmation it is right.
       await get().openObject({ schema: spec.ref.schema, name: spec.ref.name, type: 'table' })
+    },
+
+    toggleSql() {
+      const s = get()
+      if (s.view === 'sql') {
+        s.setView('data')
+        return
+      }
+      if (!s.activeConnectionId) {
+        s.setView('sql')
+        return
+      }
+      const tab = makeTab(++tabSeq, {
+        ...blank(),
+        activeConnectionId: s.activeConnectionId,
+        capabilities: s.capabilities,
+        databases: s.databases,
+        activeDatabase: s.activeDatabase,
+        objects: s.objects,
+        view: 'sql',
+      })
+      enter(tab, [...stashed(), tab])
     },
 
     setView(view) {
