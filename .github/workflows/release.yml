@@ -6,6 +6,8 @@ name: release
 on:
   push:
     tags: ['v*.*.*']
+  # Re-run for a tag that is already pushed: gh workflow run release.yml --ref vX.Y.Z
+  workflow_dispatch:
 
 permissions:
   contents: write
