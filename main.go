@@ -24,9 +24,12 @@ var version = "dev"
 func main() {
 	start := time.Now()
 
-	app, err := NewApp()
-	if err != nil {
-		log.Fatalf("ja-db %s: %v", version, err)
+	app := &App{}
+	if !generatingBindings {
+		var err error
+		if app, err = NewApp(); err != nil {
+			log.Fatalf("ja-db %s: %v", version, err)
+		}
 	}
 	// After NewApp, which opens the log file: before it, this line is lost, and
 	// the log cannot say which build wrote what.
@@ -37,7 +40,7 @@ func main() {
 	// without a number here there is no way to rule this side out.
 	log.Printf("ja-db: config loaded in %s", time.Since(start).Round(time.Millisecond))
 
-	err = wails.Run(&options.App{
+	err := wails.Run(&options.App{
 		// The version is in the title so a stale build is visible at a glance.
 		Title:  "Just Another Database GUI " + version,
 		Width:  1440,
