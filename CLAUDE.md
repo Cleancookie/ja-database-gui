@@ -34,6 +34,14 @@ Before committing, check the subject you are about to write against that table.
 When writing several commits in one turn, check each — this convention has
 drifted before, always partway through a long session.
 
+## Releasing
+
+`make release` tags the next version and pushes it; CI builds and publishes it,
+and running copies offer the update. The version is worked out from the commit
+emoji since the last tag, so the convention above is what sets it. Release
+after a finished feature or fix lands on main — ask first, since the push is
+public. See [docs/adr/0010](docs/adr/0010-portable-exe-that-updates-itself.md).
+
 ## Working here
 
 - `make check` (fmt + vet + typecheck + tests) before saying a change is done.
