@@ -1,7 +1,7 @@
 # 6. Tabs replace the sidebar
 
 Date: 2026-10-01
-Status: Accepted
+Status: Accepted. Amended by [0009](0009-tabs-are-database-workspaces.md)
 
 ## Context
 

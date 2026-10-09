@@ -122,5 +122,6 @@ Worth doing only when someone needs a multi-statement edit session across runs.
   colour, so a new one is a block of custom properties; see the header of that
   file. Persisted as `theme` in settings.
 
-All five are recorded in full, request verbatim and decisions taken, in
-`REQUIREMENTS.md` under 2026-08-17.
+Long values, the activity tray and autocomplete are recorded in full, request
+verbatim and decisions taken, in `REQUIREMENTS.md` under 2026-08-17; schema
+changes under 2026-08-18.
