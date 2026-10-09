@@ -5,6 +5,7 @@ import (
 	"embed"
 	"log"
 	"net/http"
+	"os/exec"
 	"time"
 
 	"github.com/wailsapp/wails/v2"
@@ -66,5 +67,10 @@ func main() {
 	})
 	if err != nil {
 		log.Fatalf("ja-db: %v", err)
+	}
+	if app.relaunch != "" {
+		if err := exec.Command(app.relaunch).Start(); err != nil {
+			log.Printf("ja-db: relaunching after update: %v", err)
+		}
 	}
 }

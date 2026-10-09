@@ -11,6 +11,8 @@ import (
 	"github.com/Cleancookie/ja-db/internal/config"
 	"github.com/Cleancookie/ja-db/internal/driver"
 	"github.com/Cleancookie/ja-db/internal/engine"
+	"github.com/Cleancookie/ja-db/internal/selfupdate"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App is the struct Wails binds to the frontend. Every method is a
@@ -21,6 +23,8 @@ type App struct {
 	svc *api.Service
 	// logFile is held only so it can be closed on shutdown.
 	logFile io.Closer
+	// relaunch is the exe to start once the window has closed, after an update.
+	relaunch string
 }
 
 func NewApp() (*App, error) {
@@ -164,3 +168,17 @@ func (a *App) CancelConnectionQueries(id string) { a.svc.CancelConnectionQueries
 func (a *App) QuerySQL(id string) api.QuerySQLResult { return a.svc.QuerySQL(id) }
 
 func (a *App) ClearQueryHistory() { a.svc.ClearQueryHistory() }
+
+func (a *App) CheckUpdate() (selfupdate.Release, error) { return a.svc.CheckUpdate(a.ctx, version) }
+
+// ApplyUpdate quits once the new exe is in place; main starts it after Wails
+// has shut down, so the two never hold the window or the config at once.
+func (a *App) ApplyUpdate() error {
+	exe, err := a.svc.ApplyUpdate(a.ctx, version)
+	if err != nil {
+		return err
+	}
+	a.relaunch = exe
+	runtime.Quit(a.ctx)
+	return nil
+}

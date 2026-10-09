@@ -53,6 +53,7 @@ import {
 } from './tabs'
 import type {
   ActivityResult,
+  UpdateRelease,
   Capabilities,
   Cell,
   Connection,
@@ -283,6 +284,8 @@ export interface State extends EditState, EditActions {
   transposed: boolean
   settings: Settings
   secretBackend: SecretBackend | null
+  /** The newest release, once asked; null until then or if GitHub is unreachable. */
+  release: UpdateRelease | null
   activity: ActivityResult
   /** When the activity snapshot was taken, so the tray can tick its timers on
    *  between polls. See frontend/src/activity.ts. */
@@ -451,8 +454,17 @@ export interface State extends EditState, EditActions {
   copyText: (text: string) => Promise<void>
   /** Saves the result on screen as a CSV file — the browse page or the editor's. */
   exportCsv: () => void
-  pushToast: (kind: Toast['kind'], message: string, action?: Toast['action']) => void
+  pushToast: (
+    kind: Toast['kind'],
+    message: string,
+    action?: Toast['action'],
+    sticky?: boolean,
+  ) => void
   dismissToast: (id: number) => void
+  /** Asks GitHub for the newest release. `quiet` reports only a newer one. */
+  checkUpdate: (quiet?: boolean) => Promise<void>
+  /** Installs the newest release and relaunches into it. */
+  applyUpdate: () => Promise<void>
 }
 
 /**
@@ -799,6 +811,7 @@ export const useStore = create<State>((set, get) => {
     view: 'data',
     transposed: false,
     secretBackend: null,
+    release: null,
     settings: DEFAULT_SETTINGS,
     activity: { queries: [], sessions: [] },
     activityPolledAt: 0,
@@ -844,6 +857,7 @@ export const useStore = create<State>((set, get) => {
         startFlushing((line) => {
           void api.logClient(line).catch(() => {})
         })
+        void get().checkUpdate(true)
       } catch (e) {
         get().pushToast('error', errorMessage(e))
       }
@@ -1757,18 +1771,59 @@ export const useStore = create<State>((set, get) => {
       s.pushToast(cut > 0 ? 'error' : 'info', `Exported ${rs.rows.length} rows to ${name}${note}`)
     },
 
-    pushToast(kind, message, action) {
+    pushToast(kind, message, action, sticky) {
       const id = ++toastSeq
       set({ toasts: [...get().toasts, { id, kind, message, ...(action ? { action } : {}) }] })
       // Errors stay until dismissed; they often contain the SQL detail the
       // user needs to read carefully.
-      if (kind === 'info') {
+      if (kind === 'info' && !sticky) {
         setTimeout(() => get().dismissToast(id), 4000)
       }
     },
 
     dismissToast(id) {
       set({ toasts: get().toasts.filter((t) => t.id !== id) })
+    },
+
+    async checkUpdate(quiet) {
+      let release: UpdateRelease
+      try {
+        release = await api.checkUpdate()
+      } catch (e) {
+        // Offline at launch is normal, not worth interrupting anyone for.
+        if (!quiet) get().pushToast('error', errorMessage(e))
+        return
+      }
+      set({ release })
+      if (release.newer) {
+        get().pushToast(
+          'info',
+          `ja-db ${release.latest} is available (you have ${release.current})`,
+          { label: 'Update', run: () => void get().applyUpdate() },
+          true,
+        )
+      } else if (!quiet) {
+        get().pushToast(
+          'info',
+          release.latest
+            ? `ja-db ${release.current} is up to date`
+            : 'No releases have been published yet',
+        )
+      }
+    },
+
+    async applyUpdate() {
+      // The app quits to relaunch, and staged edits live only in memory.
+      if (get().stagedSummary.total > 0) {
+        get().pushToast('error', 'Save or discard your staged changes before updating')
+        return
+      }
+      get().pushToast('info', 'Downloading the update…')
+      try {
+        await api.applyUpdate()
+      } catch (e) {
+        get().pushToast('error', errorMessage(e))
+      }
     },
   }
 })

@@ -356,6 +356,16 @@ export interface ConnectResult {
 }
 
 /** Where saved passwords live. Anything but `keyring` gets a standing warning. */
+/** The newest release, as internal/selfupdate reports it. */
+export interface UpdateRelease {
+  current: string
+  /** Empty when nothing has been released yet. */
+  latest: string
+  newer: boolean
+  notes: string
+  url: string
+}
+
 export interface SecretBackend {
   kind: 'keyring' | 'file' | 'unavailable'
   reason?: string

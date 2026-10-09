@@ -17,6 +17,7 @@ import (
 	"github.com/Cleancookie/ja-db/internal/driver"
 	"github.com/Cleancookie/ja-db/internal/engine"
 	"github.com/Cleancookie/ja-db/internal/query"
+	"github.com/Cleancookie/ja-db/internal/selfupdate"
 )
 
 // testConnectionTimeout bounds the "Test connection" button so a wrong host
@@ -38,9 +39,11 @@ type Service struct {
 	columns *columnCache
 	// sampleMu keeps two "open the sample" calls from saving two connections.
 	sampleMu sync.Mutex
+	updates  *selfupdate.Checker
 }
 
 func New(store *config.Store, settings *config.SettingsStore, eng *engine.Engine, act *activity.Registry) *Service {
+	cleanupUpdate()
 	return &Service{
 		store:    store,
 		settings: settings,
@@ -54,6 +57,7 @@ func New(store *config.Store, settings *config.SettingsStore, eng *engine.Engine
 			query.Logging(logQuery),
 		),
 		columns: newColumnCache(columnTTL, time.Now),
+		updates: selfupdate.GitHub(),
 	}
 }
 

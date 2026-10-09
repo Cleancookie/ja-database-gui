@@ -184,6 +184,12 @@ func routes(s *api.Service) map[string]route {
 		"DescribeObject": withArgs(func(ctx context.Context, a args) (any, error) {
 			return s.DescribeObject(ctx, a.ID, a.Ref)
 		}),
+		// The devserver is never a release, so it reports and refuses as one.
+		"CheckUpdate": withArgs(func(ctx context.Context, _ args) (any, error) { return s.CheckUpdate(ctx, "dev") }),
+		"ApplyUpdate": withArgs(func(ctx context.Context, _ args) (any, error) {
+			_, err := s.ApplyUpdate(ctx, "dev")
+			return nil, err
+		}),
 
 		"SaveConnection": withReq(func(_ context.Context, r api.SaveConnectionRequest) (any, error) {
 			return s.SaveConnection(r)

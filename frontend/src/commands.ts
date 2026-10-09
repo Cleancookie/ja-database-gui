@@ -482,6 +482,29 @@ export function buildActionCommands(s: Store): Command[] {
     }),
   )
 
+  const release = s.release
+  cmds.push(
+    release?.newer
+      ? {
+          id: 'app:update',
+          title: `Update to ${release.latest}`,
+          subtitle: `Download, swap the exe and relaunch — you have ${release.current}`,
+          group: 'App',
+          candidate: { name: 'Update ja-db', keywords: 'upgrade new version release install' },
+          run: () => void s.applyUpdate(),
+        }
+      : {
+          id: 'app:check-update',
+          title: 'Check for updates',
+          subtitle: release?.current
+            ? `You have ${release.current}`
+            : 'Asks GitHub for the newest release',
+          group: 'App',
+          candidate: { name: 'Check for updates', keywords: 'upgrade new version release' },
+          run: () => void s.checkUpdate(),
+        },
+  )
+
   cmds.push({
     id: 'app:startup-timing',
     title: 'Show startup timing',

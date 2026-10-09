@@ -30,6 +30,7 @@ import type {
   ResultSet,
   SaveConnectionRequest,
   SecretBackend,
+  UpdateRelease,
   SchemaObject,
   Settings,
   Sort,
@@ -238,6 +239,11 @@ export const api = {
   querySql: (id: string) => call<QuerySqlResult>('QuerySQL', [id], { id }),
 
   clearQueryHistory: () => call<void>('ClearQueryHistory', [], {}),
+
+  checkUpdate: () => call<UpdateRelease>('CheckUpdate', [], {}),
+
+  /** Swaps in the newest release; the app quits and relaunches on success. */
+  applyUpdate: () => call<void>('ApplyUpdate', [], {}),
 
   /**
    * Sends a line to the Go log file, which is the only place it persists.
