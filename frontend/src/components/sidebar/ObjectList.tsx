@@ -189,7 +189,12 @@ export const ObjectList = memo(function ObjectList({
                         open={open.has(refKey(activeDatabase, row.o.schema, row.o.name))}
                         connectionId={activeConnectionId}
                         database={activeDatabase}
-                        onOpen={openObject}
+                        onOpen={(o) => {
+                          // A click focuses the list, which shows the key
+                          // cursor; it has to be on the row that was opened.
+                          setSelected(row.index)
+                          void openObject(o)
+                        }}
                       />
                     )}
                   </div>
