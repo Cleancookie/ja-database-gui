@@ -172,13 +172,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
             // leaves the tabs below it in view rather than at the far bottom.
             // Past the space there is, the table list scrolls inside it.
             // A shade, not a border; rounded-xl is the rows' rounded-lg plus p-1.
-            // Folded, it is a plain row: two near-stadiums 4px apart read as a
-            // mismatch, whatever the maths says.
-            <section
-              className={`flex min-h-0 flex-initial flex-col rounded-xl transition-[background-color,padding,margin] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
-                folded ? '' : 'my-1 bg-[var(--color-panel)] p-1'
-              }`}
-            >
+            <section className="my-1 flex min-h-0 flex-initial flex-col rounded-xl bg-[var(--color-panel)] p-1">
               {row(live)}
               {/* Rows of 1fr ↔ 0fr: a grid track animates to and from the
                 content's own height, which `height: auto` cannot. */}
