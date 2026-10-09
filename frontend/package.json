@@ -28,6 +28,7 @@
     "fuzzysort": "^4.0.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "sql-formatter": "15.9.0",
     "zustand": "^5.0.15"
   },
   "devDependencies": {

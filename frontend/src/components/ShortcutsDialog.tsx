@@ -22,6 +22,7 @@ const SHORTCUTS: [string, string][] = [
   ['Enter', 'Apply the filter'],
   ['Ctrl+E', 'Toggle the SQL editor'],
   ['Ctrl+Enter', 'Run the query, or only the selected text (in the editor)'],
+  ['Shift+Alt+F', 'Format the SQL editor text, or only the selected text'],
   ['Ctrl+.', 'Cancel the running SQL editor query'],
   ['Alt+[  /  Alt+]', 'Previous / next kept run in the SQL editor (more in the palette)'],
   ['Ctrl+R', 'Refresh the current rows'],

@@ -1,6 +1,8 @@
 import type { MouseEvent } from 'react'
 import { onScrollbar } from './paneClick'
 import type { EditorHandle } from './ui'
+import { formatSql } from './sqlFormat'
+import { errorMessage } from './errors'
 import { useStore } from './store'
 
 /**
@@ -13,6 +15,17 @@ export const sqlEditorHandle: { current: EditorHandle | null } = { current: null
 /** Runs the selection if there is one, else the whole buffer. */
 export function runSqlFromEditor(): Promise<void> {
   return useStore.getState().runSql(sqlEditorHandle.current?.selectedSql() ?? undefined)
+}
+
+/** Formats the selection if there is one, else the whole buffer; one undo step. */
+export async function formatSqlInEditor(): Promise<void> {
+  const s = useStore.getState()
+  const kind = s.connections.find((c) => c.id === s.activeConnectionId)?.kind
+  try {
+    await sqlEditorHandle.current?.transformText((text) => formatSql(text, kind))
+  } catch (e) {
+    s.pushToast('error', `Could not format SQL: ${errorMessage(e)}`)
+  }
 }
 
 /**

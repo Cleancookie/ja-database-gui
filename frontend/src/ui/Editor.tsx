@@ -55,6 +55,13 @@ export interface EditorHandle {
    * the view at call time so the selection never has to live in React state.
    */
   selectedSql: () => string | null
+  /**
+   * Replaces the selection (or the whole document when nothing is selected)
+   * with `fn`'s result, as one transaction so a single undo reverts it. Does
+   * nothing if the document changed while `fn` was pending. A rejection from
+   * `fn` leaves the text untouched and propagates.
+   */
+  transformText: (fn: (text: string) => Promise<string>) => Promise<void>
 }
 
 export interface EditorProps {
@@ -68,6 +75,8 @@ export interface EditorProps {
   onSubmit?: () => void
   /** Escape, only when the popup is closed. */
   onCancel?: () => void
+  /** Shift+Alt+F. */
+  onFormat?: () => void
   /**
    * Fires only when "is there a runnable selection" flips, not per keystroke
    * or caret move. Lets a button label follow the selection cheaply.
@@ -161,6 +170,7 @@ export function Editor({
   onChange,
   onSubmit,
   onCancel,
+  onFormat,
   onHasSelectionChange,
   singleLine = false,
   placeholder,
@@ -178,8 +188,8 @@ export function Editor({
   // Callbacks and candidates are read through a ref so that changing them —
   // which happens on every keystroke, since onChange closes over fresh state —
   // does not tear down and rebuild the editor.
-  const live = useRef({ onChange, onSubmit, onCancel, onHasSelectionChange, completion })
-  live.current = { onChange, onSubmit, onCancel, onHasSelectionChange, completion }
+  const live = useRef({ onChange, onSubmit, onCancel, onFormat, onHasSelectionChange, completion })
+  live.current = { onChange, onSubmit, onCancel, onFormat, onHasSelectionChange, completion }
   const hadSelection = useRef(false)
 
   const language = useRef(new Compartment())
@@ -204,6 +214,24 @@ export function Editor({
       if (!v) return null
       const { ranges, mainIndex } = v.state.selection
       return selectionToRun(v.state.doc.toString(), ranges, mainIndex)
+    },
+    transformText: async (fn) => {
+      const v = view.current
+      if (!v) return
+      const before = v.state.doc
+      const { from, to } = v.state.selection.main
+      const whole = from === to
+      const [a, b] = whole ? [0, before.length] : [from, to]
+      const next = await fn(before.sliceString(a, b))
+      if (view.current !== v || v.state.doc !== before || next === before.sliceString(a, b)) return
+      v.dispatch({
+        changes: { from: a, to: b, insert: next },
+        selection: whole
+          ? { anchor: Math.min(from, a + next.length) }
+          : { anchor: a, head: a + next.length },
+        userEvent: 'input.format',
+        scrollIntoView: true,
+      })
     },
   }))
 
@@ -237,6 +265,14 @@ export function Editor({
             }
             if (!live.current.onCancel) return false
             live.current.onCancel()
+            return true
+          },
+        },
+        {
+          key: 'Shift-Alt-f',
+          run: () => {
+            if (!live.current.onFormat) return false
+            live.current.onFormat()
             return true
           },
         },

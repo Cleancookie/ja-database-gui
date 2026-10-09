@@ -13,7 +13,7 @@ import { perf } from './perf'
 import { reportText } from './startup'
 import { objectBias, orderByRecency, refKey } from './recency'
 import { rectOf, rectSize } from './selection'
-import { runSqlFromEditor } from './sqlEditorRun'
+import { formatSqlInEditor, runSqlFromEditor } from './sqlEditorRun'
 import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
 import { storageWarning } from './secrets'
 import { openTableKeys, pageTitle, tabHistory, tabTitle } from './tabs'
@@ -390,6 +390,15 @@ export function buildActionCommands(s: Store): Command[] {
         keywords: 'execute query sql',
       },
       run: () => void runSqlFromEditor(),
+    })
+    cmds.push({
+      id: 'sql:format',
+      title: s.sqlHasSelection ? 'Format selection' : 'Format SQL',
+      subtitle: s.sqlHasSelection ? 'Only the selected text' : 'The whole editor',
+      group: 'Query',
+      shortcut: 'Shift+Alt+F',
+      candidate: { name: 'Format SQL', keywords: 'pretty beautify indent tidy editor' },
+      run: () => void formatSqlInEditor(),
     })
   }
 

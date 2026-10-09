@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, type ReactNode } from 'react'
 import { editorCandidates, tokenAt } from '../completion'
 import { effectiveIsolation, ISOLATION_WARNING, isolationChoices } from '../isolation'
-import { focusEditorFromPane, runSqlFromEditor, sqlEditorHandle } from '../sqlEditorRun'
+import {
+  focusEditorFromPane,
+  formatSqlInEditor,
+  runSqlFromEditor,
+  sqlEditorHandle,
+} from '../sqlEditorRun'
 import { runCount, runTooltip, sqlSnippet } from '../sqlHistory'
 import { activeSqlResult, useActiveKind, useHasSchemas, useStore } from '../store'
 import { DatabasePicker } from './DatabasePicker'
@@ -147,6 +152,7 @@ export function SqlEditor() {
               value={sqlText}
               onChange={setSqlText}
               onSubmit={() => void runSqlFromEditor()}
+              onFormat={() => void formatSqlInEditor()}
               onHasSelectionChange={setHasSelection}
               handleRef={sqlEditorHandle}
               dialect={kind}
