@@ -48,6 +48,7 @@ export function DatabaseList({
     <div
       ref={root}
       tabIndex={-1}
+      data-focus-home={databases.length > 8 ? undefined : ''}
       onKeyDown={onKeyDown}
       className="outline-none focus-visible:outline-none"
     >
@@ -55,6 +56,7 @@ export function DatabaseList({
         <div className="px-3 py-1">
           <input
             ref={field}
+            data-focus-home
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)

@@ -125,6 +125,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
     // shell's gap with it) while the island inside keeps its own width and
     // slides left, so the content is clipped rather than squashed.
     <div
+      data-pane="left"
       style={{ width: open ? resize.size : 0, marginRight: open ? 0 : '-0.5rem' }}
       aria-hidden={!open}
       inert={!open}

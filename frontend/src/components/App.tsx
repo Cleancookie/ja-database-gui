@@ -28,6 +28,7 @@ import { TabStrip } from './TabStrip'
 import { StorageNotice } from './StorageNotice'
 import { WorkspacePicker } from './WorkspacePicker'
 import { Toasts } from './Toasts'
+import { recoverFocus, setPane } from '../paneFocus'
 
 export function App() {
   const init = useStore((s) => s.init)
@@ -70,7 +71,11 @@ export function App() {
       <div className="flex min-h-0 flex-1 gap-2 p-2">
         <TabStrip open={!tabStripHidden} />
 
-        <main className="island flex min-w-0 flex-1 flex-col">
+        <main
+          data-pane="main"
+          tabIndex={-1}
+          className="island flex min-w-0 flex-1 flex-col outline-none"
+        >
           {view === 'activity' ? (
             <ActivityPage />
           ) : view === 'details' ? (
@@ -229,6 +234,8 @@ function useGlobalHotkeys() {
       // dialog while the user is typing in it.
       if (s.palette !== null || s.dialog.kind !== 'none') return
 
+      if (recoverFocus(e)) return
+
       // Ctrl+= is the unshifted half of Ctrl++, so both keys zoom in. preventDefault
       // stops the webview applying its own page zoom on top.
       if (mod && (e.key === '=' || e.key === '+')) {
@@ -249,7 +256,7 @@ function useGlobalHotkeys() {
 
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
-        void s.setTabStrip(s.settings.tabStripHidden)
+        void setPane(s, 'left', s.settings.tabStripHidden)
         return
       }
 
@@ -286,7 +293,7 @@ function useGlobalHotkeys() {
       // Ctrl+` for the bottom tray, as in every editor with a bottom panel.
       if (mod && e.key === '`') {
         e.preventDefault()
-        s.setTrayOpen(!s.trayOpen)
+        void setPane(s, 'tray', !s.trayOpen)
         return
       }
 
@@ -382,12 +389,12 @@ function useGlobalHotkeys() {
       // those arrows are free.
       if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault()
-        void s.setTabStrip(s.settings.tabStripHidden)
+        void setPane(s, 'left', s.settings.tabStripHidden)
         return
       }
       if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowDown') {
         e.preventDefault()
-        s.setTrayOpen(!s.trayOpen)
+        void setPane(s, 'tray', !s.trayOpen)
         return
       }
 

@@ -149,6 +149,7 @@ export function SqlEditor() {
           >
             <Editor
               autoFocus
+              focusHome
               value={sqlText}
               onChange={setSqlText}
               onSubmit={() => void runSqlFromEditor()}

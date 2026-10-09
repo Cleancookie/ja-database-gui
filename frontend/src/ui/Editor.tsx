@@ -92,6 +92,8 @@ export interface EditorProps {
   completion?: EditorCompletion
   autoFocus?: boolean
   ariaLabel?: string
+  /** Makes this editor its pane's focus home — see paneFocus.ts. */
+  focusHome?: boolean
   /** Applied to the editor's own scroll element. */
   className?: string
   id?: string
@@ -178,6 +180,7 @@ export function Editor({
   completion,
   autoFocus,
   ariaLabel,
+  focusHome,
   className = '',
   id,
   handleRef,
@@ -323,6 +326,7 @@ export function Editor({
     const content = v.contentDOM
     if (ariaLabel) content.setAttribute('aria-label', ariaLabel)
     content.setAttribute('spellcheck', 'false')
+    if (focusHome) content.setAttribute('data-focus-home', '')
     if (autoFocus) v.focus()
 
     return () => {
@@ -333,7 +337,7 @@ export function Editor({
     // it is synced by the effect below, and rebuilding per keystroke would
     // lose the caret, the undo history and any open popup.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [singleLine, placeholder, ariaLabel, autoFocus])
+  }, [singleLine, placeholder, ariaLabel, focusHome, autoFocus])
 
   // The dialect can change without a remount, when the user switches
   // connection with the editor open.

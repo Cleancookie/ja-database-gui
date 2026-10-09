@@ -18,6 +18,7 @@ import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useSt
 import { storageWarning } from './secrets'
 import { openTableKeys, pageTitle, tabHistory, tabTitle } from './tabs'
 import { THEMES } from './themes'
+import { setPane } from './paneFocus'
 import type { ObjectType, SchemaObject } from './types'
 
 type Store = ReturnType<typeof useStore.getState>
@@ -485,7 +486,7 @@ export function buildActionCommands(s: Store): Command[] {
       label: 'left pane',
       what: 'tab strip',
       open: !s.settings.tabStripHidden,
-      set: (open) => s.setTabStrip(open),
+      set: (open) => setPane(s, 'left', open),
       shortcut: 'Ctrl+B / Ctrl+←',
       keywords: 'sidebar tabs vertical',
     }),
@@ -494,7 +495,7 @@ export function buildActionCommands(s: Store): Command[] {
       label: 'bottom pane',
       what: 'activity tray',
       open: s.trayOpen,
-      set: (open) => s.setTrayOpen(open),
+      set: (open) => setPane(s, 'tray', open),
       shortcut: 'Ctrl+` / Ctrl+↓',
       keywords: 'running queries monitor cancel kill progress loading elapsed history',
     }),

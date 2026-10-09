@@ -89,7 +89,7 @@ export function ActivityTray() {
         (status.cancelling > 0 ? ` · ${status.cancelling} cancelling` : '')
 
   return (
-    <div className="chrome relative shrink-0">
+    <div data-pane="tray" className="chrome relative shrink-0">
       {/* A zero-height line along the top of the strip that clips everything
           below it, so a closed drawer slides *into* the strip rather than over
           it. Open to the top and sides so the shadow is not cut off.
@@ -285,6 +285,7 @@ const QueryRow = memo(function QueryRow({
       <div
         role="button"
         tabIndex={0}
+        data-focus-home
         aria-expanded={open}
         onClick={toggle}
         onKeyDown={(e) => {

@@ -64,6 +64,7 @@ export function ConnectionList({
     <div
       ref={root}
       tabIndex={-1}
+      data-focus-home
       onKeyDown={onKeyDown}
       className="outline-none focus-visible:outline-none"
     >

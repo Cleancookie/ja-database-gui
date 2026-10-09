@@ -133,6 +133,7 @@ export const ObjectList = memo(function ObjectList({
         <input
           ref={field}
           id={TABLE_SEARCH_ID}
+          data-focus-home
           value={query}
           onChange={(e) => {
             setQuery(e.target.value)
