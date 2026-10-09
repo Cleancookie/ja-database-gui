@@ -14,9 +14,10 @@ import type { ObjectType, SchemaObject } from '../../types'
 import { ObjectListMenu, objectKey } from '../ObjectMenu'
 import { refKey } from '../../recency'
 import { openTableKeys } from '../../tabs'
+import { Highlight } from '../Highlight'
 import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
-import { INPUT, useFocusWhen, useListKeys } from './listKit'
+import { HOVER_PILL, INPUT, PILL, useFocusWhen, useListKeys } from './listKit'
 
 /** Only what has rows to browse; functions and procedures are reached from the palette. */
 type Browsable = 'table' | 'view'
@@ -60,6 +61,11 @@ export const ObjectList = memo(function ObjectList({
   const openObject = useStore((s) => s.openObject)
   const openTables = useStore((s) => s.openTables)
   const open = useMemo(() => openTableKeys(openTables), [openTables])
+  const current = useStore((s) =>
+    s.view !== 'sql' && s.activeRef
+      ? refKey(s.activeDatabase, s.activeRef.schema, s.activeRef.name)
+      : null,
+  )
 
   const [query, setQuery] = useState('')
   // The keyboard highlight is only shown while the keys would move it.
@@ -123,7 +129,13 @@ export const ObjectList = memo(function ObjectList({
   return (
     <div
       onKeyDown={onKeyDown}
-      onFocus={() => setFocused(true)}
+      onFocus={() => {
+        if (focused) return
+        setFocused(true)
+        // The key cursor starts where the pill already is, not back at the top.
+        const at = order.findIndex((o) => refKey(activeDatabase, o.schema, o.name) === current)
+        if (at >= 0) setSelected(at)
+      }}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false)
       }}
@@ -146,9 +158,9 @@ export const ObjectList = memo(function ObjectList({
         />
       </div>
       {children}
-      {/* The pill is the sidebar's one Highlight, in TabStrip. */}
       <div ref={scroller} data-highlight-clip className={`min-h-0 overflow-y-auto ${className}`}>
-        <div className="px-1.5 pb-2">
+        {/* Its own pill: one shared with the open tables glided between the two. */}
+        <Highlight className="px-1.5 pb-2" pillClassName={PILL} hoverClassName={HOVER_PILL}>
           {objects.length === 0 && (
             <p className="px-2 py-2 text-[var(--color-faint)]">
               {busy ? 'Loading…' : 'No objects'}
@@ -186,7 +198,13 @@ export const ObjectList = memo(function ObjectList({
                     ) : (
                       <ObjectRow
                         o={row.o}
-                        highlighted={focused && row.index === selected}
+                        // The keys move the pill while they would; otherwise it
+                        // sits on the table on screen, as the open list's does.
+                        highlighted={
+                          focused
+                            ? row.index === selected
+                            : current === refKey(activeDatabase, row.o.schema, row.o.name)
+                        }
                         open={open.has(refKey(activeDatabase, row.o.schema, row.o.name))}
                         connectionId={activeConnectionId}
                         database={activeDatabase}
@@ -203,7 +221,7 @@ export const ObjectList = memo(function ObjectList({
               })}
             </div>
           </ObjectListMenu>
-        </div>
+        </Highlight>
       </div>
     </div>
   )

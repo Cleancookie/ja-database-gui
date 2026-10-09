@@ -3,16 +3,18 @@ import { tableKey } from '../../edits'
 import { useStore } from '../../store'
 import { sameRef } from '../../tabs'
 import type { ObjectRef } from '../../types'
+import { Highlight } from '../Highlight'
 import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
+import { HOVER_PILL, PILL } from './listKit'
 
 const ROW =
   'relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-[0.2rem] text-left'
 
 /**
  * The top of an expanded tab, between the table search and the list of every
- * table: the tab's SQL editor once opened, and the tables open in it. The pill slides to
- * whichever is on screen. Each table closes with its ×.
+ * table: the tab's SQL editor once opened, and the tables open in it. Its own
+ * pill sits on whichever is on screen. Each table closes with its ×.
  */
 export function OpenList() {
   const openTables = useStore((s) => s.openTables)
@@ -41,57 +43,59 @@ export function OpenList() {
       {(sqlOpen || openTables.length > 0) && (
         <>
           <div data-highlight-clip className="mt-1 max-h-[30vh] overflow-y-auto">
-            {sqlOpen && (
-              <button
-                onClick={() => setView('sql')}
-                data-item
-                data-highlight={view === 'sql' || undefined}
-                className={`${ROW} w-full ${view === 'sql' ? 'font-bold' : ''}`}
-                title="SQL editor (Ctrl+E)"
-              >
-                <span className="shrink-0 text-[var(--color-faint)]">›_</span>
-                <span className="min-w-0 flex-1 truncate">SQL editor</span>
-              </button>
-            )}
-            {openTables.map(({ ref }) => {
-              const current = view !== 'sql' && sameRef(activeRef, ref)
-              const name = qualifiedName(ref)
-              return (
-                <div
-                  key={name}
-                  className="group flex items-center"
-                  onAuxClick={(e) => {
-                    if (e.button === 1) {
-                      e.preventDefault()
-                      void closeOpenTable(ref)
-                    }
-                  }}
+            <Highlight pillClassName={PILL} hoverClassName={HOVER_PILL}>
+              {sqlOpen && (
+                <button
+                  onClick={() => setView('sql')}
+                  data-item
+                  data-highlight={view === 'sql' || undefined}
+                  className={`${ROW} w-full ${view === 'sql' ? 'font-bold' : ''}`}
+                  title="SQL editor (Ctrl+E)"
                 >
-                  <button
-                    onClick={() => show(ref)}
-                    title={name}
-                    aria-current={current || undefined}
-                    data-item
-                    data-highlight={current || undefined}
-                    className={`${ROW} ${current ? 'font-bold' : ''}`}
+                  <span className="shrink-0 text-[var(--color-faint)]">›_</span>
+                  <span className="min-w-0 flex-1 truncate">SQL editor</span>
+                </button>
+              )}
+              {openTables.map(({ ref }) => {
+                const current = view !== 'sql' && sameRef(activeRef, ref)
+                const name = qualifiedName(ref)
+                return (
+                  <div
+                    key={name}
+                    className="group flex items-center"
+                    onAuxClick={(e) => {
+                      if (e.button === 1) {
+                        e.preventDefault()
+                        void closeOpenTable(ref)
+                      }
+                    }}
                   >
-                    <OpenDot />
-                    <span className="min-w-0 flex-1 truncate">{name}</span>
-                    {activeConnectionId && (
-                      <TableMark tableKey={tableKey(activeConnectionId, ref)} />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => void closeOpenTable(ref)}
-                    title="Close table (Alt+W)"
-                    aria-label={`Close ${name}`}
-                    className="relative mr-1 shrink-0 rounded-full px-1.5 text-[var(--color-faint)] opacity-40 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)] focus-visible:opacity-100"
-                  >
-                    ×
-                  </button>
-                </div>
-              )
-            })}
+                    <button
+                      onClick={() => show(ref)}
+                      title={name}
+                      aria-current={current || undefined}
+                      data-item
+                      data-highlight={current || undefined}
+                      className={`${ROW} ${current ? 'font-bold' : ''}`}
+                    >
+                      <OpenDot />
+                      <span className="min-w-0 flex-1 truncate">{name}</span>
+                      {activeConnectionId && (
+                        <TableMark tableKey={tableKey(activeConnectionId, ref)} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => void closeOpenTable(ref)}
+                      title="Close table (Alt+W)"
+                      aria-label={`Close ${name}`}
+                      className="relative mr-1 shrink-0 rounded-full px-1.5 text-[var(--color-faint)] opacity-40 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)] focus-visible:opacity-100"
+                    >
+                      ×
+                    </button>
+                  </div>
+                )
+              })}
+            </Highlight>
           </div>
           {/* Open above, every table below. */}
           <hr className="mx-2 my-1.5 border-[var(--color-border)]" />

@@ -30,9 +30,10 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
  * `relative` on every item is what keeps the text painting above the pills,
  * since an absolutely positioned sibling would otherwise cover it.
  *
- * One host can span several lists — the whole sidebar is one — so the pill
- * glides between them instead of one fading out as another fades in. A
- * scroller inside it is marked `data-highlight-clip` to trim the pill to it.
+ * One host can span several lists, so the pill glides between them instead of
+ * one fading out as another fades in. A host nested in another owns its own
+ * items, as each list in the sidebar does. A scroller inside a host is marked
+ * `data-highlight-clip` to trim the pill to it.
  *
  * This is not in `src/ui` on purpose. That layer exists to quarantine vendor
  * APIs — see ui/README.md — and there is no vendor here to hide.
@@ -172,7 +173,9 @@ export function Highlight({
       className={`relative ${className}`}
       onPointerOver={(e) => {
         const item = (e.target as Element).closest<HTMLElement>('[data-item]')
-        if (!item || item === hovered.current || !ownedBy(host.current, item)) return
+        if (!item || item === hovered.current) return
+        // Into a nested host's list: that one's hover pill takes over.
+        if (!ownedBy(host.current, item)) return hover(null)
         hover(item)
       }}
       onPointerLeave={() => hover(null)}
