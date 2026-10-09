@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { isBound, useStore } from '../store'
 import { Highlight } from './Highlight'
 import { PILL } from './sidebar/listKit'
@@ -35,6 +35,14 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
   const closeTab = useStore((s) => s.closeTab)
 
   const resize = useResizable('sidebarWidthPx', LIMITS.sidebar)
+  // Clicking the live tab folds its tables away. Keyed by tab, so any switch —
+  // click, key or palette — arrives unfolded.
+  const [foldedTab, setFoldedTab] = useState<number | null>(null)
+  const folded = foldedTab === activeTabId
+  const pick = (id: number) => {
+    if (id === activeTabId) setFoldedTab(folded ? null : id)
+    else switchTab(id)
+  }
 
   const rows = useMemo(() => {
     const byId = new Map(connections.map((c) => [c.id, c]))
@@ -81,9 +89,10 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
       }}
     >
       <button
-        onClick={() => switchTab(r.id)}
+        onClick={() => pick(r.id)}
         title={r.title}
         aria-current={r.live || undefined}
+        aria-expanded={r.live ? !folded : undefined}
         className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-xl px-2 py-1.5 text-left ${
           r.live ? 'font-bold' : ''
         }`}
@@ -159,7 +168,10 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
             // Past the space there is, the table list scrolls inside it.
             <section className="my-1 flex min-h-0 flex-initial flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)] p-1 shadow-xs">
               {row(live)}
-              <div className="mt-1 ml-2.5 flex min-h-0 flex-col border-l-2 border-[var(--color-accent)]/35">
+              <div
+                hidden={folded}
+                className="mt-1 ml-2.5 flex min-h-0 flex-col border-l-2 border-[var(--color-accent)]/35"
+              >
                 {bound ? (
                   <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
                 ) : (
