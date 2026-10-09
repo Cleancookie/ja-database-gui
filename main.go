@@ -23,12 +23,14 @@ var version = "dev"
 
 func main() {
 	start := time.Now()
-	log.Printf("ja-db %s", version)
 
 	app, err := NewApp()
 	if err != nil {
-		log.Fatalf("ja-db: %v", err)
+		log.Fatalf("ja-db %s: %v", version, err)
 	}
+	// After NewApp, which opens the log file: before it, this line is lost, and
+	// the log cannot say which build wrote what.
+	log.Printf("ja-db %s", version)
 	// Config and settings are two small file reads, so this should be single
 	// -digit milliseconds. It is logged because "the app is slow to launch" is
 	// otherwise impossible to attribute: the webview boot dominates, and
