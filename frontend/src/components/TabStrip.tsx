@@ -172,17 +172,23 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
             // Past the space there is, the table list scrolls inside it.
             <section className="my-1 flex min-h-0 flex-initial flex-col rounded-2xl border border-[var(--color-border)] bg-[var(--color-panel)] p-1 shadow-xs">
               {row(live)}
+              {/* Rows of 1fr ↔ 0fr: a grid track animates to and from the
+                content's own height, which `height: auto` cannot. */}
               <div
-                hidden={folded}
-                className="mt-1 ml-2.5 flex min-h-0 flex-col border-l-2 border-[var(--color-accent)]/35"
+                inert={folded}
+                className={`grid min-h-0 transition-[grid-template-rows,opacity,margin] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
+                  folded ? 'grid-rows-[0fr] opacity-0' : 'mt-1 grid-rows-[1fr]'
+                }`}
               >
-                {bound ? (
-                  <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
-                ) : (
-                  <p className="px-3 py-1.5 text-[var(--color-faint)]">
-                    Choose the server and database in the main panel
-                  </p>
-                )}
+                <div className="ml-2.5 flex min-h-0 flex-col overflow-hidden border-l-2 border-[var(--color-accent)]/35">
+                  {bound ? (
+                    <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
+                  ) : (
+                    <p className="px-3 py-1.5 text-[var(--color-faint)]">
+                      Choose the server and database in the main panel
+                    </p>
+                  )}
+                </div>
               </div>
             </section>
           )}

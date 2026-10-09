@@ -70,9 +70,9 @@ export function Highlight({
   const selected = useCallback(() => {
     const el = host.current
     // With several marked, the last is the most specific: a keyboard row in a
-    // nested list outranks the tab it sits in.
+    // nested list outranks the tab it sits in. One folded away (inert) does not.
     return [...(el?.querySelectorAll<HTMLElement>('[data-highlight]') ?? [])]
-      .filter((t) => ownedBy(el, t))
+      .filter((t) => ownedBy(el, t) && !t.closest('[inert]'))
       .at(-1)
   }, [])
 
@@ -135,7 +135,11 @@ export function Highlight({
     resized.observe(el)
     // A nested list moving its marker re-renders itself, not this.
     const marked = new MutationObserver(remeasure)
-    marked.observe(el, { subtree: true, childList: true, attributeFilter: ['data-highlight'] })
+    marked.observe(el, {
+      subtree: true,
+      childList: true,
+      attributeFilter: ['data-highlight', 'inert'],
+    })
     // A scroller inside moves the target without a render. The pills follow
     // at once rather than springing after it, which would read as lag.
     const scrolled = () => {
