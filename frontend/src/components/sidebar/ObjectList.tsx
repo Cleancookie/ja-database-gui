@@ -68,6 +68,13 @@ export const ObjectList = memo(function ObjectList({
   )
 
   const [query, setQuery] = useState('')
+  const [folded, setFolded] = useState<ReadonlySet<Browsable>>(new Set())
+  const toggleFold = (type: Browsable) =>
+    setFolded((prev) => {
+      const next = new Set(prev)
+      if (!next.delete(type)) next.add(type)
+      return next
+    })
   // The keyboard highlight is only shown while the keys would move it.
   const [focused, setFocused] = useState(false)
   const matched = useMemo(
@@ -94,6 +101,8 @@ export const ObjectList = memo(function ObjectList({
       const list = grouped.get(type)
       if (!list?.length) continue
       rows.push({ kind: 'head', type, count: list.length })
+      // A search looks through folded groups too: a hidden match is a miss.
+      if (folded.has(type) && !query) continue
       for (const o of list) {
         rowOf.push(rows.length)
         rows.push({ kind: 'object', o, index: order.length })
@@ -101,7 +110,7 @@ export const ObjectList = memo(function ObjectList({
       }
     }
     return { order, rows, rowOf }
-  }, [grouped])
+  }, [grouped, folded, query])
 
   const scroller = useRef<HTMLDivElement>(null)
   const field = useRef<HTMLInputElement>(null)
@@ -179,21 +188,36 @@ export const ObjectList = memo(function ObjectList({
                     style={{ transform: `translateY(${v.start}px)` }}
                   >
                     {row.kind === 'head' ? (
-                      <h3 className="flex items-center gap-1.5 px-2.5 pt-2 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase">
-                        {GROUP_LABEL[row.type]}
-                        <span
-                          // Tinted text on a wash of the same tint: a pastel
-                          // fill under theme text fails contrast on dark themes.
-                          // Mixing in the text colour keeps pastels legible on
-                          // light ones.
-                          className="rounded-full px-1.5 font-semibold"
-                          style={{
-                            color: `color-mix(in srgb, ${GROUP_TINT[row.type]} 55%, var(--color-text))`,
-                            background: `color-mix(in srgb, ${GROUP_TINT[row.type]} 18%, transparent)`,
-                          }}
+                      <h3>
+                        <button
+                          onClick={() => toggleFold(row.type)}
+                          aria-expanded={!folded.has(row.type) || !!query}
+                          title={folded.has(row.type) ? 'Show' : 'Hide'}
+                          className="flex w-full items-center gap-1.5 px-2.5 pt-2 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase hover:text-[var(--color-muted)]"
                         >
-                          {row.count}
-                        </span>
+                          <span
+                            aria-hidden
+                            className={`transition-transform duration-150 motion-reduce:transition-none ${
+                              folded.has(row.type) && !query ? '' : 'rotate-90'
+                            }`}
+                          >
+                            ›
+                          </span>
+                          {GROUP_LABEL[row.type]}
+                          <span
+                            // Tinted text on a wash of the same tint: a pastel
+                            // fill under theme text fails contrast on dark themes.
+                            // Mixing in the text colour keeps pastels legible on
+                            // light ones.
+                            className="rounded-full px-1.5 font-semibold"
+                            style={{
+                              color: `color-mix(in srgb, ${GROUP_TINT[row.type]} 55%, var(--color-text))`,
+                              background: `color-mix(in srgb, ${GROUP_TINT[row.type]} 18%, transparent)`,
+                            }}
+                          >
+                            {row.count}
+                          </span>
+                        </button>
                       </h3>
                     ) : (
                       <ObjectRow
