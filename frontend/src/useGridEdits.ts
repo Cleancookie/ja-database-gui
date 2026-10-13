@@ -94,15 +94,15 @@ export function useGridEdits(source: ResultSource, result: ResultSet): GridEdits
 /**
  * The colour a cell takes from its state. A focused or range-selected cell
  * keeps the selection's own wash — two backgrounds at equal specificity would
- * be decided by stylesheet order — and still shows its state in the edge bar
- * and the text.
+ * be decided by stylesheet order — and still shows its state in the text: bold
+ * for an edit, struck through for a delete. A new row's gutter says `+`.
  */
 export function editCellClass(state: CellState, selected: boolean): string {
   switch (state) {
     case 'dirty':
-      return `shadow-[inset_3px_0_0_var(--color-warn)] ${selected ? '' : 'bg-[var(--color-warn-dim)]'}`
+      return `font-bold ${selected ? '' : 'bg-[var(--color-warn-dim)]'}`
     case 'new':
-      return `shadow-[inset_3px_0_0_var(--color-success)] ${selected ? '' : 'bg-[var(--color-success)]/15'}`
+      return selected ? '' : 'bg-[var(--color-success)]/15'
     case 'deleted':
       return `text-[var(--color-danger)] line-through decoration-[var(--color-danger)] ${
         selected ? '' : 'bg-[var(--color-danger-dim)]'
