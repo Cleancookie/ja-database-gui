@@ -127,6 +127,7 @@ export type DialogState =
   | { kind: 'settings' }
   | { kind: 'confirmDelete'; connection: Connection }
   | { kind: 'confirmResetSample' }
+  | { kind: 'confirmClose' }
   | { kind: 'cell'; cell: CellTarget }
   | { kind: 'confirmCancel'; queryId: string; sql: string }
   | { kind: 'confirmTruncate'; ref: ObjectRef }

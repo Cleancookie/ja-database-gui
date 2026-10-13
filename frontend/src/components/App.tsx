@@ -11,6 +11,7 @@ import { useCellMenu } from './CellMenu'
 import { CommandPalette } from './CommandPalette'
 import { ConfirmDiscardDialog } from './ConfirmDiscardDialog'
 import { ConfirmDeleteDialog } from './ConnectionMenu'
+import { ConfirmCloseDialog } from './ConfirmCloseDialog'
 import { ConfirmResetSampleDialog } from './ConfirmResetSampleDialog'
 import { ConnectionDialog } from './ConnectionDialog'
 import { DataGrid } from './DataGrid'
@@ -132,6 +133,7 @@ export function App() {
         <ConfirmDeleteDialog name={dialog.connection.name} id={dialog.connection.id} />
       )}
       {dialog.kind === 'confirmResetSample' && <ConfirmResetSampleDialog />}
+      {dialog.kind === 'confirmClose' && <ConfirmCloseDialog />}
       {dialog.kind === 'confirmTruncate' && <ConfirmTruncateDialog target={dialog.ref} />}
       {dialog.kind === 'confirmDrop' && (
         <ConfirmDropDialog target={dialog.ref} type={dialog.type} />

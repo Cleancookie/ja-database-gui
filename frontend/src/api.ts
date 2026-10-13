@@ -42,6 +42,7 @@ type Bindings = Record<string, (...args: unknown[]) => Promise<unknown>>
 declare global {
   interface Window {
     go?: { main?: { App?: Bindings } }
+    runtime?: { EventsOn: (name: string, cb: () => void) => () => void }
   }
 }
 
@@ -248,15 +249,18 @@ export const api = {
   /** Swaps in the downloaded release; the app quits and relaunches on success. */
   applyUpdate: () => call<void>('ApplyUpdate', [], {}),
 
+  setUnsavedChanges: (unsaved: boolean) =>
+    invoke<void>('SetUnsavedChanges', [unsaved], { unsaved }),
+
+  /** Closes the window without asking about unsaved edits. Wails only. */
+  quit: () => invoke<void>('Quit', [], {}),
+
   /**
    * Sends a line to the Go log file, which is the only place it persists.
    *
    * Deliberately untimed — it is how the timings are flushed, and measuring it
    * would mean every flush produced fresh measurements to flush.
    */
-  setUnsavedChanges: (unsaved: boolean) =>
-    invoke<void>('SetUnsavedChanges', [unsaved], { unsaved }),
-
   logClient: (line: string) => invoke<void>('LogClient', [line], { line }),
 }
 

@@ -1,6 +1,6 @@
 // Warns before the window or tab closes with staged edits that were never applied.
-// Wails: Go owns the dialog (OnBeforeClose), so the UI only reports whether
-// anything is staged. Browser: the native beforeunload prompt does the asking.
+// Wails: Go holds the window open (OnBeforeClose) and asks the UI, which shows
+// ConfirmCloseDialog. Browser: the native beforeunload prompt does the asking.
 
 import { api, transportName } from './api'
 import { useStore } from './store'
@@ -17,6 +17,9 @@ export function installUnsavedGuard(): void {
     dirty = now
     report()
   })
+  window.runtime?.EventsOn('close-requested', () =>
+    useStore.getState().setDialog({ kind: 'confirmClose' }),
+  )
   window.addEventListener('beforeunload', (e) => {
     if (transportName === 'wails' || !dirty) return
     e.preventDefault()

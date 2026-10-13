@@ -895,9 +895,9 @@ Reverses the 2026-08-26 double-click entry and the in-cell drag of the drag entr
 
 | Question | Choice |
 | --- | --- |
-| Close with staged edits | Closing the window asks "You have unsaved changes — close anyway?" and closes only on Close. Nothing staged: no prompt |
+| Close with staged edits | Closing the window opens an in-app dialog: Cancel, or Discard and close. Nothing staged: no prompt |
 | Scope | Staged edits in any connection or table count, not just the one on screen |
-| How | The UI reports staged-or-not to Go (`SetUnsavedChanges`, `unsavedGuard.ts`); Wails `OnBeforeClose` shows the native dialog. The browser transport uses `beforeunload` |
+| How | The UI reports staged-or-not to Go (`SetUnsavedChanges`, `unsavedGuard.ts`); Wails `OnBeforeClose` keeps the window open and emits `close-requested`; `ConfirmCloseDialog` calls `Quit`. Not a native dialog: on Windows that only offers Yes/No, and its answer never matched our "Close" label, so confirming did nothing. The browser transport uses `beforeunload` |
 | Update restart | `ApplyUpdate` quits without asking: the user already chose to restart |
 
 ## 2026-10-13 — two-step updates

@@ -5,6 +5,7 @@ import (
 	"io"
 	"log"
 	"path/filepath"
+	"sync/atomic"
 
 	"github.com/Cleancookie/ja-db/internal/activity"
 	"github.com/Cleancookie/ja-db/internal/api"
@@ -25,6 +26,8 @@ type App struct {
 	logFile io.Closer
 	// relaunch is the exe to start once the window has closed, after an update.
 	relaunch string
+	// quitting is set once the user has chosen to discard unsaved edits.
+	quitting atomic.Bool
 }
 
 func NewApp() (*App, error) {
@@ -57,19 +60,23 @@ func NewApp() (*App, error) {
 func (a *App) SetUnsavedChanges(v bool) { a.svc.SetUnsavedChanges(v) }
 
 // beforeClose runs when the window is closed. Returning true keeps it open.
+//
+// With unsaved edits the UI asks, in its own dialog: a native one on Windows
+// only offers Yes/No, which cannot say what each button does. The UI calls
+// Quit if the user discards.
 func (a *App) beforeClose(ctx context.Context) bool {
-	if a.relaunch != "" || !a.svc.HasUnsavedChanges() {
+	if a.relaunch != "" || a.quitting.Load() || !a.svc.HasUnsavedChanges() {
 		return false
 	}
-	choice, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
-		Type:          runtime.QuestionDialog,
-		Title:         "Unsaved changes",
-		Message:       "You have unsaved changes - close anyway?",
-		Buttons:       []string{"Close", "Cancel"},
-		DefaultButton: "Cancel",
-		CancelButton:  "Cancel",
-	})
-	return err == nil && choice != "Close"
+	runtime.EventsEmit(ctx, "close-requested")
+	return true
+}
+
+// Quit closes the window without asking again. Wails only: the browser
+// transport has no window to close.
+func (a *App) Quit() {
+	a.quitting.Store(true)
+	runtime.Quit(a.ctx)
 }
 
 func (a *App) LogClient(line string) { a.svc.LogClient(line) }
