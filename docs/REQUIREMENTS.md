@@ -874,5 +874,5 @@ Reverses the 2026-08-26 double-click entry and the in-cell drag of the drag entr
 | Shift+click | Extends the live range |
 | Ctrl+click | Keeps what is selected and starts a new range there. Ctrl+drag adds a dragged range. Shift+click after it extends the new range |
 | Ctrl+A while the inline editor is open | Selects the editor's text, even if it lost focus |
-| Copying several ranges | If the cells line up as a table once the gaps are closed (same rows, same columns, or a checkerboard of both) they copy as that table, under the usual one-cell / IN list / CSV rule. Otherwise one value per line in reading order, and the toast says so |
+| Copying several ranges | One table of every row and column the ranges touch, gaps closed, under the usual one-cell / IN list / CSV rule. A cell in it that was not selected copies as an empty field, so scattered cells keep their own row and column |
 | Edits on several ranges | Not built: F2, Ctrl+Backspace and the menu act on the live range only |

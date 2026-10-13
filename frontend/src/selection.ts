@@ -62,13 +62,10 @@ export function inAny(rects: Rect[], row: number, col: number): boolean {
 const span = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i)
 
 /**
- * The selected cells as one table with the gaps closed, when they make one.
- *
- * Ranges that line up — the same rows, or the same columns, or a checkerboard
- * of both — collapse the way a spreadsheet collapses them. Cells that do not
- * line up have no table shape, and come back null.
+ * The rows and columns the selection touches: one table with the gaps closed.
+ * Cells in it that were not selected copy as empty fields.
  */
-export function gridOf(rects: Rect[]): { rows: number[]; cols: number[] } | null {
+export function gridOf(rects: Rect[]): { rows: number[]; cols: number[] } {
   // One range is the common case and may be a whole result: no enumerating.
   if (rects.length === 1) {
     const [r] = rects
@@ -77,7 +74,7 @@ export function gridOf(rects: Rect[]): { rows: number[]; cols: number[] } | null
   const cells = cellsOf(rects)
   const rows = [...new Set(cells.map((c) => c.row))].sort((a, b) => a - b)
   const cols = [...new Set(cells.map((c) => c.col))].sort((a, b) => a - b)
-  return cells.length === rows.length * cols.length ? { rows, cols } : null
+  return { rows, cols }
 }
 
 /** The distinct selected cells, in reading order. */
@@ -101,9 +98,8 @@ export function cellsOf(rects: Rect[]): CellPos[] {
  * What copying the selection produces, clamped to the result — one can be
  * replaced under a selection by a smaller page or a narrower filter.
  *
- * A selection with a table shape copies as a table (see selectionText).
- * Scattered cells have no columns to head and no rows to line up, so they copy
- * one value per line, in reading order.
+ * Always a table (see selectionText), so several ranges copy the same way
+ * one does: scattered cells keep their own row and column, blank elsewhere.
  */
 export function copyOf(
   sel: Selection,
@@ -120,14 +116,9 @@ export function copyOf(
     .filter((r) => r.bottom >= r.top && r.right >= r.left)
   if (rects.length === 0) return null
   const g = gridOf(rects)
-  if (g) {
-    const columns = g.cols.map((c) => names[c])
-    const rows = g.rows.map((r) => g.cols.map((c) => data[r][c]))
-    return { text: selectionText(columns, rows), what: describeCopy(columns, rows), rects }
-  }
-  const cells = cellsOf(rects)
-  const text = cells.map(({ row, col }) => data[row][col] ?? '').join('\n')
-  return { text, what: `Copied ${cells.length} scattered cells, one per line`, rects }
+  const columns = g.cols.map((c) => names[c])
+  const rows = g.rows.map((r) => g.cols.map((c) => (inAny(rects, r, c) ? data[r][c] : null)))
+  return { text: selectionText(columns, rows), what: describeCopy(columns, rows), rects }
 }
 
 export function rectSize(r: Rect): { rows: number; cols: number; cells: number } {

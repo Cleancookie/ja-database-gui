@@ -174,11 +174,10 @@ describe('copyOf', () => {
     expect(c?.text).toBe('id,age\n1,30\n2,')
   })
 
-  it('copies scattered cells one per line in reading order', () => {
+  it('keeps scattered cells in their own row and column, blank elsewhere', () => {
     const kept = [{ top: 2, bottom: 2, left: 2, right: 2 }]
     const c = copyOf({ anchor: at(0, 1), focus: at(0, 1), kept }, names, data)
-    expect(c?.text).toBe('ann\n41')
-    expect(c?.what).toBe('Copied 2 scattered cells, one per line')
+    expect(c?.text).toBe('name,age\nann,\n,41')
   })
 
   it('counts an overlapped cell once', () => {
