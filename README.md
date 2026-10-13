@@ -1,7 +1,11 @@
 # Just Another Database GUI
 
-A keyboard-first database GUI. Go core, React UI in a native webview, one binary.
+A command-palette-first database GUI. Go core, React UI in a native webview, one binary.
 Built as a replacement for TablePlus.
+
+Almost everything is driven from the palette (`Ctrl+P` / `Ctrl+Shift+P`). The
+mouse still has its niceties: double-click to edit a cell, drag or ctrl-click to
+pick cells, a clickable JSON viewer.
 
 **MySQL / MariaDB · PostgreSQL · SQL Server · SQLite**
 
