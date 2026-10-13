@@ -64,7 +64,7 @@ func (a *App) beforeClose(ctx context.Context) bool {
 	choice, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
 		Type:          runtime.QuestionDialog,
 		Title:         "Unsaved changes",
-		Message:       "You have unsaved changes \u2014 close anyway?",
+		Message:       "You have unsaved changes - close anyway?",
 		Buttons:       []string{"Close", "Cancel"},
 		DefaultButton: "Cancel",
 		CancelButton:  "Cancel",
