@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  copyOf,
   csv,
   csvField,
   describeCopy,
@@ -144,5 +145,45 @@ describe('describeCopy', () => {
         ],
       ),
     ).toBe('Copied 4 cells as CSV (2 rows × 2 columns)')
+  })
+})
+
+describe('copyOf', () => {
+  const names = ['id', 'name', 'age']
+  const data = [
+    [1, 'ann', 30],
+    [2, 'bob', null],
+    [3, 'cy', 41],
+  ]
+  const at = (row: number, col: number) => ({ row, col })
+
+  it('copies one range as before', () => {
+    const c = copyOf({ anchor: at(0, 0), focus: at(2, 0) }, names, data)
+    expect(c?.text).toBe('1, 2, 3')
+  })
+
+  it('closes the gap between ranges in the same column', () => {
+    const kept = [{ top: 0, bottom: 0, left: 0, right: 0 }]
+    const c = copyOf({ anchor: at(2, 0), focus: at(2, 0), kept }, names, data)
+    expect(c?.text).toBe('1, 3')
+  })
+
+  it('closes the gap between ranges on the same rows', () => {
+    const kept = [{ top: 0, bottom: 1, left: 0, right: 0 }]
+    const c = copyOf({ anchor: at(0, 2), focus: at(1, 2), kept }, names, data)
+    expect(c?.text).toBe('id,age\n1,30\n2,')
+  })
+
+  it('copies scattered cells one per line in reading order', () => {
+    const kept = [{ top: 2, bottom: 2, left: 2, right: 2 }]
+    const c = copyOf({ anchor: at(0, 1), focus: at(0, 1), kept }, names, data)
+    expect(c?.text).toBe('ann\n41')
+    expect(c?.what).toBe('Copied 2 scattered cells, one per line')
+  })
+
+  it('counts an overlapped cell once', () => {
+    const kept = [{ top: 0, bottom: 1, left: 0, right: 0 }]
+    const c = copyOf({ anchor: at(1, 0), focus: at(2, 0), kept }, names, data)
+    expect(c?.text).toBe('1, 2, 3')
   })
 })

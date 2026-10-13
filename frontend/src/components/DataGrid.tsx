@@ -3,12 +3,12 @@ import { Fragment, memo, Profiler, useEffect, useMemo, useRef, useState } from '
 import { isTypingTarget } from '../dom'
 import { handleEditKey } from '../gridEditKeys'
 import { onCommit } from '../perf'
-import { inRect, rectOf, type CellPos, type Rect } from '../selection'
+import { inAny, rectsOf, type CellPos, type Rect } from '../selection'
 import { measuredSpan, offsetToShow, scrollTo, uniformSpan } from '../scroll'
 import { useStore, type ResultSource } from '../store'
 import { editCellClass, useGridEdits, type CellView, type GridEdits } from '../useGridEdits'
 import { ContextMenu, type MenuItem } from '../ui'
-import { CellEditor } from './CellEditor'
+import { CELL_EDITOR_LABEL, CellEditor } from './CellEditor'
 import { GridSelection } from './GridSelection'
 import { RowMark } from './RowMark'
 import type { Cell, Column, ResultColumn, ResultSet, Sort } from '../types'
@@ -125,17 +125,28 @@ function Grid({
   const [headerCol, setHeaderCol] = useState<number | null>(null)
   const selectCell = useStore((s) => s.selectCell)
   const extendSelection = useStore((s) => s.extendSelection)
+  const addRange = useStore((s) => s.addRange)
   const clearSelection = useStore((s) => s.clearSelection)
   const focus = selection?.focus ?? null
-  const rect = useMemo(() => (selection ? rectOf(selection) : null), [selection])
+  // Kept ranges first, the live one last.
+  const rects = useMemo(() => (selection ? rectsOf(selection) : []), [selection])
+  const live = rects.at(-1) ?? null
   const drag = useCellDrag(source)
   const ed = useGridEdits(source, result)
 
-  /** A click (or a shift-click, which extends instead of starting over). */
-  const pick = (row: number, col: number, extend: boolean) => {
+  /** A click starts over, a shift-click extends, a ctrl-click adds a range. */
+  const pick = (row: number, col: number, e?: React.MouseEvent) => {
     repeatRef.current = false
-    if (extend) extendSelection(source, { row, col })
+    if (e?.shiftKey) extendSelection(source, { row, col })
+    else if (e?.ctrlKey || e?.metaKey) addRange(source, { row, col })
     else selectCell(source, { row, col })
+  }
+
+  /** A double-click edits the cell, or opens it where there is no table to edit. */
+  const edit = (row: number, col: number) => {
+    selectCell(source, { row, col })
+    if (source === 'browse') void useStore.getState().startEdit()
+    else onOpenCell?.(row, col)
   }
 
   const meta = useMemo(() => {
@@ -325,6 +336,12 @@ function Grid({
       // must be excluded: Ctrl+Shift+A opens the connections page.
       if (mod && !e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault()
+        // The inline editor has lost focus — to a click, say — but is still the
+        // thing being worked on, so select-all means its text.
+        const field = document.querySelector<HTMLTextAreaElement>(
+          `textarea[aria-label="${CELL_EDITOR_LABEL}"]`,
+        )
+        if (field) return field.select()
         s.selectAll(source)
         return
       }
@@ -379,7 +396,6 @@ function Grid({
         return
       }
       if (!mod || e.key !== 'c') return
-      if (window.getSelection()?.toString()) return // let a text selection win
       e.preventDefault()
       void s.copySelection()
     }
@@ -433,10 +449,11 @@ function Grid({
         gm={gm}
         rowOffset={rowOffset}
         focus={focus}
-        rect={rect}
+        rects={rects}
         labelWidth={sizing.label}
         cellWidth={sizing.cell}
         pick={pick}
+        edit={edit}
         drag={drag}
         selectedRef={selectedRef}
         repeatRef={repeatRef}
@@ -473,7 +490,7 @@ function Grid({
   return (
     <div
       ref={scrollRef}
-      className={`isolate h-full overflow-auto font-[var(--font-mono)] ${drag.dragging ? 'select-none' : ''}`}
+      className="isolate h-full overflow-auto font-[var(--font-mono)] select-none"
     >
       <div style={{ width: totalWidth, minWidth: '100%' }}>
         {/* One menu for the whole strip; each button says which column it is.
@@ -593,7 +610,7 @@ function Grid({
                     const ci = c.index
                     const m = meta[ci]
                     const isFocus = focus?.row === v.index && focus.col === ci
-                    const inRange = rect ? inRect(rect, v.index, ci) : false
+                    const inRange = inAny(rects, v.index, ci)
                     const view = ed.cell(v.index, ci)
                     const cut = view.state !== 'dirty' && cutCells.has(`${v.index}:${ci}`)
                     return (
@@ -601,7 +618,7 @@ function Grid({
                         <div
                           ref={isFocus ? selectedRef : undefined}
                           onMouseDown={(e) => {
-                            pick(v.index, ci, e.shiftKey)
+                            pick(v.index, ci, e)
                             drag.start(e, v.index, ci)
                           }}
                           onMouseEnter={() => drag.over(v.index, ci)}
@@ -609,7 +626,8 @@ function Grid({
                           // ctrl-click on macOS arrives as a contextmenu without
                           // one. The menu must always act on the cell that was
                           // actually clicked, never on a stale selection.
-                          onContextMenu={() => pick(v.index, ci, false)}
+                          onDoubleClick={() => edit(v.index, ci)}
+                          onContextMenu={() => pick(v.index, ci)}
                           className={`absolute top-0 z-[1] truncate border-r border-[var(--color-border)] px-2 ${
                             m.numeric ? 'text-right' : ''
                           } ${editCellClass(view.state, isFocus || inRange)}`}
@@ -645,7 +663,10 @@ function Grid({
               xs={colV.measurementsCache}
               top={gm.headerHeight}
               focus={focus && { y0: focus.row, y1: focus.row, x0: focus.col, x1: focus.col }}
-              range={rect && { y0: rect.top, y1: rect.bottom, x0: rect.left, x1: rect.right }}
+              range={live && { y0: live.top, y1: live.bottom, x0: live.left, x1: live.right }}
+              kept={rects
+                .slice(0, -1)
+                .map((r) => ({ y0: r.top, y1: r.bottom, x0: r.left, x1: r.right }))}
             />
           </div>
         </CellContextMenu>
@@ -676,25 +697,14 @@ function clamp(n: number, lo: number, hi: number): number {
 
 /** What a cell needs to take part in a drag, in either orientation. */
 interface CellDrag {
-  dragging: boolean
   start: (e: React.MouseEvent, row: number, col: number) => void
   over: (row: number, col: number) => void
 }
 
 /**
- * Dragging across cells selects the range they cover.
- *
- * A drag that stays inside one cell is left alone, so selecting part of a value
- * with the mouse still works — that is what a drag means everywhere else, and
- * the grid should not take it away for the common case. Only when the pointer
- * crosses into a second cell does the gesture change meaning: the half-made text
- * selection is dropped, the grid stops selecting text for the rest of the drag,
- * and every cell entered extends the range.
- *
- * Without that switch a drag paints a text selection straight across the row,
- * which is never what anyone wanted from a grid — the cells either side of the
- * one you are reading are unrelated values, and what lands on the clipboard is
- * them run together with no separator.
+ * Dragging across cells selects the range they cover. The grid is
+ * `select-none`, so a drag never paints a text selection across unrelated
+ * values; reading part of a value is what the cell viewer is for.
  *
  * mouseup is watched on the window rather than on a cell: a drag very often ends
  * outside the grid, and a gesture that never ends leaves every later hover
@@ -702,20 +712,17 @@ interface CellDrag {
  */
 function useCellDrag(source: ResultSource): CellDrag {
   const from = useRef<CellPos | null>(null)
-  const [dragging, setDragging] = useState(false)
   const extendSelection = useStore((s) => s.extendSelection)
 
   useEffect(() => {
     const onUp = () => {
       from.current = null
-      setDragging(false)
     }
     window.addEventListener('mouseup', onUp)
     return () => window.removeEventListener('mouseup', onUp)
   }, [])
 
   return {
-    dragging,
     start(e, row, col) {
       // Left button only, and not a shift-click: that already means "extend to
       // here" and starting a drag from it would re-anchor the range.
@@ -725,10 +732,6 @@ function useCellDrag(source: ResultSource): CellDrag {
     over(row, col) {
       const f = from.current
       if (!f || (f.row === row && f.col === col)) return
-      if (!dragging) {
-        setDragging(true)
-        window.getSelection()?.removeAllRanges()
-      }
       extendSelection(source, { row, col })
     },
   }
@@ -818,12 +821,14 @@ interface RecordsProps {
   gm: Metrics
   rowOffset: number
   focus: CellPos | null
-  rect: Rect | null
+  /** Kept ranges first, the live one last. */
+  rects: Rect[]
   /** Width of the sticky column-name strip, measured by the parent. */
   labelWidth: number
   /** The one uniform width every record column gets, likewise. */
   cellWidth: number
-  pick: (row: number, col: number, extend: boolean) => void
+  pick: (row: number, col: number, e?: React.MouseEvent) => void
+  edit: (row: number, col: number) => void
   drag: CellDrag
   selectedRef: React.MutableRefObject<HTMLDivElement | null>
   repeatRef: React.MutableRefObject<boolean>
@@ -854,10 +859,11 @@ function RecordsGrid({
   gm,
   rowOffset,
   focus,
-  rect,
+  rects,
   labelWidth,
   cellWidth,
   pick,
+  edit,
   drag,
   selectedRef,
   repeatRef,
@@ -867,6 +873,7 @@ function RecordsGrid({
   onEndReached,
 }: RecordsProps) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const live = rects.at(-1) ?? null
 
   // Both axes start inside the sticky chrome — the rows below the record
   // numbers, the records right of the column names — and both virtualisers are
@@ -942,7 +949,7 @@ function RecordsGrid({
   return (
     <div
       ref={scrollRef}
-      className={`isolate h-full overflow-auto font-[var(--font-mono)] ${drag.dragging ? 'select-none' : ''}`}
+      className="isolate h-full overflow-auto font-[var(--font-mono)] select-none"
     >
       <div style={{ width: totalWidth, minWidth: '100%' }}>
         {/* The record numbers. Sticky on both axes, so the number of the record
@@ -1015,18 +1022,19 @@ function RecordsGrid({
                     {cols.map((c) => {
                       const view = ed.cell(c.index, v.index)
                       const isFocus = focus?.row === c.index && focus.col === v.index
-                      const inRange = rect ? inRect(rect, c.index, v.index) : false
+                      const inRange = inAny(rects, c.index, v.index)
                       const cut = view.state !== 'dirty' && cutCells.has(`${c.index}:${v.index}`)
                       return (
                         <Fragment key={c.key}>
                           <div
                             ref={isFocus ? selectedRef : undefined}
                             onMouseDown={(e) => {
-                              pick(c.index, v.index, e.shiftKey)
+                              pick(c.index, v.index, e)
                               drag.start(e, c.index, v.index)
                             }}
                             onMouseEnter={() => drag.over(c.index, v.index)}
-                            onContextMenu={() => pick(c.index, v.index, false)}
+                            onDoubleClick={() => edit(c.index, v.index)}
+                            onContextMenu={() => pick(c.index, v.index)}
                             className={`absolute top-0 z-[1] truncate border-r border-b border-[var(--color-border)] px-2 hover:bg-[var(--color-accent-dim)]/25 ${
                               m.numeric ? 'text-right' : ''
                             } ${editCellClass(view.state, isFocus || inRange)}`}
@@ -1064,7 +1072,10 @@ function RecordsGrid({
               xs={colV.measurementsCache}
               top={gm.headerHeight}
               focus={focus && { y0: focus.col, y1: focus.col, x0: focus.row, x1: focus.row }}
-              range={rect && { y0: rect.left, y1: rect.right, x0: rect.top, x1: rect.bottom }}
+              range={live && { y0: live.left, y1: live.right, x0: live.top, x1: live.bottom }}
+              kept={rects
+                .slice(0, -1)
+                .map((r) => ({ y0: r.left, y1: r.right, x0: r.top, x1: r.bottom }))}
               borderBottom
             />
           </div>

@@ -19,10 +19,14 @@ export interface CellPos {
   col: number
 }
 
-/** A rectangle of cells, anchored where the selection started. */
+/**
+ * A rectangle of cells, anchored where the selection started, plus any ranges
+ * kept by Ctrl+click before it. Only the live range moves with the keys.
+ */
 export interface Selection {
   anchor: CellPos
   focus: CellPos
+  kept?: Rect[]
 }
 
 export interface Rect {
@@ -44,6 +48,86 @@ export function rectOf(sel: Selection): Rect {
 
 export function inRect(r: Rect, row: number, col: number): boolean {
   return row >= r.top && row <= r.bottom && col >= r.left && col <= r.right
+}
+
+/** Every range selected: the kept ones, then the live one. */
+export function rectsOf(sel: Selection): Rect[] {
+  return [...(sel.kept ?? []), rectOf(sel)]
+}
+
+export function inAny(rects: Rect[], row: number, col: number): boolean {
+  return rects.some((r) => inRect(r, row, col))
+}
+
+const span = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => a + i)
+
+/**
+ * The selected cells as one table with the gaps closed, when they make one.
+ *
+ * Ranges that line up — the same rows, or the same columns, or a checkerboard
+ * of both — collapse the way a spreadsheet collapses them. Cells that do not
+ * line up have no table shape, and come back null.
+ */
+export function gridOf(rects: Rect[]): { rows: number[]; cols: number[] } | null {
+  // One range is the common case and may be a whole result: no enumerating.
+  if (rects.length === 1) {
+    const [r] = rects
+    return { rows: span(r.top, r.bottom), cols: span(r.left, r.right) }
+  }
+  const cells = cellsOf(rects)
+  const rows = [...new Set(cells.map((c) => c.row))].sort((a, b) => a - b)
+  const cols = [...new Set(cells.map((c) => c.col))].sort((a, b) => a - b)
+  return cells.length === rows.length * cols.length ? { rows, cols } : null
+}
+
+/** The distinct selected cells, in reading order. */
+export function cellsOf(rects: Rect[]): CellPos[] {
+  const seen = new Set<string>()
+  const out: CellPos[] = []
+  for (const r of rects) {
+    for (let row = r.top; row <= r.bottom; row++) {
+      for (let col = r.left; col <= r.right; col++) {
+        const k = `${row}:${col}`
+        if (seen.has(k)) continue
+        seen.add(k)
+        out.push({ row, col })
+      }
+    }
+  }
+  return out.sort((a, b) => a.row - b.row || a.col - b.col)
+}
+
+/**
+ * What copying the selection produces, clamped to the result — one can be
+ * replaced under a selection by a smaller page or a narrower filter.
+ *
+ * A selection with a table shape copies as a table (see selectionText).
+ * Scattered cells have no columns to head and no rows to line up, so they copy
+ * one value per line, in reading order.
+ */
+export function copyOf(
+  sel: Selection,
+  names: string[],
+  data: Cell[][],
+): { text: string; what: string; rects: Rect[] } | null {
+  const rects = rectsOf(sel)
+    .map((r) => ({
+      top: Math.max(0, r.top),
+      left: Math.max(0, r.left),
+      bottom: Math.min(data.length - 1, r.bottom),
+      right: Math.min(names.length - 1, r.right),
+    }))
+    .filter((r) => r.bottom >= r.top && r.right >= r.left)
+  if (rects.length === 0) return null
+  const g = gridOf(rects)
+  if (g) {
+    const columns = g.cols.map((c) => names[c])
+    const rows = g.rows.map((r) => g.cols.map((c) => data[r][c]))
+    return { text: selectionText(columns, rows), what: describeCopy(columns, rows), rects }
+  }
+  const cells = cellsOf(rects)
+  const text = cells.map(({ row, col }) => data[row][col] ?? '').join('\n')
+  return { text, what: `Copied ${cells.length} scattered cells, one per line`, rects }
 }
 
 export function rectSize(r: Rect): { rows: number; cols: number; cells: number } {

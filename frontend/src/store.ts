@@ -19,7 +19,7 @@ import { absoluteRowOffset, cellText, isCellTruncated } from './cells'
 import { countOf, editsFor, removeTable, rowKeyOf, tableKey } from './edits'
 import { RECENT_LIMIT, refKey } from './recency'
 import { downloadText } from './dom'
-import { csv, describeCopy, rectOf, selectionText, type CellPos, type Selection } from './selection'
+import { copyOf, csv, inAny, rectOf, type CellPos, type Selection } from './selection'
 import { startFlushing } from './perf'
 import {
   INITIAL_EDIT_STATE,
@@ -378,6 +378,8 @@ export interface State extends EditState, EditActions {
   selectCell: (source: ResultSource, pos: CellPos) => void
   /** Moves the focus corner, keeping the anchor — shift-click, or shift+arrow. */
   extendSelection: (source: ResultSource, pos: CellPos) => void
+  /** Keeps what is selected and starts another range — a Ctrl+click. */
+  addRange: (source: ResultSource, pos: CellPos) => void
   /** Selects the whole result. */
   selectAll: (source: ResultSource) => void
   clearSelection: () => void
@@ -1372,6 +1374,12 @@ export const useStore = create<State>((set, get) => {
       set({ selection: { ...cur, focus: pos } })
     },
 
+    addRange(source, pos) {
+      const cur = get().selection
+      const kept = cur?.source === source ? [...(cur.kept ?? []), rectOf(cur)] : undefined
+      set({ selection: { source, anchor: pos, focus: pos, kept } })
+    },
+
     selectAll(source) {
       const rs = source === 'sql' ? activeSqlResult(get()) : get().result
       if (!rs || rs.rows.length === 0 || rs.columns.length === 0) return
@@ -1395,28 +1403,22 @@ export const useStore = create<State>((set, get) => {
       const rs = sel.source === 'sql' ? activeSqlResult(s) : s.result
       if (!rs) return
 
-      // Clamped, because a result can be replaced under a selection — a smaller
-      // page, or a filter that returned fewer rows.
-      const r = rectOf(sel)
-      const top = Math.max(0, r.top)
-      const left = Math.max(0, r.left)
-      const bottom = Math.min(rs.rows.length - 1, r.bottom)
-      const right = Math.min(rs.columns.length - 1, r.right)
-      if (bottom < top || right < left) return
-
-      const columns = rs.columns.slice(left, right + 1).map((c) => c.name)
-      const rows = rs.rows.slice(top, bottom + 1).map((row) => row.slice(left, right + 1))
-
-      await s.copyText(selectionText(columns, rows))
+      const copy = copyOf(
+        sel,
+        rs.columns.map((c) => c.name),
+        rs.rows,
+      )
+      if (!copy) return
+      await s.copyText(copy.text)
 
       // A capped value copied into an IN list is silently the wrong value, so
       // say so. The count matters more than which cells: the fix is the same
       // either way, open them and copy in full.
       let cut = 0
       for (const c of rs.truncatedCells ?? []) {
-        if (c.row >= top && c.row <= bottom && c.col >= left && c.col <= right) cut++
+        if (inAny(copy.rects, c.row, c.col)) cut++
       }
-      const what = describeCopy(columns, rows)
+      const what = copy.what
       if (cut > 0) {
         s.pushToast(
           'error',

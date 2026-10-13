@@ -856,3 +856,23 @@ Not built: inserting mid-array; editing an ad-hoc result; marking nodes for an e
 | Notifications | Toasts stack (`Toasts.tsx`, layout in `toasts.ts`): collapsed they peek out behind the newest, hover or focus fans them out and pauses every timer. An identical toast (same kind and message, no action) folds into one with a count ×N and moves to the front. Errors stay until dismissed; info auto-dismisses after `TOAST_MS` (4 s). A "Clear all" pill appears over the stack, and the palette has "Clear all notifications" |
 | Focus follows the panes | `paneFocus.ts`. Each pane marks a focus home (`data-focus-home`: picker list, table search, tray header). Opening the tab strip or tray focuses its home; closing one returns focus to the main pane |
 | Focus lost to the background | A click on empty background leaves `document.body` focused. List keys, Enter and a printable key are handed to the main pane's home (`recoverFocus`), so the picker list keeps answering after a stray click. Skipped while a palette or dialog is open |
+
+## 2026-10-13 — the grid selects cells, never text
+
+### Brief
+
+> When I select a cell and trigger the edit cell action … when I press ctrl+a it selects all the text in the table. I don't really want to be selecting text on the table.
+
+Reverses the 2026-08-26 double-click entry and the in-cell drag of the drag entry: the grid is a grid of cells, and reading part of a value is the cell viewer's job.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Text selection | None anywhere in the grid (`select-none`). The inline editor is the one exception |
+| Double-click | Edits the cell (`startEdit`). On an ad-hoc result, with no table behind it, it opens the cell viewer |
+| Shift+click | Extends the live range |
+| Ctrl+click | Keeps what is selected and starts a new range there. Ctrl+drag adds a dragged range. Shift+click after it extends the new range |
+| Ctrl+A while the inline editor is open | Selects the editor's text, even if it lost focus |
+| Copying several ranges | If the cells line up as a table once the gaps are closed (same rows, same columns, or a checkerboard of both) they copy as that table, under the usual one-cell / IN list / CSV rule. Otherwise one value per line in reading order, and the toast says so |
+| Edits on several ranges | Not built: F2, Ctrl+Backspace and the menu act on the live range only |

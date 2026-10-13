@@ -12,6 +12,8 @@ interface Props {
 
 const MAX_ROWS = 8
 
+export const CELL_EDITOR_LABEL = 'Edit cell'
+
 /**
  * The inline editor for one cell, laid over it.
  *
@@ -55,7 +57,7 @@ export function CellEditor({ text, left, width, height }: Props) {
       value={value}
       rows={1}
       spellCheck={false}
-      aria-label="Edit cell"
+      aria-label={CELL_EDITOR_LABEL}
       onChange={(e) => {
         typed.current = true
         setValue(e.target.value)
@@ -79,7 +81,7 @@ export function CellEditor({ text, left, width, height }: Props) {
       }}
       // The grid's row menu would otherwise replace the field's own copy/paste.
       onContextMenu={(e) => e.stopPropagation()}
-      className="absolute top-0 z-[5] resize-none rounded-sm bg-[var(--color-elevated)] px-2 text-[var(--color-text)] ring-2 ring-[var(--color-accent)] outline-none"
+      className="absolute top-0 z-[5] resize-none select-text rounded-sm bg-[var(--color-elevated)] px-2 text-[var(--color-text)] ring-2 ring-[var(--color-accent)] outline-none"
       style={{
         left,
         width: Math.max(width, 224),

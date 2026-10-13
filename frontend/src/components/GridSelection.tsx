@@ -37,11 +37,21 @@ interface Props {
   top: number
   focus: CellSpan | null
   range: CellSpan | null
+  /** Ranges kept by Ctrl+click. Drawn still: only the live range glides. */
+  kept?: CellSpan[]
   /** Cells carry a bottom border as well as a right one. */
   borderBottom?: boolean
 }
 
-export function GridSelection({ ys, xs, top, focus, range, borderBottom = false }: Props) {
+export function GridSelection({
+  ys,
+  xs,
+  top,
+  focus,
+  range,
+  kept = [],
+  borderBottom = false,
+}: Props) {
   const f = focus && boxOf(ys, xs, focus, top)
   const r = range && boxOf(ys, xs, range, top)
   // A one-cell range is the focus alone; it stays placed, invisibly, so that
@@ -57,6 +67,14 @@ export function GridSelection({ ys, xs, top, focus, range, borderBottom = false 
   const focusRef = useGlide(ring, layout)
   return (
     <>
+      {kept.map((k, i) => (
+        <div
+          key={i}
+          aria-hidden
+          className="highlight-pill bg-[var(--color-accent-dim)]/30"
+          style={place(boxOf(ys, xs, k, top), true)}
+        />
+      ))}
       <div
         ref={rangeRef}
         aria-hidden
