@@ -798,7 +798,7 @@ function ColumnResizer({
       // snapping back, the same as the panel handles.
       onPointerCancel={() => setDragging(false)}
       onDoubleClick={onFit}
-      className={`absolute top-0 z-20 w-1.5 -translate-x-1/2 rounded-full transition-colors duration-150 hover:bg-[var(--color-accent)] ${
+      className={`absolute top-0 z-20 w-1.5 -translate-x-1/2 rounded-full transition-colors duration-[calc(150ms*var(--motion))] hover:bg-[var(--color-accent)] ${
         draggable ? 'cursor-col-resize' : 'cursor-default'
       } ${dragging ? 'bg-[var(--color-accent)]' : ''}`}
       style={{ left, height }}

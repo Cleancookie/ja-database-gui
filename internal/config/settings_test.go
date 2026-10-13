@@ -65,34 +65,35 @@ func TestSavedTextCapSurvivesADefaultChange(t *testing.T) {
 	}
 }
 
-// 0 ms is a real choice (no animation), so it must survive, while a file
-// written before the setting existed must get the default rather than 0.
-func TestDrawerDurationKeepsZeroButDefaultsWhenAbsent(t *testing.T) {
+// 0 is a real choice (no animation), so it must survive, while a file that
+// never chose must stay nil and follow the OS.
+func TestAnimationScaleKeepsZeroAndFollowsSystemWhenAbsent(t *testing.T) {
 	dir := t.TempDir()
-	zero := filepath.Join(dir, "zero.json")
-	if err := os.WriteFile(zero, []byte(`{"drawerDurationMs":0}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	store, err := OpenSettings(zero)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := store.Get().DrawerDurationMs; got != 0 {
-		t.Errorf("a chosen 0 became %d", got)
-	}
-
-	older := filepath.Join(dir, "older.json")
-	if err := os.WriteFile(older, []byte(`{"fontSizePx":16}`), 0o600); err != nil {
-		t.Fatal(err)
-	}
-	store, err = OpenSettings(older)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := store.Get().DrawerDurationMs; got != DefaultSettings().DrawerDurationMs {
-		t.Errorf("a file predating the setting got %d, want the default", got)
+	for _, c := range []struct {
+		file string
+		want *float64
+	}{
+		{`{"animationScale":0}`, fptr(0)},
+		{`{"animationScale":0.5}`, fptr(0.5)},
+		{`{"animationScale":-1}`, nil},
+		{`{"fontSizePx":16}`, nil},
+	} {
+		path := filepath.Join(dir, "s.json")
+		if err := os.WriteFile(path, []byte(c.file), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		store, err := OpenSettings(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := store.Get().AnimationScale
+		if (got == nil) != (c.want == nil) || (got != nil && *got != *c.want) {
+			t.Errorf("%s: got %v, want %v", c.file, got, c.want)
+		}
 	}
 }
+
+func fptr(v float64) *float64 { return &v }
 
 // A theme id is a CSS selector on the other side, so an unknown one leaves the
 // UI with no palette at all — a settings file from a newer build, or a typo in

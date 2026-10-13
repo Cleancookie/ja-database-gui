@@ -552,7 +552,7 @@ Almost all of a session was spent in the main pane; the sidebar was used for the
 | Scroll and selection | The grid scrolls to the top and clears the selection when the *column list* changes, not when rows are appended |
 | Limits | Stops at `rowCap`. The total is not re-counted on append |
 | Page controls | Hidden; the bar says Scroll for more / Loading more… / End of results. the page commands are inert |
-| Drawer speed | Setting `drawerDurationMs` (0–2000, default 260, 0 is off), applied as `--drawer-duration` and previewed live in Settings. The tab strip and the activity tray both use it |
+| Drawer speed | Superseded 2026-10-13 by the animation scale |
 
 ## 2026-10-01 — paging by position
 
@@ -876,3 +876,15 @@ Reverses the 2026-08-26 double-click entry and the in-cell drag of the drag entr
 | Ctrl+A while the inline editor is open | Selects the editor's text, even if it lost focus |
 | Copying several ranges | One table of every row and column the ranges touch, gaps closed, under the usual one-cell / IN list / CSV rule. A cell in it that was not selected copies as an empty field, so scattered cells keep their own row and column |
 | Edits on several ranges | Not built: F2, Ctrl+Backspace and the menu act on the live range only |
+
+## 2026-10-13 — animation scale
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Setting | `animationScale` replaces `drawerDurationMs`. It multiplies every duration in the app (`--motion` in `index.css`, `motion.ts`): 1× default, 0.5× twice as fast, 0× off, up to 4× |
+| OS reduced motion | Unset (`System`) follows it: 0× when reduced motion is on, else 1×. Any chosen scale overrides it, so a user can turn animations back up |
+| Indeterminate progress | Not scaled: it shows that work is running. At 0× it slows to 3 s, as reduced motion did before |
+| Docked tray | Slides open and shut on `--drawer-duration`, like the floating one |
+| Old setting | A saved `drawerDurationMs` is ignored; the scale starts at System |

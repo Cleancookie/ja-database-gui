@@ -396,8 +396,8 @@ export interface Settings {
   openListHeightPx: number
   /** Whether the tab strip is hidden (Ctrl+B). */
   tabStripHidden: boolean
-  /** Slide time of the tab strip and the activity tray, in ms. 0 is instant. */
-  drawerDurationMs: number
+  /** Multiplies every animation's duration; 0 is off. Null follows the OS. */
+  animationScale: number | null
   /** Load the next page when the last row scrolls into view. */
   infiniteScroll: boolean
   /** Feature flag: the activity tray takes its own row instead of floating over the panes. */

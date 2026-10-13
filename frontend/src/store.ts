@@ -72,6 +72,7 @@ import type {
 } from './types'
 import { isPasswordRequired, needsPasswordPrompt } from './secrets'
 import { addToast } from './toasts'
+import { applyMotion } from './motion'
 
 export const PAGE_SIZES = [50, 100, 200, 500, 1000] as const
 
@@ -164,7 +165,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sqlEditorHeightPx: 160,
   openListHeightPx: 160,
   tabStripHidden: false,
-  drawerDurationMs: 260,
+  animationScale: null,
   infiniteScroll: false,
   dockedBottomPane: false,
 }
@@ -1965,6 +1966,6 @@ useStore.subscribe((s, prev) => {
  */
 function applyAppearance(s: Settings) {
   document.documentElement.style.fontSize = `${s.fontSizePx}px`
-  document.documentElement.style.setProperty('--drawer-duration', `${s.drawerDurationMs}ms`)
+  applyMotion(s.animationScale)
   applyTheme(s.theme)
 }

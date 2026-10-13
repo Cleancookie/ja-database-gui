@@ -49,7 +49,7 @@ export function Toasts() {
       )}
       <div className="max-h-[calc(100vh-5rem)] w-full overflow-x-hidden overflow-y-auto">
         <div
-          className="relative w-full transition-[height] duration-200 ease-[var(--ease-snap)]"
+          className="relative w-full transition-[height] duration-[calc(200ms*var(--motion))] ease-[var(--ease-snap)]"
           style={{ height: total }}
         >
           {order.map((t, i) => (
@@ -110,7 +110,7 @@ function ToastCard({
       role={error ? 'alert' : 'status'}
       aria-hidden={!card.visible}
       inert={!card.visible || behind}
-      className={`absolute right-0 bottom-0 left-0 origin-top overflow-hidden rounded-2xl border shadow-lg transition-[transform,height,opacity] duration-300 ease-[var(--ease-snap)] ${
+      className={`absolute right-0 bottom-0 left-0 origin-top overflow-hidden rounded-2xl border shadow-lg transition-[transform,height,opacity] duration-[calc(300ms*var(--motion))] ease-[var(--ease-snap)] ${
         error
           ? 'border-[var(--color-danger)] bg-[var(--color-danger-dim)]'
           : 'border-[var(--color-border)] bg-[var(--color-elevated)]'
@@ -124,7 +124,7 @@ function ToastCard({
     >
       <div
         ref={body}
-        className={`animate-slide-in flex items-start gap-2 px-4 py-3 transition-opacity duration-200 ${behind ? 'opacity-0' : ''}`}
+        className={`animate-slide-in flex items-start gap-2 px-4 py-3 transition-opacity duration-[calc(200ms*var(--motion))] ${behind ? 'opacity-0' : ''}`}
       >
         <span
           className={`flex-1 font-[var(--font-mono)] leading-relaxed break-words ${

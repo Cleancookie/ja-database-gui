@@ -204,7 +204,7 @@ export const ObjectList = memo(function ObjectList({
                         >
                           <span
                             aria-hidden
-                            className={`transition-transform duration-150 motion-reduce:transition-none ${
+                            className={`transition-transform duration-[calc(150ms*var(--motion))] ${
                               folded.has(row.type) && !query ? '' : 'rotate-90'
                             }`}
                           >

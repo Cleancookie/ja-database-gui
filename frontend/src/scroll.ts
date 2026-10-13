@@ -9,6 +9,8 @@
  * per axis, so both orientations share it and it can be tested without a DOM.
  */
 
+import { motionOff } from './motion'
+
 /** One axis of the scroll element, in content coordinates. */
 export interface Viewport {
   /** Current scroll offset — `scrollTop` or `scrollLeft`. */
@@ -67,11 +69,6 @@ export function worthAnimating(delta: number, length: number): boolean {
   return Math.abs(delta) <= length * 2
 }
 
-/** Whether the user has asked for less movement. */
-export function reducedMotion(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-}
-
 /** A correction to make, on both axes, with why it is being made. */
 export interface Correction {
   dy: number
@@ -113,7 +110,7 @@ export function scrollTo(el: HTMLElement, top: number, left: number, repeat = fa
   if (dy === 0 && dx === 0) return
   const smooth = smoothly(
     { dy, dx, height: el.clientHeight, width: el.clientWidth, repeat },
-    reducedMotion(),
+    motionOff(),
   )
   el.scrollTo({ top, left, behavior: smooth ? 'smooth' : 'auto' })
 }

@@ -132,7 +132,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
       className={`shrink-0 overflow-hidden ${
         resize.dragging
           ? ''
-          : 'transition-[width,margin,visibility] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none'
+          : 'transition-[width,margin,visibility] duration-(--drawer-duration) ease-(--ease-snap)'
       } ${open ? 'visible' : 'invisible'}`}
     >
       <aside
@@ -140,7 +140,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
         className={`chrome island relative flex h-full flex-col ${
           resize.dragging
             ? ''
-            : 'transition-transform duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none'
+            : 'transition-transform duration-(--drawer-duration) ease-(--ease-snap)'
         } ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
         <Resizer {...resize} axis="x" label="Resize the tab strip" className="right-0" />
@@ -178,7 +178,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
                 content's own height, which `height: auto` cannot. */}
               <div
                 inert={folded}
-                className={`grid min-h-0 transition-[grid-template-rows,opacity,margin] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
+                className={`grid min-h-0 transition-[grid-template-rows,opacity,margin] duration-(--drawer-duration) ease-(--ease-snap) ${
                   folded ? 'grid-rows-[0fr] opacity-0' : 'mt-1 grid-rows-[1fr]'
                 }`}
               >

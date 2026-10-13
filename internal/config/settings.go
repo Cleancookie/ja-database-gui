@@ -62,9 +62,9 @@ type Settings struct {
 	OpenListHeightPx int `json:"openListHeightPx"`
 	// TabStripHidden hides the tab strip down the left edge (Ctrl+B).
 	TabStripHidden bool `json:"tabStripHidden"`
-	// DrawerDurationMs is how long the tab strip and the activity tray take to
-	// slide. 0 turns the animation off.
-	DrawerDurationMs int `json:"drawerDurationMs"`
+	// AnimationScale multiplies every animation's duration: 0.5 is twice as
+	// fast, 0 is off. Nil follows the OS reduced-motion preference.
+	AnimationScale *float64 `json:"animationScale"`
 	// InfiniteScroll loads the next page below the last when it scrolls into
 	// view, in place of the page controls.
 	InfiniteScroll bool `json:"infiniteScroll"`
@@ -72,6 +72,9 @@ type Settings struct {
 	// under the panes instead of floating over them.
 	DockedBottomPane bool `json:"dockedBottomPane"`
 }
+
+// MaxAnimationScale is as slow as animations go: 4× is for watching one.
+const MaxAnimationScale = 4
 
 // DefaultSettings is also the fallback for any field missing from disk.
 func DefaultSettings() Settings {
@@ -91,7 +94,6 @@ func DefaultSettings() Settings {
 		TrayHeightPx:       260,
 		SqlEditorHeightPx:  160,
 		OpenListHeightPx:   160,
-		DrawerDurationMs:   260,
 	}
 }
 
@@ -126,10 +128,8 @@ func (s Settings) clamp() Settings {
 	if s.OpenListHeightPx < 48 || s.OpenListHeightPx > 720 {
 		s.OpenListHeightPx = d.OpenListHeightPx
 	}
-	// 0 is meaningful for the drawer too — no animation — so only a negative or
-	// absurd duration falls back.
-	if s.DrawerDurationMs < 0 || s.DrawerDurationMs > 2000 {
-		s.DrawerDurationMs = d.DrawerDurationMs
+	if a := s.AnimationScale; a != nil && !(*a >= 0 && *a <= MaxAnimationScale) {
+		s.AnimationScale = nil
 	}
 	// 0 is meaningful here — it means "do not cap" — so only a negative or
 	// absurd value falls back.

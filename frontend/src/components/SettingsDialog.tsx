@@ -5,6 +5,7 @@ import { dialogButton, FormDialog } from '../ui'
 import type { Settings } from '../types'
 import { Highlight } from './Highlight'
 import { HOVER_PILL, PILL } from './sidebar/listKit'
+import { applyMotion } from '../motion'
 
 /**
  * Settings, reachable with Ctrl+, or from the palette.
@@ -53,13 +54,13 @@ export function SettingsDialog() {
     // the whole question is what it looks like behind this dialog.
     if (p.fontSizePx != null) document.documentElement.style.fontSize = `${p.fontSizePx}px`
     if (p.theme != null) applyTheme(p.theme)
-    if (p.drawerDurationMs != null) setDrawerDuration(p.drawerDurationMs)
+    if ('animationScale' in p) applyMotion(next.animationScale)
   }
 
   const cancel = () => {
     document.documentElement.style.fontSize = `${saved.fontSizePx}px`
     applyTheme(saved.theme)
-    setDrawerDuration(saved.drawerDurationMs)
+    applyMotion(saved.animationScale)
     setDialog({ kind: 'none' })
   }
 
@@ -176,18 +177,24 @@ export function SettingsDialog() {
 
           <Group label="Behaviour">
             <Row
-              label="Drawer animation"
-              hint="Milliseconds the tab strip and the activity tray take to slide. 0 turns it off."
+              label="Animation scale"
+              hint="Multiplies how long every animation takes. 0.5× is twice as fast, 0× is off. System is off when the OS asks for reduced motion, else 1×."
               control={
-                <input
-                  type="number"
-                  min={0}
-                  max={2000}
-                  step="any"
-                  value={draft.drawerDurationMs}
-                  onChange={(e) => patch({ drawerDurationMs: Number(e.target.value) })}
-                  className={`${selectClass} w-28 text-right`}
-                />
+                <select
+                  value={String(draft.animationScale)}
+                  onChange={(e) =>
+                    patch({
+                      animationScale: e.target.value === 'null' ? null : Number(e.target.value),
+                    })
+                  }
+                  className={selectClass}
+                >
+                  {ANIMATION_SCALES.map((k) => (
+                    <option key={String(k)} value={String(k)}>
+                      {k == null ? 'System' : `${k}×`}
+                    </option>
+                  ))}
+                </select>
               }
             />
           </Group>
@@ -326,10 +333,8 @@ export function SettingsDialog() {
   )
 }
 
-/** Applied live, like the font size, so the effect can be seen before Save. */
-function setDrawerDuration(ms: number) {
-  document.documentElement.style.setProperty('--drawer-duration', `${Math.max(0, ms || 0)}ms`)
-}
+/** The scales offered; null follows the OS reduced-motion preference. */
+const ANIMATION_SCALES = [null, 0, 0.25, 0.5, 1, 1.5, 2, 4] as const
 
 const SECTIONS = [
   'Appearance',

@@ -132,12 +132,14 @@
   --ease-snap: cubic-bezier(0.2, 0, 0, 1);
   --ease-spring: cubic-bezier(0.34, 1.4, 0.5, 1);
 
+  /* Every duration is multiplied by --motion, the animation scale (motion.ts). */
   /* How long a drawer — the tab strip, the activity tray — takes to slide. */
-  --drawer-duration: 260ms;
+  --drawer-duration: calc(260ms * var(--motion));
+  --default-transition-duration: calc(150ms * var(--motion));
 
-  --animate-pop-in: pop-in 200ms var(--ease-spring) both;
-  --animate-fade-in: fade-in 140ms var(--ease-snap) both;
-  --animate-slide-in: slide-in 260ms var(--ease-spring) both;
+  --animate-pop-in: pop-in calc(200ms * var(--motion)) var(--ease-spring) both;
+  --animate-fade-in: fade-in calc(140ms * var(--motion)) var(--ease-snap) both;
+  --animate-slide-in: slide-in calc(260ms * var(--motion)) var(--ease-spring) both;
 
   /*
    * One type size for the whole interface.
@@ -166,6 +168,11 @@
   --text-xl--line-height: 1.4;
   --text-2xl--line-height: 1.4;
   --text-3xl--line-height: 1.4;
+}
+
+/* The animation scale, set from the settings by motion.ts. */
+:root {
+  --motion: 1;
 }
 
 /*
@@ -603,11 +610,11 @@
   [role='menuitem'],
   [role='option'] {
     transition:
-      background-color 130ms var(--ease-snap),
-      border-color 130ms var(--ease-snap),
-      color 130ms var(--ease-snap),
-      box-shadow 130ms var(--ease-snap),
-      opacity 130ms var(--ease-snap);
+      background-color calc(130ms * var(--motion)) var(--ease-snap),
+      border-color calc(130ms * var(--motion)) var(--ease-snap),
+      color calc(130ms * var(--motion)) var(--ease-snap),
+      box-shadow calc(130ms * var(--motion)) var(--ease-snap),
+      opacity calc(130ms * var(--motion)) var(--ease-snap);
   }
 
   /*
@@ -617,7 +624,7 @@
    */
   button:not(:disabled):active {
     transform: scale(0.985);
-    transition: transform 40ms var(--ease-snap);
+    transition: transform calc(40ms * var(--motion)) var(--ease-snap);
   }
 
   /*
@@ -728,7 +735,7 @@
   }
 }
 .animate-pop-in-centred {
-  animation: pop-in-centred 220ms var(--ease-spring) both;
+  animation: pop-in-centred calc(220ms * var(--motion)) var(--ease-spring) both;
 }
 
 /*
@@ -748,15 +755,15 @@
   left: 0;
   z-index: 0;
   pointer-events: none;
-  transition: opacity 160ms var(--ease-snap);
+  transition: opacity calc(160ms * var(--motion)) var(--ease-snap);
 }
 .highlight-pill-moves {
-  --glide: 300ms var(--ease-spring);
+  --glide: calc(300ms * var(--motion)) var(--ease-spring);
   transition:
     transform var(--glide),
     width var(--glide),
     height var(--glide),
-    opacity 160ms var(--ease-snap);
+    opacity calc(160ms * var(--motion)) var(--ease-snap);
 }
 /*
  * The grid's selection (components/GridSelection.tsx) glides faster and
@@ -764,20 +771,12 @@
  * trailed it by a third of a second would read as lag.
  */
 .grid-glide.highlight-pill-moves {
-  --glide: 130ms var(--ease-snap);
+  --glide: calc(130ms * var(--motion)) var(--ease-snap);
 }
 
-@media (prefers-reduced-motion: reduce) {
+[data-motion='off'] {
   .indeterminate::after {
     animation-duration: 3s;
-  }
-  /* Entrances are decoration; nothing in the app depends on having seen one. */
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
   }
   button:not(:disabled):active {
     transform: none;
