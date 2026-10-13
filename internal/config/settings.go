@@ -68,6 +68,9 @@ type Settings struct {
 	// InfiniteScroll loads the next page below the last when it scrolls into
 	// view, in place of the page controls.
 	InfiniteScroll bool `json:"infiniteScroll"`
+	// DockedBottomPane is a feature flag: the activity tray takes its own row
+	// under the panes instead of floating over them.
+	DockedBottomPane bool `json:"dockedBottomPane"`
 }
 
 // DefaultSettings is also the fallback for any field missing from disk.

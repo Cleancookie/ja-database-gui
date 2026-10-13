@@ -166,6 +166,7 @@ export const DEFAULT_SETTINGS: Settings = {
   tabStripHidden: false,
   drawerDurationMs: 260,
   infiniteScroll: false,
+  dockedBottomPane: false,
 }
 
 export interface State extends EditState, EditActions {

@@ -306,6 +306,20 @@ export function SettingsDialog() {
               }
             />
           </Group>
+
+          <Group label="Feature flags">
+            <Row
+              label="Docked bottom pane"
+              hint="The activity tray takes its own row beside the other panes instead of floating over them"
+              control={
+                <input
+                  type="checkbox"
+                  checked={draft.dockedBottomPane}
+                  onChange={(e) => patch({ dockedBottomPane: e.target.checked })}
+                />
+              }
+            />
+          </Group>
         </div>
       </div>
     </FormDialog>
@@ -317,7 +331,14 @@ function setDrawerDuration(ms: number) {
   document.documentElement.style.setProperty('--drawer-duration', `${Math.max(0, ms || 0)}ms`)
 }
 
-const SECTIONS = ['Appearance', 'Behaviour', 'Browsing', 'Catalogue', 'Safety'] as const
+const SECTIONS = [
+  'Appearance',
+  'Behaviour',
+  'Browsing',
+  'Catalogue',
+  'Safety',
+  'Feature flags',
+] as const
 
 const selectClass =
   'rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-panel)] px-2 py-1 outline-none'

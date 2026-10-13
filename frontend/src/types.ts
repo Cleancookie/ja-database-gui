@@ -400,6 +400,8 @@ export interface Settings {
   drawerDurationMs: number
   /** Load the next page when the last row scrolls into view. */
   infiniteScroll: boolean
+  /** Feature flag: the activity tray takes its own row instead of floating over the panes. */
+  dockedBottomPane: boolean
 }
 
 /**

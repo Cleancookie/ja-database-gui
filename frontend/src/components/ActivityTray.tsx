@@ -60,6 +60,7 @@ export function ActivityTray() {
   const polledAt = useStore((s) => s.activityPolledAt)
   const inFlight = useStore((s) => s.inFlight)
   const open = useStore((s) => s.trayOpen)
+  const docked = useStore((s) => s.settings.dockedBottomPane)
   const setTrayOpen = useStore((s) => s.setTrayOpen)
   const refresh = useStore((s) => s.refreshActivity)
   const clearHistory = useStore((s) => s.clearQueryHistory)
@@ -88,80 +89,64 @@ export function ActivityTray() {
       : `${status.running} running · ${formatDuration(status.longestMs)}` +
         (status.cancelling > 0 ? ` · ${status.cancelling} cancelling` : '')
 
-  return (
-    <div data-pane="tray" className="chrome relative shrink-0">
-      {/* A zero-height line along the top of the strip that clips everything
-          below it, so a closed drawer slides *into* the strip rather than over
-          it. Open to the top and sides so the shadow is not cut off.
-          z-30: above the grid's sticky headers (z-20), below dialogs (z-40). */}
-      <div className="absolute inset-x-0 bottom-full z-30 h-0 [clip-path:inset(-100vh_-2rem_0_-2rem)]">
-        <div
-          // Height is inline because it is dragged. Capped by the viewport as
-          // well as by the setting: a height saved on a large monitor must not
-          // bury the grid on a small one.
-          style={{ height: `min(${resize.size}px, 80vh)` }}
-          // Always mounted so it can slide back down; `invisible` takes it out of
-          // the tab order and hit-testing once it has finished closing.
-          className={`island absolute inset-x-2 bottom-0 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)] transition-[translate,visibility] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
-            open ? 'visible translate-y-0' : 'invisible translate-y-[calc(100%+0.25rem)]'
-          }`}
-          aria-hidden={!open}
+  const body = (
+    <>
+      {/* Dragging the top edge upwards makes the tray taller, hence invert. */}
+      <Resizer {...resize} axis="y" invert label="Resize the activity tray" className="top-0" />
+      {/* Column widths are repeated in QueryRow. Fixed rather than a grid
+        so a row appearing cannot shift the columns of the rest. */}
+      <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border)] px-3 py-1 tracking-wider text-[var(--color-faint)] uppercase">
+        <span className="w-12 shrink-0">ID</span>
+        <span className="w-16 shrink-0">Kind</span>
+        <span className="w-32 shrink-0">Status</span>
+        <span className="w-24 shrink-0">Where</span>
+        <span className="min-w-0 flex-1">Query</span>
+        <span className="w-14 shrink-0" />
+        <span className="w-14 shrink-0 text-right">Time</span>
+        <button
+          onClick={() => void clearHistory()}
+          disabled={status.finished === 0}
+          className="w-16 shrink-0 rounded-full py-0.5 tracking-normal normal-case disabled:opacity-30 enabled:hover:bg-[var(--color-elevated)] enabled:hover:text-[var(--color-text)]"
         >
-          {/* Dragging the top edge upwards makes the tray taller, hence invert. */}
-          <Resizer {...resize} axis="y" invert label="Resize the activity tray" className="top-0" />
-          {/* Column widths are repeated in QueryRow. Fixed rather than a grid
-              so a row appearing cannot shift the columns of the rest. */}
-          <div className="flex shrink-0 items-center gap-2 border-b border-[var(--color-border)] px-3 py-1 tracking-wider text-[var(--color-faint)] uppercase">
-            <span className="w-12 shrink-0">ID</span>
-            <span className="w-16 shrink-0">Kind</span>
-            <span className="w-32 shrink-0">Status</span>
-            <span className="w-24 shrink-0">Where</span>
-            <span className="min-w-0 flex-1">Query</span>
-            <span className="w-14 shrink-0" />
-            <span className="w-14 shrink-0 text-right">Time</span>
-            <button
-              onClick={() => void clearHistory()}
-              disabled={status.finished === 0}
-              className="w-16 shrink-0 rounded-full py-0.5 tracking-normal normal-case disabled:opacity-30 enabled:hover:bg-[var(--color-elevated)] enabled:hover:text-[var(--color-text)]"
-            >
-              Clear log
-            </button>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            {queries.length === 0 ? (
-              <p className="px-3 py-4 text-center text-[var(--color-faint)]">No queries yet</p>
-            ) : (
-              <ul className="flex flex-col">
-                {shown.map((q) => {
-                  // Only a running row's timer moves. Handing the clock to
-                  // finished rows would re-render all of them every tick.
-                  const running = isRunning(q)
-                  return (
-                    <QueryRow
-                      key={q.id}
-                      query={q}
-                      name={names.get(q.connectionId) ?? q.connectionId}
-                      polledAt={running ? polledAt : 0}
-                      now={running ? now : 0}
-                    />
-                  )
-                })}
-              </ul>
-            )}
-            {shown.length < queries.length && (
-              <button
-                onClick={() => setShowAll(true)}
-                className="w-full border-t border-[var(--color-border)] py-1.5 text-center text-[var(--color-faint)] hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)]"
-              >
-                Show {queries.length - shown.length} older
-              </button>
-            )}
-          </div>
-        </div>
+          Clear log
+        </button>
       </div>
-
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {queries.length === 0 ? (
+          <p className="px-3 py-4 text-center text-[var(--color-faint)]">No queries yet</p>
+        ) : (
+          <ul className="flex flex-col">
+            {shown.map((q) => {
+              // Only a running row's timer moves. Handing the clock to
+              // finished rows would re-render all of them every tick.
+              const running = isRunning(q)
+              return (
+                <QueryRow
+                  key={q.id}
+                  query={q}
+                  name={names.get(q.connectionId) ?? q.connectionId}
+                  polledAt={running ? polledAt : 0}
+                  now={running ? now : 0}
+                />
+              )
+            })}
+          </ul>
+        )}
+        {shown.length < queries.length && (
+          <button
+            onClick={() => setShowAll(true)}
+            className="w-full border-t border-[var(--color-border)] py-1.5 text-center text-[var(--color-faint)] hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)]"
+          >
+            Show {queries.length - shown.length} older
+          </button>
+        )}
+      </div>
+    </>
+  )
+  const strip = (
+    <>
       {/* The strip is one button so the whole width is a hit target, with the
-          staged-changes status beside it: a button cannot hold buttons. */}
+        staged-changes status beside it: a button cannot hold buttons. */}
       <div className="flex h-6 items-stretch">
         <button
           onClick={() => setTrayOpen(!open)}
@@ -184,7 +169,7 @@ export function ActivityTray() {
           </span>
           {status.running > 0 && <IndeterminateBar className="ml-1 h-[3px] w-24 rounded-full" />}
           {/* Only says anything in the browser transport, where knowing you are
-            not in the real app is worth a few pixels. */}
+          not in the real app is worth a few pixels. */}
           {transportName === 'http' && (
             <span className="ml-auto text-[var(--color-warn)]">dev (browser)</span>
           )}
@@ -198,6 +183,53 @@ export function ActivityTray() {
         </button>
         <ChangesStatus />
       </div>
+    </>
+  )
+
+  if (docked) {
+    // Its own row under the panes, an island like them: opening it shrinks the
+    // main pane and the sidebar instead of covering them.
+    return (
+      <div data-pane="tray" className="shrink-0 px-2 pb-2">
+        <div className="island chrome flex flex-col">
+          <div
+            style={{ height: open ? `min(${resize.size}px, 50vh)` : 0 }}
+            className="relative flex flex-col overflow-hidden"
+            aria-hidden={!open}
+            inert={!open}
+          >
+            {body}
+          </div>
+          {strip}
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div data-pane="tray" className="chrome relative shrink-0">
+      {/* A zero-height line along the top of the strip that clips everything
+          below it, so a closed drawer slides *into* the strip rather than over
+          it. Open to the top and sides so the shadow is not cut off.
+          z-30: above the grid's sticky headers (z-20), below dialogs (z-40). */}
+      <div className="absolute inset-x-0 bottom-full z-30 h-0 [clip-path:inset(-100vh_-2rem_0_-2rem)]">
+        <div
+          // Height is inline because it is dragged. Capped by the viewport as
+          // well as by the setting: a height saved on a large monitor must not
+          // bury the grid on a small one.
+          style={{ height: `min(${resize.size}px, 80vh)` }}
+          // Always mounted so it can slide back down; `invisible` takes it out of
+          // the tab order and hit-testing once it has finished closing.
+          className={`island absolute inset-x-2 bottom-0 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)] transition-[translate,visibility] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
+            open ? 'visible translate-y-0' : 'invisible translate-y-[calc(100%+0.25rem)]'
+          }`}
+          aria-hidden={!open}
+        >
+          {body}
+        </div>
+      </div>
+
+      {strip}
     </div>
   )
 }
