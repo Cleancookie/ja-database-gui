@@ -641,8 +641,10 @@ function Grid({
                         >
                           <CellBody view={view} cut={cut} />
                         </div>
-                        {isFocus &&
-                          ed.editing?.mode === 'inline' &&
+                        {/* Mounted by the edit, not the focus: clicking another
+                        cell moves the focus first, and an editor unmounted
+                        before its blur would drop what was typed. */}
+                        {ed.editing?.mode === 'inline' &&
                           ed.editing.row === v.index &&
                           ed.editing.col === ci && (
                             <CellEditor
@@ -1048,8 +1050,7 @@ function RecordsGrid({
                           >
                             <CellBody view={view} cut={cut} />
                           </div>
-                          {isFocus &&
-                            ed.editing?.mode === 'inline' &&
+                          {ed.editing?.mode === 'inline' &&
                             ed.editing.row === c.index &&
                             ed.editing.col === v.index && (
                               <CellEditor
