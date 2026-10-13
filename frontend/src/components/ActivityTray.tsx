@@ -194,7 +194,12 @@ export function ActivityTray() {
         <div className="island chrome flex flex-col">
           <div
             style={{ height: open ? `min(${resize.size}px, 50vh)` : 0 }}
-            className="relative flex flex-col overflow-hidden"
+            // No transition mid-drag, or the edge lags behind the pointer.
+            className={`relative flex flex-col overflow-hidden ${
+              resize.dragging
+                ? ''
+                : 'transition-[height] duration-(--drawer-duration) ease-(--ease-snap)'
+            }`}
             aria-hidden={!open}
             inert={!open}
           >
@@ -220,7 +225,7 @@ export function ActivityTray() {
           style={{ height: `min(${resize.size}px, 80vh)` }}
           // Always mounted so it can slide back down; `invisible` takes it out of
           // the tab order and hit-testing once it has finished closing.
-          className={`island absolute inset-x-2 bottom-0 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)] transition-[translate,visibility] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
+          className={`island absolute inset-x-2 bottom-0 mb-1 flex flex-col shadow-[0_-10px_30px_rgb(var(--color-shadow)/0.16)] transition-[translate,visibility] duration-(--drawer-duration) ease-(--ease-snap) ${
             open ? 'visible translate-y-0' : 'invisible translate-y-[calc(100%+0.25rem)]'
           }`}
           aria-hidden={!open}
