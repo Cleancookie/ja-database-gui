@@ -34,6 +34,7 @@ describe('needsPasswordPrompt', () => {
     [conn(true), true, null, false],
     [conn(true), false, '', false],
     [conn(false), false, null, false],
+    [{ ...conn(true), auth: 'windows' }, false, null, false],
     [undefined, false, null, false],
   ])('%j connected=%s password=%s -> %s', (c, connected, pw, want) => {
     expect(needsPasswordPrompt(c, connected, pw)).toBe(want)

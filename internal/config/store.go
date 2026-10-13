@@ -38,6 +38,8 @@ type Connection struct {
 	SSLMode string `json:"sslMode,omitempty"`
 	// TrustServerCertificate skips certificate verification. SQL Server only.
 	TrustServerCertificate bool `json:"trustServerCertificate,omitempty"`
+	// Auth is one of the dialect's Capabilities.AuthModes. Empty is a SQL login.
+	Auth string `json:"auth,omitempty"`
 	// Params is stored in connections.json in plaintext. Never put a secret here.
 	Params map[string]string `json:"params,omitempty"`
 	// AskPassword means the password is never stored anywhere: the UI asks for it
@@ -204,6 +206,7 @@ func (s *Store) Get(id string) (Connection, error) {
 
 // Create saves a new connection and its password.
 func (s *Store) Create(c Connection, password string) (Connection, error) {
+	c = normalize(c)
 	if err := validate(c); err != nil {
 		return Connection{}, err
 	}
@@ -230,6 +233,7 @@ func (s *Store) Create(c Connection, password string) (Connection, error) {
 // Update replaces a connection. password is only written when non-nil, so the
 // UI can save an edited connection without re-sending an unchanged password.
 func (s *Store) Update(c Connection, password *string) (Connection, error) {
+	c = normalize(c)
 	if err := validate(c); err != nil {
 		return Connection{}, err
 	}
@@ -343,7 +347,7 @@ func (s *Store) DriverConfig(id, asked string) (driver.ConnConfig, error) {
 		return driver.ConnConfig{}, err
 	}
 	pw := asked
-	if !c.AskPassword {
+	if !c.AskPassword && c.Auth != driver.AuthWindows {
 		if pw, err = s.Password(id); err != nil {
 			return driver.ConnConfig{}, err
 		}
@@ -357,10 +361,20 @@ func (s *Store) DriverConfig(id, asked string) (driver.ConnConfig, error) {
 		Database: c.Database,
 		File:     c.File,
 		SSLMode:  c.SSLMode,
+		Auth:     c.Auth,
 		Params:   c.Params,
 
 		TrustServerCertificate: c.TrustServerCertificate,
 	}, nil
+}
+
+// normalize drops what Windows authentication never uses, so no password is
+// stored, asked for or sent.
+func normalize(c Connection) Connection {
+	if c.Auth == driver.AuthWindows {
+		c.User, c.AskPassword = "", false
+	}
+	return c
 }
 
 func validate(c Connection) error {
@@ -384,7 +398,7 @@ func validate(c Connection) error {
 		return fmt.Errorf("%s has no trust-server-certificate switch; pick an SSL mode instead", d.Caps().DisplayName)
 	}
 	return driver.ValidateConn(d, driver.ConnConfig{
-		Kind: c.Kind, Host: c.Host, SSLMode: c.SSLMode,
+		Kind: c.Kind, Host: c.Host, SSLMode: c.SSLMode, Auth: c.Auth,
 		TrustServerCertificate: c.TrustServerCertificate, Params: c.Params,
 	})
 }

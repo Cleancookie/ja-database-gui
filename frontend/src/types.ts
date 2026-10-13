@@ -13,6 +13,8 @@ export interface Capabilities {
   displayName: string
   /** Allow-list for a connection's sslMode, weakest first. Empty on SQLite. */
   sslModes: string[]
+  /** Sign-in methods besides user and password ("windows"). Empty where only a SQL login exists. */
+  authModes: string[]
   /** SQL Server only: skipping certificate verification is a separate switch. */
   canTrustServerCertificate: boolean
   /** SQLite has no TRUNCATE and is emptied with DELETE FROM; the confirmation
@@ -51,6 +53,8 @@ export interface Connection {
   file?: string
   /** One of the dialect's sslModes. Empty means the default for the host. */
   sslMode?: string
+  /** Empty is a SQL login; "windows" signs in as the current Windows user. */
+  auth?: string
   /** Skip certificate verification. SQL Server only; an explicit opt-in. */
   trustServerCertificate?: boolean
   /** Stored in plaintext. Never put a secret here. */

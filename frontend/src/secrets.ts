@@ -19,7 +19,7 @@ export function needsPasswordPrompt(
   connected: boolean,
   password: string | null,
 ): boolean {
-  return !!conn?.askPassword && !connected && password === null
+  return !!conn?.askPassword && conn.auth !== 'windows' && !connected && password === null
 }
 
 export interface StorageWarning {

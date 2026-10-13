@@ -59,6 +59,19 @@ func checkSSLMode(d Driver, mode string) error {
 		d.Caps().DisplayName, mode, strings.Join(d.Caps().SSLModes, ", "))
 }
 
+// checkAuth rejects an auth mode the dialect does not offer. Empty is a SQL login.
+func checkAuth(d Driver, mode string) error {
+	if mode == "" {
+		return nil
+	}
+	for _, m := range d.Caps().AuthModes {
+		if m == mode {
+			return nil
+		}
+	}
+	return fmt.Errorf("%s does not support %q authentication", d.Caps().DisplayName, mode)
+}
+
 // checkParams refuses an extra parameter that would override the SSL mode.
 // Params is an escape hatch appended to the DSN; letting it carry the TLS keys
 // would sidestep both the allow-list and the warning in the form.

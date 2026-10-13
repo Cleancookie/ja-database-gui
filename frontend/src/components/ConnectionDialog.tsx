@@ -37,6 +37,7 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
   const caps = drivers?.[conn.kind]
   const tls = useTls(conn)
   const isFileBased = !caps?.serverHostsDatabases
+  const windowsAuth = conn.auth === 'windows' && !!caps?.authModes?.includes('windows')
 
   // Changing dialect should move the port to that dialect's default, but must
   // not clobber a port the user deliberately typed.
@@ -169,40 +170,71 @@ export function ConnectionDialog({ existing }: { existing: Connection | null }) 
                 className={inputClass}
               />
             </Field>
-            <Field label="User">
-              <input
-                value={conn.user ?? ''}
-                onChange={(e) => patch({ user: e.target.value })}
-                spellCheck={false}
-                autoComplete="off"
-                className={inputClass}
-              />
-            </Field>
-            <Field label={conn.askPassword ? 'Password (for Test only)' : 'Password'}>
-              <input
-                type="password"
-                value={password ?? ''}
-                onChange={(e) => {
-                  setPassword(e.target.value)
-                  setTest({ state: 'idle' })
-                }}
-                placeholder={password === null && !conn.askPassword ? '••••••• unchanged' : ''}
-                autoComplete="off"
-                className={inputClass}
-              />
-            </Field>
-            <label className="col-span-2 flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={!!conn.askPassword}
-                onChange={(e) => {
-                  patch({ askPassword: e.target.checked })
-                  // Typed under "ask" it is for Test only; never carry it into a save.
-                  setPassword(e.target.checked ? '' : existing && !existing.askPassword ? null : '')
-                }}
-              />
-              <span>Ask for the password every time (never stored)</span>
-            </label>
+            {(caps?.authModes ?? []).length > 0 && (
+              <Field label="Auth" className="col-span-2">
+                <select
+                  value={conn.auth ?? ''}
+                  onChange={(e) => {
+                    const auth = e.target.value
+                    patch(auth === 'windows' ? { auth, user: '', askPassword: false } : { auth })
+                    if (auth === 'windows') setPassword('')
+                  }}
+                  className={inputClass}
+                >
+                  <option value="">SQL login</option>
+                  {caps?.authModes.map((m) => (
+                    <option key={m} value={m}>
+                      {m === 'windows' ? 'Windows' : m}
+                    </option>
+                  ))}
+                </select>
+                {windowsAuth && (
+                  <span className="mt-1 block text-[var(--color-faint)]">
+                    Signs in as the current Windows user
+                  </span>
+                )}
+              </Field>
+            )}
+            {!windowsAuth && (
+              <>
+                <Field label="User">
+                  <input
+                    value={conn.user ?? ''}
+                    onChange={(e) => patch({ user: e.target.value })}
+                    spellCheck={false}
+                    autoComplete="off"
+                    className={inputClass}
+                  />
+                </Field>
+                <Field label={conn.askPassword ? 'Password (for Test only)' : 'Password'}>
+                  <input
+                    type="password"
+                    value={password ?? ''}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      setTest({ state: 'idle' })
+                    }}
+                    placeholder={password === null && !conn.askPassword ? '••••••• unchanged' : ''}
+                    autoComplete="off"
+                    className={inputClass}
+                  />
+                </Field>
+                <label className="col-span-2 flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={!!conn.askPassword}
+                    onChange={(e) => {
+                      patch({ askPassword: e.target.checked })
+                      // Typed under "ask" it is for Test only; never carry it into a save.
+                      setPassword(
+                        e.target.checked ? '' : existing && !existing.askPassword ? null : '',
+                      )
+                    }}
+                  />
+                  <span>Ask for the password every time (never stored)</span>
+                </label>
+              </>
+            )}
             <Field label="Database" className="col-span-2">
               <input
                 value={conn.database ?? ''}

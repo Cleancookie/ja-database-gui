@@ -39,9 +39,14 @@ type ConnConfig struct {
 	SSLMode  string `json:"sslMode"` // one of Capabilities.SSLModes; empty means the default for the host
 	// TrustServerCertificate skips certificate verification (SQL Server only).
 	// It is an explicit opt-in; see docs/adr/0008.
-	TrustServerCertificate bool              `json:"trustServerCertificate"`
-	Params                 map[string]string `json:"params"` // escape hatch, appended to the DSN
+	TrustServerCertificate bool `json:"trustServerCertificate"`
+	// Auth is one of Capabilities.AuthModes. Empty is a SQL login (user and password).
+	Auth   string            `json:"auth"`
+	Params map[string]string `json:"params"` // escape hatch, appended to the DSN
 }
+
+// AuthWindows signs in as the current Windows user: no user or password.
+const AuthWindows = "windows"
 
 // Capabilities lets the UI adapt without switching on Kind.
 type Capabilities struct {
@@ -61,6 +66,9 @@ type Capabilities struct {
 	// SSLModes is the allow-list for ConnConfig.SSLMode, weakest first. Empty
 	// for SQLite. The connection form builds its select from it.
 	SSLModes []string `json:"sslModes"`
+	// AuthModes lists the sign-in methods besides a user and password, e.g.
+	// AuthWindows. Empty where only a SQL login exists.
+	AuthModes []string `json:"authModes"`
 	// CanTrustServerCertificate is true where skipping certificate verification
 	// is a separate switch from the mode (SQL Server).
 	CanTrustServerCertificate bool   `json:"canTrustServerCertificate"`

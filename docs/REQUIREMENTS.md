@@ -910,3 +910,16 @@ Reverses the 2026-08-26 double-click entry and the in-cell drag of the drag entr
 | Telling the user | A sticky toast "ja-db vX is ready" with a "Restart now" action. While one is staged the palette shows "Restart to update" in place of "Download update" |
 | Never restarted | The staged file is deleted at the next launch (`selfupdate.Cleanup`), so nothing stale is ever installed. The user downloads again. The running exe is never touched before the restart |
 | Staged edits | Restarting still refuses while edits are staged |
+
+## 2026-10-13 — SQL Server Windows authentication
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Setting | `Connection.Auth`: empty is a SQL login (saved connections unchanged), `windows` signs in as the current Windows user. Offered only where `Capabilities.AuthModes` lists it (SQL Server) |
+| Credentials | Windows auth has no user or password. The DSN carries no userinfo, the store drops `User` and `AskPassword` on save, and no password is stored, asked for (`needsPasswordPrompt`) or read from the keyring |
+| Driver | `authenticator=winsspi` is set explicitly: without it go-mssqldb silently falls back to a SQL login when SSPI fails. `authenticator` is not allowed in `Params` |
+| Not Windows | `mssqlDriver.DSN` fails with "Windows authentication only works in the Windows app" (devserver on Linux) |
+| Form | An "Auth" select (SQL login / Windows) for SQL Server only. Windows hides User and Password and says "Signs in as the current Windows user" |
+| Not built | NTLM with an explicit domain user and password |

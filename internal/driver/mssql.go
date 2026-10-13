@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"runtime"
 	"strconv"
 	"strings"
 
@@ -14,6 +15,9 @@ import (
 )
 
 func init() { register(mssqlDriver{}) }
+
+// windowsOS is a variable so tests can exercise both sides of the check.
+var windowsOS = runtime.GOOS == "windows"
 
 type mssqlDriver struct{ stdWriter }
 
@@ -32,6 +36,7 @@ func (mssqlDriver) Caps() Capabilities {
 		SetToDefault:              true,
 		DefaultPort:               1433,
 		SSLModes:                  []string{"disable", "false", "true", "strict"},
+		AuthModes:                 []string{AuthWindows},
 		CanTrustServerCertificate: true,
 		CommonTypes: []string{
 			"bigint IDENTITY(1,1)", "int", "bigint", "bit",
@@ -69,8 +74,19 @@ func (mssqlDriver) DSN(cfg ConnConfig, database string) (string, error) {
 	if err := checkSSLMode(mssqlDriver{}, cfg.SSLMode); err != nil {
 		return "", err
 	}
-	if err := checkParams(cfg.Params, "encrypt", "TrustServerCertificate"); err != nil {
+	if err := checkParams(cfg.Params, "encrypt", "TrustServerCertificate", "authenticator"); err != nil {
 		return "", err
+	}
+	if err := checkAuth(mssqlDriver{}, cfg.Auth); err != nil {
+		return "", err
+	}
+	windows := cfg.Auth == AuthWindows
+	if windows {
+		if !windowsOS {
+			return "", fmt.Errorf("Windows authentication only works in the Windows app")
+		}
+		// Explicit, or a failed SSPI handshake silently falls back to a SQL login.
+		q.Set("authenticator", "winsspi")
 	}
 	info := mssqlDriver{}.TLS(cfg)
 	q.Set("encrypt", info.Mode)
@@ -81,9 +97,11 @@ func (mssqlDriver) DSN(cfg ConnConfig, database string) (string, error) {
 
 	u := &url.URL{
 		Scheme:   "sqlserver",
-		User:     url.UserPassword(cfg.User, cfg.Password),
 		Host:     net.JoinHostPort(host, strconv.Itoa(port)),
 		RawQuery: q.Encode(),
+	}
+	if !windows {
+		u.User = url.UserPassword(cfg.User, cfg.Password)
 	}
 	return u.String(), nil
 }

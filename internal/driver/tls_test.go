@@ -194,3 +194,40 @@ func TestSQLitePathIsOpenedLiterally(t *testing.T) {
 		t.Errorf("an ordinary view should still work: %q, %v", a, err)
 	}
 }
+
+func TestMSSQLWindowsAuthDSN(t *testing.T) {
+	defer func(v bool) { windowsOS = v }(windowsOS)
+	d, _ := Get(KindMSSQL)
+	cfg := ConnConfig{Kind: KindMSSQL, Host: "h", User: "sa", Password: "pw", Auth: AuthWindows}
+
+	windowsOS = true
+	dsn := dsnOf(t, cfg)
+	u, err := url.Parse(dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u.User != nil {
+		t.Errorf("windows auth DSN carries credentials: %s", dsn)
+	}
+	if got := u.Query().Get("authenticator"); got != "winsspi" {
+		t.Errorf("authenticator = %q, want winsspi", got)
+	}
+
+	cfg.Auth = ""
+	u, _ = url.Parse(dsnOf(t, cfg))
+	if u.User == nil || u.Query().Get("authenticator") != "" {
+		t.Errorf("SQL login DSN wrong: %s", u)
+	}
+
+	windowsOS = false
+	cfg.Auth = AuthWindows
+	if _, err := d.DSN(cfg, ""); err == nil || !strings.Contains(err.Error(), "only works in the Windows app") {
+		t.Errorf("non-Windows error = %v", err)
+	}
+	if _, err := Get(KindPostgres); err == nil {
+		pg, _ := Get(KindPostgres)
+		if err := checkAuth(pg, AuthWindows); err == nil {
+			t.Error("postgres accepted windows auth")
+		}
+	}
+}

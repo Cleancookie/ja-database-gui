@@ -263,7 +263,7 @@ func (s *Service) TestConnection(req SaveConnectionRequest) error {
 	pw := ""
 	if req.Password != nil {
 		pw = *req.Password
-	} else if c.ID != "" && !c.AskPassword {
+	} else if c.ID != "" && !c.AskPassword && c.Auth != driver.AuthWindows {
 		// Editing an existing connection without retyping the password.
 		stored, err := s.store.Password(c.ID)
 		if err != nil {
@@ -273,7 +273,7 @@ func (s *Service) TestConnection(req SaveConnectionRequest) error {
 	}
 	cfg := driver.ConnConfig{
 		Kind: c.Kind, Host: c.Host, Port: c.Port, User: c.User, Password: pw,
-		Database: c.Database, File: c.File, SSLMode: c.SSLMode, Params: c.Params,
+		Database: c.Database, File: c.File, SSLMode: c.SSLMode, Auth: c.Auth, Params: c.Params,
 		TrustServerCertificate: c.TrustServerCertificate,
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), testConnectionTimeout)
