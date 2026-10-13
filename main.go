@@ -59,7 +59,8 @@ func main() {
 			log.Printf("ja-db: webview ready in %s", time.Since(start).Round(time.Millisecond))
 			app.startup(ctx)
 		},
-		OnShutdown: app.shutdown,
+		OnBeforeClose: app.beforeClose,
+		OnShutdown:    app.shutdown,
 		Bind: []any{
 			app,
 		},

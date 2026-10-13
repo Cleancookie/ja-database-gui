@@ -4,6 +4,7 @@ import { App } from './components/App'
 import { Boundary, installCrashReporting } from './components/Boundary'
 import { installObservers } from './perf'
 import { installAppReload } from './reload'
+import { installUnsavedGuard } from './unsavedGuard'
 import { mark } from './startup'
 import './index.css'
 
@@ -21,6 +22,8 @@ installCrashReporting()
 // Outside React on purpose — see reload.ts. The key has to outlive the tree it
 // is there to rescue.
 installAppReload()
+
+installUnsavedGuard()
 
 const root = document.getElementById('root')
 if (!root) throw new Error('#root is missing from index.html')

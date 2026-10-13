@@ -889,6 +889,17 @@ Reverses the 2026-08-26 double-click entry and the in-cell drag of the drag entr
 | Docked tray | Slides open and shut on `--drawer-duration`, like the floating one |
 | Old setting | A saved `drawerDurationMs` is ignored; the scale starts at System |
 
+## 2026-10-13 — closing with unsaved edits
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Close with staged edits | Closing the window asks "You have unsaved changes — close anyway?" and closes only on Close. Nothing staged: no prompt |
+| Scope | Staged edits in any connection or table count, not just the one on screen |
+| How | The UI reports staged-or-not to Go (`SetUnsavedChanges`, `unsavedGuard.ts`); Wails `OnBeforeClose` shows the native dialog. The browser transport uses `beforeunload` |
+| Update restart | `ApplyUpdate` quits without asking: the user already chose to restart |
+
 ## 2026-10-13 — two-step updates
 
 ### Decided

@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Cleancookie/ja-db/internal/activity"
@@ -26,6 +27,8 @@ const testConnectionTimeout = 20 * time.Second
 
 // Service is the API. One instance per running app.
 type Service struct {
+	// unsaved is whether the UI holds staged edits; read when the window closes.
+	unsaved  atomic.Bool
 	store    *config.Store
 	settings *config.SettingsStore
 	engine   *engine.Engine
@@ -102,6 +105,12 @@ func logErr(err error) string {
 // LogClient records a line measured in the webview. Startup timing is only
 // knowable from the frontend, so the numbers come back across the binding to
 // reach the log file. The line is untrusted: it is quoted and capped.
+// SetUnsavedChanges is told by the UI whenever staged edits appear or vanish.
+func (s *Service) SetUnsavedChanges(v bool) { s.unsaved.Store(v) }
+
+// HasUnsavedChanges reports the last value the UI gave.
+func (s *Service) HasUnsavedChanges() bool { return s.unsaved.Load() }
+
 func (s *Service) LogClient(line string) { log.Printf("client: %s", logText(line)) }
 
 // logSQLMax caps the statement in the log line. The introspect ops carry short

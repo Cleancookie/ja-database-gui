@@ -54,6 +54,24 @@ func NewApp() (*App, error) {
 	}, nil
 }
 
+func (a *App) SetUnsavedChanges(v bool) { a.svc.SetUnsavedChanges(v) }
+
+// beforeClose runs when the window is closed. Returning true keeps it open.
+func (a *App) beforeClose(ctx context.Context) bool {
+	if a.relaunch != "" || !a.svc.HasUnsavedChanges() {
+		return false
+	}
+	choice, err := runtime.MessageDialog(ctx, runtime.MessageDialogOptions{
+		Type:          runtime.QuestionDialog,
+		Title:         "Unsaved changes",
+		Message:       "You have unsaved changes \u2014 close anyway?",
+		Buttons:       []string{"Close", "Cancel"},
+		DefaultButton: "Cancel",
+		CancelButton:  "Cancel",
+	})
+	return err == nil && choice != "Close"
+}
+
 func (a *App) LogClient(line string) { a.svc.LogClient(line) }
 
 func (a *App) startup(ctx context.Context) { a.ctx = ctx }

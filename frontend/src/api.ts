@@ -254,6 +254,9 @@ export const api = {
    * Deliberately untimed — it is how the timings are flushed, and measuring it
    * would mean every flush produced fresh measurements to flush.
    */
+  setUnsavedChanges: (unsaved: boolean) =>
+    invoke<void>('SetUnsavedChanges', [unsaved], { unsaved }),
+
   logClient: (line: string) => invoke<void>('LogClient', [line], { line }),
 }
 
