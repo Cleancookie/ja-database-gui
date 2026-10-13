@@ -72,14 +72,23 @@ func TestCheckWithNoReleases(t *testing.T) {
 	}
 }
 
-func TestApplySwapsTheExe(t *testing.T) {
+func TestStageLeavesTheExeAloneUntilInstall(t *testing.T) {
 	dir := t.TempDir()
 	exe := filepath.Join(dir, Asset)
 	if err := os.WriteFile(exe, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	body := []byte("new build")
-	if _, err := fakeGitHub(t, "v0.2.0", body, sumsFor(body)).Apply(context.Background(), "v0.1.0", exe); err != nil {
+	if _, err := fakeGitHub(t, "v0.2.0", body, sumsFor(body)).Stage(context.Background(), "v0.1.0", exe); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "old" {
+		t.Fatalf("exe = %q, want it untouched by Stage", got)
+	}
+	if !Staged(exe) {
+		t.Fatal("nothing staged")
+	}
+	if err := Install(exe); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(exe); string(got) != "new build" {
@@ -94,26 +103,50 @@ func TestApplySwapsTheExe(t *testing.T) {
 	}
 }
 
-func TestApplyRefusesABadChecksum(t *testing.T) {
+func TestInstallWithNothingStaged(t *testing.T) {
+	exe := filepath.Join(t.TempDir(), Asset)
+	if err := os.WriteFile(exe, []byte("old"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := Install(exe); err == nil {
+		t.Fatal("installed with nothing staged")
+	}
+	if got, _ := os.ReadFile(exe); string(got) != "old" {
+		t.Fatalf("exe = %q, want it untouched", got)
+	}
+}
+
+func TestCleanupDiscardsAStagedUpdateNeverInstalled(t *testing.T) {
+	exe := filepath.Join(t.TempDir(), Asset)
+	if err := os.WriteFile(exe+".new", []byte("stale"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	Cleanup(exe)
+	if Staged(exe) {
+		t.Fatal("stale staged exe survived the next launch")
+	}
+}
+
+func TestStageRefusesABadChecksum(t *testing.T) {
 	dir := t.TempDir()
 	exe := filepath.Join(dir, Asset)
 	if err := os.WriteFile(exe, []byte("old"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	c := fakeGitHub(t, "v0.2.0", []byte("tampered"), sumsFor([]byte("genuine")))
-	if _, err := c.Apply(context.Background(), "v0.1.0", exe); err == nil {
-		t.Fatal("applied a build that does not match its checksum")
+	if _, err := c.Stage(context.Background(), "v0.1.0", exe); err == nil {
+		t.Fatal("staged a build that does not match its checksum")
 	}
 	if got, _ := os.ReadFile(exe); string(got) != "old" {
 		t.Fatalf("exe = %q, want it untouched", got)
 	}
-	if _, err := os.Stat(exe + ".new"); !os.IsNotExist(err) {
-		t.Fatalf("partial download left behind: %v", err)
+	if Staged(exe) {
+		t.Fatal("partial download left behind")
 	}
 }
 
-func TestApplyWhenUpToDate(t *testing.T) {
-	if _, err := fakeGitHub(t, "v0.1.0", nil, "").Apply(context.Background(), "v0.1.0", "unused"); err == nil {
-		t.Fatal("applied when already up to date")
+func TestStageWhenUpToDate(t *testing.T) {
+	if _, err := fakeGitHub(t, "v0.1.0", nil, "").Stage(context.Background(), "v0.1.0", "unused"); err == nil {
+		t.Fatal("staged when already up to date")
 	}
 }

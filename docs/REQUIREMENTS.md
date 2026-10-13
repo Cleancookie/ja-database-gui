@@ -888,3 +888,14 @@ Reverses the 2026-08-26 double-click entry and the in-cell drag of the drag entr
 | Indeterminate progress | Not scaled: it shows that work is running. At 0× it slows to 3 s, as reduced motion did before |
 | Docked tray | Slides open and shut on `--drawer-duration`, like the floating one |
 | Old setting | A saved `drawerDurationMs` is ignored; the scale starts at System |
+
+## 2026-10-13 — two-step updates
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Steps | "Download update" stages a checksummed `ja-db.exe.new` beside the exe and leaves the running app alone. "Restart to update" (`ApplyUpdate`) swaps it in and relaunches, only when asked |
+| Telling the user | A sticky toast "ja-db vX is ready" with a "Restart now" action. While one is staged the palette shows "Restart to update" in place of "Download update" |
+| Never restarted | The staged file is deleted at the next launch (`selfupdate.Cleanup`), so nothing stale is ever installed. The user downloads again. The running exe is never touched before the restart |
+| Staged edits | Restarting still refuses while edits are staged |

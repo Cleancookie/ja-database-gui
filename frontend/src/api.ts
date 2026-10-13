@@ -242,7 +242,10 @@ export const api = {
 
   checkUpdate: () => call<UpdateRelease>('CheckUpdate', [], {}),
 
-  /** Swaps in the newest release; the app quits and relaunches on success. */
+  /** Downloads and verifies the newest release without restarting. */
+  downloadUpdate: () => call<UpdateRelease>('DownloadUpdate', [], {}),
+
+  /** Swaps in the downloaded release; the app quits and relaunches on success. */
   applyUpdate: () => call<void>('ApplyUpdate', [], {}),
 
   /**

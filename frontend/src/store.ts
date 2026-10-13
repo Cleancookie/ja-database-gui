@@ -295,6 +295,8 @@ export interface State extends EditState, EditActions {
   secretBackend: SecretBackend | null
   /** The newest release, once asked; null until then or if GitHub is unreachable. */
   release: UpdateRelease | null
+  /** A release is downloaded and verified, waiting for `applyUpdate`. */
+  updateStaged: boolean
   activity: ActivityResult
   /** When the activity snapshot was taken, so the tray can tick its timers on
    *  between polls. See frontend/src/activity.ts. */
@@ -479,7 +481,9 @@ export interface State extends EditState, EditActions {
   dismissAllToasts: () => void
   /** Asks GitHub for the newest release. `quiet` reports only a newer one. */
   checkUpdate: (quiet?: boolean) => Promise<void>
-  /** Installs the newest release and relaunches into it. */
+  /** Downloads the newest release and stages it; the app keeps running. */
+  downloadUpdate: () => Promise<void>
+  /** Swaps in the staged release and relaunches into it. */
   applyUpdate: () => Promise<void>
 }
 
@@ -826,6 +830,7 @@ export const useStore = create<State>((set, get) => {
     transposed: false,
     secretBackend: null,
     release: null,
+    updateStaged: false,
     settings: DEFAULT_SETTINGS,
     activity: { queries: [], sessions: [] },
     activityPolledAt: 0,
@@ -1855,7 +1860,7 @@ export const useStore = create<State>((set, get) => {
         get().pushToast(
           'info',
           `ja-db ${release.latest} is available (you have ${release.current})`,
-          { label: 'Update', run: () => void get().applyUpdate() },
+          { label: 'Download', run: () => void get().downloadUpdate() },
           true,
         )
       } else if (!quiet) {
@@ -1868,13 +1873,29 @@ export const useStore = create<State>((set, get) => {
       }
     },
 
+    async downloadUpdate() {
+      if (get().updateStaged) return
+      get().pushToast('info', 'Downloading the update…')
+      try {
+        const release = await api.downloadUpdate()
+        set({ release, updateStaged: true })
+        get().pushToast(
+          'info',
+          `ja-db ${release.latest} is ready. Restart when you are done here`,
+          { label: 'Restart now', run: () => void get().applyUpdate() },
+          true,
+        )
+      } catch (e) {
+        get().pushToast('error', errorMessage(e))
+      }
+    },
+
     async applyUpdate() {
       // The app quits to relaunch, and staged edits live only in memory.
       if (get().stagedSummary.total > 0) {
-        get().pushToast('error', 'Save or discard your staged changes before updating')
+        get().pushToast('error', 'Save or discard your staged changes before restarting')
         return
       }
-      get().pushToast('info', 'Downloading the update…')
       try {
         await api.applyUpdate()
       } catch (e) {

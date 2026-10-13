@@ -93,10 +93,9 @@ func (c *Checker) Check(ctx context.Context, current string) (Release, error) {
 	return r, nil
 }
 
-// Apply downloads the newest release over exe. The running file is renamed to
-// exe.old — Windows refuses to overwrite a running exe but allows a rename —
-// and Cleanup removes it on the next launch.
-func (c *Checker) Apply(ctx context.Context, current, exe string) (Release, error) {
+// Stage downloads the newest release beside exe as exe.new, checksummed and
+// ready for Install. The running exe is untouched, so the user can carry on.
+func (c *Checker) Stage(ctx context.Context, current, exe string) (Release, error) {
 	r, err := c.Check(ctx, current)
 	if err != nil {
 		return r, err
@@ -116,22 +115,43 @@ func (c *Checker) Apply(ctx context.Context, current, exe string) (Release, erro
 		_ = os.Remove(fresh)
 		return r, err
 	}
-	old := exe + ".old"
-	_ = os.Remove(old)
-	if err := os.Rename(exe, old); err != nil {
-		_ = os.Remove(fresh)
-		return r, fmt.Errorf("moving the running exe aside: %w", err)
-	}
-	if err := os.Rename(fresh, exe); err != nil {
-		_ = os.Rename(old, exe)
-		return r, fmt.Errorf("putting the new exe in place: %w", err)
-	}
 	return r, nil
 }
 
-// Cleanup removes what the previous update moved aside.
+// Install swaps the staged exe.new in over exe. The running file is renamed to
+// exe.old — Windows refuses to overwrite a running exe but allows a rename —
+// and Cleanup removes it on the next launch.
+func Install(exe string) error {
+	fresh := exe + ".new"
+	if _, err := os.Stat(fresh); err != nil {
+		return errors.New("no update has been downloaded")
+	}
+	old := exe + ".old"
+	_ = os.Remove(old)
+	if err := os.Rename(exe, old); err != nil {
+		return fmt.Errorf("moving the running exe aside: %w", err)
+	}
+	if err := os.Rename(fresh, exe); err != nil {
+		_ = os.Rename(old, exe)
+		return fmt.Errorf("putting the new exe in place: %w", err)
+	}
+	return nil
+}
+
+// Cleanup removes what the previous update moved aside, and any staged
+// download the user never restarted into: it may be older than the release
+// by now, so it is discarded rather than trusted.
 // A failure is left for the launch after: the old one may still be exiting.
-func Cleanup(exe string) { _ = os.Remove(exe + ".old") }
+func Cleanup(exe string) {
+	_ = os.Remove(exe + ".old")
+	_ = os.Remove(exe + ".new")
+}
+
+// Staged reports whether a downloaded update is waiting for Install.
+func Staged(exe string) bool {
+	_, err := os.Stat(exe + ".new")
+	return err == nil
+}
 
 func (c *Checker) get(ctx context.Context, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)

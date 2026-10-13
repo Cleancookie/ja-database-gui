@@ -16,9 +16,22 @@ func (s *Service) CheckUpdate(ctx context.Context, version string) (selfupdate.R
 	return s.updates.Check(ctx, version)
 }
 
-// ApplyUpdate replaces the running executable with the newest release and
-// returns its path, for the transport to relaunch once it has shut down.
-func (s *Service) ApplyUpdate(ctx context.Context, version string) (string, error) {
+// DownloadUpdate fetches and verifies the newest release next to the running
+// exe without touching it. ApplyUpdate installs it when the user is ready.
+func (s *Service) DownloadUpdate(ctx context.Context, version string) (selfupdate.Release, error) {
+	exe, err := executable()
+	if err != nil {
+		return selfupdate.Release{}, err
+	}
+	if !selfupdate.IsRelease(version) {
+		return selfupdate.Release{}, errors.New("this build is not a release, so it cannot update itself")
+	}
+	return s.updates.Stage(ctx, version, exe)
+}
+
+// ApplyUpdate swaps the downloaded release in and returns the exe path, for
+// the transport to relaunch once it has shut down.
+func (s *Service) ApplyUpdate(version string) (string, error) {
 	exe, err := executable()
 	if err != nil {
 		return "", err
@@ -26,11 +39,10 @@ func (s *Service) ApplyUpdate(ctx context.Context, version string) (string, erro
 	if !selfupdate.IsRelease(version) {
 		return "", errors.New("this build is not a release, so it cannot update itself")
 	}
-	r, err := s.updates.Apply(ctx, version, exe)
-	if err != nil {
+	if err := selfupdate.Install(exe); err != nil {
 		return "", err
 	}
-	log.Printf("ja-db: updated %s → %s", r.Current, r.Latest)
+	log.Printf("ja-db: updated from %s", version)
 	return exe, nil
 }
 

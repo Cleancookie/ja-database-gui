@@ -151,6 +151,7 @@ type args struct {
 	Database string           `json:"database"`
 	Ref      driver.ObjectRef `json:"ref"`
 	Line     string           `json:"line"`
+	Unsaved  bool             `json:"unsaved"`
 }
 
 func routes(s *api.Service) map[string]route {
@@ -169,12 +170,14 @@ func routes(s *api.Service) map[string]route {
 			s.CancelConnectionQueries(a.ID)
 			return nil, nil
 		}),
-		"OpenSample":       withArgs(func(context.Context, args) (any, error) { return s.OpenSample() }),
-		"ResetSample":      withArgs(func(context.Context, args) (any, error) { return s.ResetSample() }),
-		"Disconnect":       withArgs(func(_ context.Context, a args) (any, error) { s.Disconnect(a.ID); return nil, nil }),
-		"DeleteConnection": withArgs(func(_ context.Context, a args) (any, error) { return nil, s.DeleteConnection(a.ID) }),
-		"LogClient":        withArgs(func(_ context.Context, a args) (any, error) { s.LogClient(a.Line); return nil, nil }),
-		"ListDatabases":    withArgs(func(ctx context.Context, a args) (any, error) { return s.ListDatabases(ctx, a.ID) }),
+		"OpenSample":        withArgs(func(context.Context, args) (any, error) { return s.OpenSample() }),
+		"ResetSample":       withArgs(func(context.Context, args) (any, error) { return s.ResetSample() }),
+		"Disconnect":        withArgs(func(_ context.Context, a args) (any, error) { s.Disconnect(a.ID); return nil, nil }),
+		"DeleteConnection":  withArgs(func(_ context.Context, a args) (any, error) { return nil, s.DeleteConnection(a.ID) }),
+		"SetUnsavedChanges": withArgs(func(_ context.Context, a args) (any, error) { s.SetUnsavedChanges(a.Unsaved); return nil, nil }),
+		"HasUnsavedChanges": withArgs(func(context.Context, args) (any, error) { return s.HasUnsavedChanges(), nil }),
+		"LogClient":         withArgs(func(_ context.Context, a args) (any, error) { s.LogClient(a.Line); return nil, nil }),
+		"ListDatabases":     withArgs(func(ctx context.Context, a args) (any, error) { return s.ListDatabases(ctx, a.ID) }),
 		"ListObjects": withArgs(func(ctx context.Context, a args) (any, error) {
 			return s.ListObjects(ctx, a.ID, a.Database)
 		}),
@@ -185,9 +188,10 @@ func routes(s *api.Service) map[string]route {
 			return s.DescribeObject(ctx, a.ID, a.Ref)
 		}),
 		// The devserver is never a release, so it reports and refuses as one.
-		"CheckUpdate": withArgs(func(ctx context.Context, _ args) (any, error) { return s.CheckUpdate(ctx, "dev") }),
-		"ApplyUpdate": withArgs(func(ctx context.Context, _ args) (any, error) {
-			_, err := s.ApplyUpdate(ctx, "dev")
+		"CheckUpdate":    withArgs(func(ctx context.Context, _ args) (any, error) { return s.CheckUpdate(ctx, "dev") }),
+		"DownloadUpdate": withArgs(func(ctx context.Context, _ args) (any, error) { return s.DownloadUpdate(ctx, "dev") }),
+		"ApplyUpdate": withArgs(func(_ context.Context, _ args) (any, error) {
+			_, err := s.ApplyUpdate("dev")
 			return nil, err
 		}),
 

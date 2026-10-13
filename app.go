@@ -171,10 +171,15 @@ func (a *App) ClearQueryHistory() { a.svc.ClearQueryHistory() }
 
 func (a *App) CheckUpdate() (selfupdate.Release, error) { return a.svc.CheckUpdate(a.ctx, version) }
 
-// ApplyUpdate quits once the new exe is in place; main starts it after Wails
+// DownloadUpdate stages the newest release without restarting.
+func (a *App) DownloadUpdate() (selfupdate.Release, error) {
+	return a.svc.DownloadUpdate(a.ctx, version)
+}
+
+// ApplyUpdate quits once the staged exe is in place; main starts it after Wails
 // has shut down, so the two never hold the window or the config at once.
 func (a *App) ApplyUpdate() error {
-	exe, err := a.svc.ApplyUpdate(a.ctx, version)
+	exe, err := a.svc.ApplyUpdate(version)
 	if err != nil {
 		return err
 	}
