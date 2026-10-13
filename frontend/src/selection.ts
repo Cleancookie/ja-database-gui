@@ -104,20 +104,21 @@ export function cellsOf(rects: Rect[]): CellPos[] {
 export function copyOf(
   sel: Selection,
   names: string[],
-  data: Cell[][],
+  rowCount: number,
+  at: (row: number, col: number) => Cell,
 ): { text: string; what: string; rects: Rect[] } | null {
   const rects = rectsOf(sel)
     .map((r) => ({
       top: Math.max(0, r.top),
       left: Math.max(0, r.left),
-      bottom: Math.min(data.length - 1, r.bottom),
+      bottom: Math.min(rowCount - 1, r.bottom),
       right: Math.min(names.length - 1, r.right),
     }))
     .filter((r) => r.bottom >= r.top && r.right >= r.left)
   if (rects.length === 0) return null
   const g = gridOf(rects)
   const columns = g.cols.map((c) => names[c])
-  const rows = g.rows.map((r) => g.cols.map((c) => (inAny(rects, r, c) ? data[r][c] : null)))
+  const rows = g.rows.map((r) => g.cols.map((c) => (inAny(rects, r, c) ? at(r, c) : null)))
   return { text: selectionText(columns, rows), what: describeCopy(columns, rows), rects }
 }
 

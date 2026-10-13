@@ -158,31 +158,56 @@ describe('copyOf', () => {
   const at = (row: number, col: number) => ({ row, col })
 
   it('copies one range as before', () => {
-    const c = copyOf({ anchor: at(0, 0), focus: at(2, 0) }, names, data)
+    const c = copyOf(
+      { anchor: at(0, 0), focus: at(2, 0) },
+      names,
+      data.length,
+      (r, c) => data[r][c],
+    )
     expect(c?.text).toBe('1, 2, 3')
   })
 
   it('closes the gap between ranges in the same column', () => {
     const kept = [{ top: 0, bottom: 0, left: 0, right: 0 }]
-    const c = copyOf({ anchor: at(2, 0), focus: at(2, 0), kept }, names, data)
+    const c = copyOf(
+      { anchor: at(2, 0), focus: at(2, 0), kept },
+      names,
+      data.length,
+      (r, c) => data[r][c],
+    )
     expect(c?.text).toBe('1, 3')
   })
 
   it('closes the gap between ranges on the same rows', () => {
     const kept = [{ top: 0, bottom: 1, left: 0, right: 0 }]
-    const c = copyOf({ anchor: at(0, 2), focus: at(1, 2), kept }, names, data)
+    const c = copyOf(
+      { anchor: at(0, 2), focus: at(1, 2), kept },
+      names,
+      data.length,
+      (r, c) => data[r][c],
+    )
     expect(c?.text).toBe('id,age\n1,30\n2,')
   })
 
   it('keeps scattered cells in their own row and column, blank elsewhere', () => {
     const kept = [{ top: 2, bottom: 2, left: 2, right: 2 }]
-    const c = copyOf({ anchor: at(0, 1), focus: at(0, 1), kept }, names, data)
+    const c = copyOf(
+      { anchor: at(0, 1), focus: at(0, 1), kept },
+      names,
+      data.length,
+      (r, c) => data[r][c],
+    )
     expect(c?.text).toBe('name,age\nann,\n,41')
   })
 
   it('counts an overlapped cell once', () => {
     const kept = [{ top: 0, bottom: 1, left: 0, right: 0 }]
-    const c = copyOf({ anchor: at(1, 0), focus: at(2, 0), kept }, names, data)
+    const c = copyOf(
+      { anchor: at(1, 0), focus: at(2, 0), kept },
+      names,
+      data.length,
+      (r, c) => data[r][c],
+    )
     expect(c?.text).toBe('1, 2, 3')
   })
 })

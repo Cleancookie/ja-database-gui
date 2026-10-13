@@ -16,13 +16,15 @@ import { create } from 'zustand'
 import { reuseUnchanged } from './activity'
 import { api, errorMessage } from './api'
 import { absoluteRowOffset, cellText, isCellTruncated } from './cells'
-import { countOf, editsFor, removeTable, rowKeyOf, tableKey } from './edits'
+import { countOf, editsFor, EMPTY_EDITS, removeTable, rowKeyOf, tableKey } from './edits'
+import { gridView } from './gridView'
 import { RECENT_LIMIT, refKey } from './recency'
 import { downloadText } from './dom'
 import { copyOf, csv, inAny, rectOf, type CellPos, type Selection } from './selection'
 import { startFlushing } from './perf'
 import {
   INITIAL_EDIT_STATE,
+  activeEdits,
   createEditSlice,
   forgetTable,
   guardUnload,
@@ -1409,10 +1411,14 @@ export const useStore = create<State>((set, get) => {
       const rs = sel.source === 'sql' ? activeSqlResult(s) : s.result
       if (!rs) return
 
+      // What the grid shows, staged edits and new rows included.
+      const browse = sel.source === 'browse'
+      const view = gridView(rs, browse ? activeEdits(s) : EMPTY_EDITS, s.editKey, browse)
       const copy = copyOf(
         sel,
         rs.columns.map((c) => c.name),
-        rs.rows,
+        view.rowCount,
+        (r, c) => view.cell(r, c).value,
       )
       if (!copy) return
       await s.copyText(copy.text)
