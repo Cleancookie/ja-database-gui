@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react'
+import { memo, useMemo } from 'react'
 import { isBound, useStore } from '../store'
 import { Highlight } from './Highlight'
 import { HOVER_PILL, PILL } from './sidebar/listKit'
@@ -14,10 +14,9 @@ const WORKSPACE_EXTRAS = <OpenList />
 /**
  * The tab sidebar down the left edge.
  *
- * A tab is one connection and one database. The active tab is expanded to its
- * tables once it has both — the SQL editor, the ones open in it, and every
- * table and view. Choosing them is the main panel's job (WorkspacePicker).
- * The others are one line each.
+ * Two sections. Tabs: one line per tab, each a connection and a database.
+ * Tables: the active tab's — the SQL editor, the ones open in it, then every
+ * table and view. Choosing the database is the main panel's job (WorkspacePicker).
  *
  * It lives in the app shell, so it subscribes to as little as it can: the tab
  * list, and the handful of live fields that name the active tab. Never the grid
@@ -35,14 +34,6 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
   const closeTab = useStore((s) => s.closeTab)
 
   const resize = useResizable('sidebarWidthPx', LIMITS.sidebar)
-  // Clicking the live tab folds its tables away. Keyed by tab, so any switch —
-  // click, key or palette — arrives unfolded.
-  const [foldedTab, setFoldedTab] = useState<number | null>(null)
-  const folded = foldedTab === activeTabId
-  const pick = (id: number) => {
-    if (id === activeTabId) setFoldedTab(folded ? null : id)
-    else switchTab(id)
-  }
 
   const rows = useMemo(() => {
     const byId = new Map(connections.map((c) => [c.id, c]))
@@ -68,10 +59,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
     })
   }, [tabs, activeTabId, connections, activeConnectionId, activeDatabase, capabilities])
 
-  const at = rows.findIndex((r) => r.live)
-  const before = rows.slice(0, at)
-  const after = rows.slice(at + 1)
-  const live = rows[at]
+  const live = rows.find((r) => r.live)
   const bound = isBound({ activeConnectionId, activeDatabase, capabilities })
 
   const row = (r: (typeof rows)[number]) => (
@@ -89,10 +77,9 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
       }}
     >
       <button
-        onClick={() => pick(r.id)}
+        onClick={() => switchTab(r.id)}
         title={r.title}
         aria-current={r.live || undefined}
-        aria-expanded={r.live ? !folded : undefined}
         className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
           r.live ? 'font-bold' : ''
         }`}
@@ -162,43 +149,26 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
           pillClassName={PILL}
           hoverClassName={HOVER_PILL}
         >
-          {before.length > 0 && (
-            <div data-highlight-clip className="max-h-[30%] shrink-0 overflow-y-auto">
-              {before.map(row)}
-            </div>
-          )}
-          {live && (
-            // One card, sized to what it holds: a database with three tables
-            // leaves the tabs below it in view rather than at the far bottom.
-            // Past the space there is, the table list scrolls inside it.
-            // A shade, not a border; rounded-xl is the rows' rounded-lg plus p-1.
-            <section className="my-1 flex min-h-0 flex-initial flex-col rounded-xl bg-[var(--color-panel)] p-1">
-              {row(live)}
-              {/* Rows of 1fr ↔ 0fr: a grid track animates to and from the
-                content's own height, which `height: auto` cannot. */}
-              <div
-                inert={folded}
-                className={`grid min-h-0 transition-[grid-template-rows,opacity,margin] duration-(--drawer-duration) ease-(--ease-snap) ${
-                  folded ? 'grid-rows-[0fr] opacity-0' : 'mt-1 grid-rows-[1fr]'
-                }`}
-              >
-                <div className="flex min-h-0 flex-col overflow-hidden">
-                  {bound ? (
-                    <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
-                  ) : (
-                    <p className="px-3 py-1.5 text-[var(--color-faint)]">
-                      Choose the server and database in the main panel
-                    </p>
-                  )}
-                </div>
-              </div>
-            </section>
-          )}
-          {after.length > 0 && (
-            <div data-highlight-clip className="max-h-[30%] shrink-0 overflow-y-auto">
-              {after.map(row)}
-            </div>
-          )}
+          <div data-highlight-clip className="max-h-[35%] shrink-0 overflow-y-auto">
+            {rows.map(row)}
+          </div>
+          <h2 className="mt-1.5 flex items-baseline gap-2 border-t border-[var(--color-border)] px-1.5 pt-2.5 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase">
+            Tables
+            {live && bound && (
+              <span className="min-w-0 truncate font-normal tracking-normal normal-case">
+                {live.title}
+              </span>
+            )}
+          </h2>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {bound ? (
+              <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
+            ) : (
+              <p className="px-3 py-1.5 text-[var(--color-faint)]">
+                Choose the server and database in the main panel
+              </p>
+            )}
+          </div>
         </Highlight>
       </aside>
     </div>

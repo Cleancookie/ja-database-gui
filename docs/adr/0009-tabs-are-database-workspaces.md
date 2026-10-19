@@ -59,3 +59,14 @@ gone as soon as a table opened. Going back to it meant `Ctrl+P` or a new tab.
   in or run, rather than always.
 - Clicking the active tab's name folds its tables away and back. The fold is
   per tab: switching tab always lands unfolded.
+
+## Amendment 2026-10-19: tabs and tables are separate sections
+
+Expanding the active tab in place mixed two lists into one. Users could not
+tell where the tabs ended and the tables began.
+
+- The rail has two sections. `TABS` lists every tab, one line each, the active
+  one highlighted. `TABLES` lists the active tab's tables: search, open items,
+  a rule, then every table and view.
+- The fold is removed. A tab row only switches tabs.
+- The tab model above is unchanged.

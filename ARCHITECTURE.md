@@ -166,9 +166,9 @@ because inside a palette it is already the emacs-style move-up binding.
 The left rail is the tab sidebar (ADR 0006, amended by ADR 0009). A tab is a
 workspace on one connection and one database: the tables opened in it, each
 with its filter, sort and page, plus that tab's own SQL editor and details
-page. The active tab is expanded in the sidebar once it has a database: a
-table search, the SQL editor, the open tables and every table and view. Other
-tabs are one line each. With no database chosen, the main panel shows a
+page. The sidebar has two sections: `TABS`, one line per tab, and `TABLES`,
+the active tab's table search, SQL editor, open tables and every table and
+view. With no database chosen, the main panel shows a
 stepped picker (`WorkspacePicker`), headed by a `Servers / server / Databases`
 path; the sidebar holds tabs and tables only. A bound tab with no table open shows `EmptyPanel`.
 
