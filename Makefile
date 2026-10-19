@@ -42,7 +42,7 @@ windows: $(EXE)
 # -s skips Wails' own frontend step, since $(DIST) is already a prerequisite.
 # Cross-compiling to Windows works from Linux because every driver is pure Go
 # and the Windows webview binding needs no cgo.
-$(EXE): $(GO_SRC) $(DIST) wails.json
+$(EXE): $(GO_SRC) $(DIST) wails.json build/appicon.png
 	@mkdir -p $(BIN_DIR)
 	wails build -platform windows/amd64 -s -ldflags "$(LDFLAGS)" -o ja-db.exe
 
