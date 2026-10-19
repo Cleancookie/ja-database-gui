@@ -940,7 +940,7 @@ Each open table is its own tab, like a browser, instead of a tab holding a list 
 | What a tab is | One table (`activeRef`, with its filter, sort and page in `TAB_FIELDS`), or a SQL editor, on one connection and database. No `openTables` |
 | Opening a table | `openObject`: a tab on this connection already showing it is switched to; else a bound tab with nothing open takes it; else a new tab on the same connection and database. Sidebar, palette, object menu, `createTable` alike |
 | Tab row | Table name (`SQL` for an editor, `New tab` for nothing), then `connection / database` faint (`tabLabel`). Dirty dot on every row, the active one too (`TabMark`) |
-| `TABLES` | Every table and view of the active tab's database, a green dot on each open in any tab (`openRefKeys`). Header: connection and the database picker, which opens a tab on the chosen database |
+| `TABLES` | Amended below: every table and view of its own server and database, not the active tab's |
 | SQL editor | A tab kind. `Ctrl+E` on an empty tab shows the editor there, on an editor does nothing, else opens an editor tab on the same database. The editor's database picker opens an editor tab |
 | Details | A view of the table's tab. `openDetails` opens the table first |
 | Closing | `Ctrl+W` closes the tab. With staged edits on its table and no other tab showing it, asks first (`ConfirmDiscardDialog`) and discards only that table's |
@@ -949,3 +949,24 @@ Each open table is its own tab, like a browser, instead of a tab holding a list 
 | Back / forward | Skip empty pages as well as closed tabs' |
 | Reopen closed tab | Brings back its table and SQL text, not the runs |
 | Drop, disconnect | A dropped table blanks every tab showing it. Disconnect blanks every tab on that connection |
+
+## 2026-10-19 — TABLES browses on its own
+
+### Brief
+
+Changing the database in the `TABLES` header opened a tab. It must only change what is listed, the server must be choosable there too, and switching tabs must not move it. `docs/adr/0011`, amendment.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| Where `TABLES` is | Global `browseConnectionId`, `browseCapabilities`, `browseDatabases`, `browseDatabase`, `browseObjects`, `browseBusy`. Not in `TAB_FIELDS`; switching tabs never moves it |
+| Seeding | From the first tab to reach a database, and again whenever it is unset (after a disconnect of its connection). After that only its dropdowns move it |
+| Header | Colour dot, server dropdown, and on a server that hosts databases a database dropdown (`BrowsePicker`). Choosing either calls `browse`: connects if needed (`api.connect`, password prompt for ask-every-time), lists objects, opens no tab |
+| No database yet | A server with several databases and none saved shows "Choose a database" until one is picked. SQLite or a saved database lists at once |
+| Clicking a table | `openObject(o, browsePlace(s))`. A tab showing that connection, database and table is switched to. Else the active tab if it is on that database, or empty and unbound. Else a new tab bound there (`openWorkspace`) |
+| Open dots | `openRefKeys` against the browse connection; the refKey carries the database |
+| Right-click menu | Acts on the active tab, so on another database it opens the table in its tab first |
+| Refresh | `selectDatabase` on the browse database also fills `browseObjects`, so create, drop and empty refresh it. Disconnect or delete of its connection clears it |
+| Palette | Unchanged: lists the active tab's objects. `Ctrl+L` focuses the `TABLES` search |
+| Persisted | No. Tabs are not kept across restarts, so neither is this |

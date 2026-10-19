@@ -168,8 +168,11 @@ table, with its filter, sort and page, or a SQL editor, on one connection and
 database, as tabs are in a browser. The table's details page is a view of its
 tab. The sidebar has two sections: `TABS`, one line per tab naming its table
 then its connection and database, and `TABLES`, a search and every table and
-view of the active tab's database, with a picker that opens a tab on another
-one. With no database chosen, the main panel shows a
+view of a database of its own: global `browse*` store fields, not tab state.
+Its header has server and database dropdowns (`BrowsePicker`) that change only
+what is listed. It is seeded from the first tab to reach a database, and a
+table clicked there opens on its server and database (`openObject(o, at)`).
+With no database chosen, the main panel shows a
 stepped picker (`WorkspacePicker`), headed by a `Servers / server / Databases`
 path; the sidebar holds tabs and tables only. A bound tab with no table open shows `EmptyPanel`.
 

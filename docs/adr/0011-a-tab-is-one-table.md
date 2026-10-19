@@ -1,7 +1,7 @@
 # 11. A tab is one table
 
 Date: 2026-10-19
-Status: Accepted. Supersedes 0009, amends 0006
+Status: Accepted. Supersedes 0009, amends 0006. Amended 2026-10-19
 
 ## Context
 
@@ -46,3 +46,20 @@ belonged to neither. Users expected a browser: one thing open per tab.
   kept.
 - The sidebar still must not subscribe to the selection, rows or staged edits
   (`frontend/src/invariants.test.ts`).
+
+## Amendment, 2026-10-19: `TABLES` browses on its own
+
+Choosing a database in the `TABLES` header opened a tab, and switching tabs
+moved the list. Users read the list as a browser of their own choosing.
+
+- **`TABLES` has its own place.** Global `browse*` store fields, not
+  `TAB_FIELDS`. Switching tabs leaves it be. It is seeded from the first tab to
+  reach a database, and again only when unset.
+- **Its header has a server and a database dropdown** (`BrowsePicker`). Both
+  call `browse`, which connects if needed and lists objects. Neither opens a tab.
+- **A table clicked there opens on the browse server and database.**
+  `openObject(o, at)`: its tab if one shows it; else the active tab if it is
+  there, or empty and unbound; else a new tab bound there via `openWorkspace`.
+- The palette still lists the active tab's objects.
+- Disconnecting its connection clears it. Create, drop and empty on its
+  database refresh it through `selectDatabase`.
