@@ -47,7 +47,8 @@ export function App() {
   const page = useStore((s) => s.page)
   const pageSize = useStore((s) => s.pageSize)
   const paginationEnabled = useStore((s) => s.paginationEnabled)
-  const toggleSort = useStore((s) => s.toggleSort)
+  const sortBy = useStore((s) => s.sortBy)
+  const clearSort = useStore((s) => s.clearSort)
   const loadMore = useStore((s) => s.loadMore)
   const infinite = useStore(isInfinite)
   const openCell = useStore((s) => s.openCell)
@@ -55,7 +56,11 @@ export function App() {
   // Stable, so the memoised grid is not re-rendered by an inline arrow every
   // time something else in the shell changes — `busy` toggling on each query
   // is enough on its own.
-  const onSort = useCallback((column: string) => void toggleSort(column), [toggleSort])
+  const onSort = useCallback(
+    (column: string, desc: boolean | null) =>
+      void (desc === null ? clearSort() : sortBy(column, desc)),
+    [sortBy, clearSort],
+  )
   const onOpenCell = useCallback(
     (row: number, col: number) => openCell('browse', row, col),
     [openCell],

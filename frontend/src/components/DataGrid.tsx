@@ -46,7 +46,8 @@ interface Props {
   /** Introspected column metadata; absent when running ad-hoc SQL. */
   columns?: Column[]
   orderBy?: Sort[]
-  onSort?: (column: string) => void
+  /** Sorts by a column from its header menu; `null` clears the sort. */
+  onSort?: (column: string, desc: boolean | null) => void
   /** Row offset of the first row, so numbering continues across pages. */
   rowOffset?: number
   /**
@@ -128,6 +129,7 @@ function Grid({
   const extendSelection = useStore((s) => s.extendSelection)
   const addRange = useStore((s) => s.addRange)
   const clearSelection = useStore((s) => s.clearSelection)
+  const selectColumn = useStore((s) => s.selectColumn)
   const focus = selection?.focus ?? null
   // Kept ranges first, the live one last.
   const rects = useMemo(() => (selection ? rectsOf(selection) : []), [selection])
@@ -485,9 +487,24 @@ function Grid({
   }
 
   const headerName = headerCol === null ? undefined : meta[headerCol]?.name
+  const sortItems: MenuItem[] =
+    onSort && headerName
+      ? [
+          { label: 'Sort A → Z', onSelect: () => onSort(headerName, false) },
+          { label: 'Sort Z → A', onSelect: () => onSort(headerName, true) },
+          { label: 'Clear sort', disabled: !sort, onSelect: () => onSort(headerName, null) },
+        ]
+      : []
+  // A whole column selected by its header: that header is lit to match.
+  const litCol =
+    live && live.left === live.right && live.top === 0 && live.bottom === result.rows.length - 1
+      ? live.left
+      : null
   const headerItems: MenuItem[] = [
+    ...sortItems,
     {
       label: 'Copy column name',
+      separatorBefore: sortItems.length > 0,
       disabled: !headerName,
       onSelect: () => headerName && void copyText(headerName),
     },
@@ -534,13 +551,19 @@ function Grid({
                 <button
                   key={`${m.name}-${i}`}
                   type="button"
-                  onClick={() => onSort?.(m.name)}
+                  onClick={() => {
+                    selectColumn(source, i)
+                    // Selecting a column is not a move: the grid stays where it is.
+                    shownFocus.current = useStore.getState().selection?.focus ?? null
+                  }}
                   onContextMenu={() => setHeaderCol(i)}
                   title={`${m.name}${m.column ? ` · ${m.column.dataType}` : ''}${
                     m.column?.primaryKey ? ' · primary key' : ''
                   }`}
                   className={`absolute top-0 flex items-center gap-1 border-r border-[var(--color-border)] px-2 text-left ${
-                    onSort ? 'hover:bg-[var(--color-accent-dim)]/40' : 'cursor-default'
+                    litCol === i
+                      ? 'bg-[var(--color-accent-dim)]'
+                      : 'hover:bg-[var(--color-accent-dim)]/40'
                   }`}
                   style={{ left: c.start, width: c.size, height: gm.headerHeight }}
                 >
@@ -569,7 +592,7 @@ function Grid({
               )
             })}
             {/* Drag handles, over the buttons rather than inside them: a
-                handle inside a <button> would make every drag a sort click.
+                handle inside a <button> would make every drag a column click.
                 Mouse-only by design — a couple of hundred focusable
                 separators would swallow keyboard traversal of the grid, and
                 Tab already means "transpose" here. */}

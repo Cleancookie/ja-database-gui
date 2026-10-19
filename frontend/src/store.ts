@@ -391,7 +391,8 @@ export interface State extends EditState, EditActions {
   setPage: (p: number) => Promise<void>
   setPageSize: (n: number) => Promise<void>
   setPaginationEnabled: (on: boolean) => Promise<void>
-  toggleSort: (column: string) => Promise<void>
+  /** Sorts by one column, replacing any sort there was. */
+  sortBy: (column: string, desc: boolean) => Promise<void>
   clearSort: () => Promise<void>
   setView: (v: View) => void
   /** Shows the SQL editor: in this tab while it has nothing open, else in a new one on the same database. */
@@ -405,6 +406,8 @@ export interface State extends EditState, EditActions {
   addRange: (source: ResultSource, pos: CellPos) => void
   /** Selects the whole result. */
   selectAll: (source: ResultSource) => void
+  /** Selects every loaded row of one column — a click on its header. */
+  selectColumn: (source: ResultSource, col: number) => void
   clearSelection: () => void
   /**
    * Copies the selection: the value for one cell, an `IN (…)` list for one
@@ -1352,17 +1355,8 @@ export const useStore = create<State>((set, get) => {
       await fetchRows()
     },
 
-    async toggleSort(column) {
-      const current = get().orderBy[0]
-      let orderBy: Sort[]
-      if (!current || current.column !== column) orderBy = [{ column, desc: false }]
-      else if (!current.desc) orderBy = [{ column, desc: true }]
-      else orderBy = [] // third click clears the sort
-      // From here on an empty sort means the user emptied it, so the default is
-      // not put back. A table that opened on its primary key descending is one
-      // click from unsorted, and the cycle from there is the plain
-      // none → ascending → descending.
-      set({ orderBy, sortChosen: true, page: 1 })
+    async sortBy(column, desc) {
+      set({ orderBy: [{ column, desc }], sortChosen: true, page: 1 })
       await fetchRows()
     },
 
@@ -1527,6 +1521,15 @@ export const useStore = create<State>((set, get) => {
           anchor: { row: 0, col: 0 },
           focus: { row: rs.rows.length - 1, col: rs.columns.length - 1 },
         },
+      })
+    },
+
+    selectColumn(source, col) {
+      const rs = source === 'sql' ? activeSqlResult(get()) : get().result
+      if (!rs || rs.rows.length === 0) return
+      // Focus on the top row, so the record pane shows the first record.
+      set({
+        selection: { source, anchor: { row: rs.rows.length - 1, col }, focus: { row: 0, col } },
       })
     },
 

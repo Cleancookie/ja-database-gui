@@ -365,6 +365,8 @@ right:
 | Double-click a column's right edge | Fits it to the widest sampled value, *past* that cap — the cap exists to keep the opening layout sane, not to refuse the ask |
 | Double-click the edge right of the row-number gutter | Fits every column at once |
 | Header right-click → Reset column widths | Back to the measured defaults |
+| Click a header | Selects that column's loaded rows and lights the header. Never sorts, never scrolls |
+| Header right-click → Sort A → Z / Z → A / Clear sort | The only way to sort from the grid |
 
 Widths are keyed by column *name*, not index, so a reload or a page turn cannot
 hand a column somebody else's width. The transposed grid is deliberately left

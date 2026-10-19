@@ -101,7 +101,7 @@ describe('infinite scroll', () => {
     const { useStore, calls } = await fresh(true)
     await useStore.getState().openObject(table)
     await useStore.getState().loadMore()
-    await useStore.getState().toggleSort('id')
+    await useStore.getState().sortBy('id', false)
     expect(calls.at(-1)).not.toHaveProperty('after')
   })
 
@@ -118,7 +118,7 @@ describe('infinite scroll', () => {
     const { useStore, calls } = await fresh(true)
     await useStore.getState().openObject(table)
     await useStore.getState().loadMore()
-    await useStore.getState().toggleSort('id')
+    await useStore.getState().sortBy('id', false)
     expect(calls.at(-1)).toEqual({ page: 1, pageSize: 100 })
     expect(useStore.getState().result?.rows).toHaveLength(100)
   })
