@@ -4,11 +4,14 @@ import {
   closeOpen,
   FRESH_CONTROLS,
   neighbourOf,
+  newTab,
+  openRefKeys,
   openTableKeys,
   recordPage,
   samePage,
   TAB_FIELDS,
   tabHistory,
+  tabLabel,
   tabTitle,
   upsertOpen,
   type Page,
@@ -40,6 +43,50 @@ describe('tabTitle', () => {
     expect(
       tabTitle({ activeConnectionId: null, activeDatabase: '', capabilities: null }, undefined),
     ).toBe('New tab')
+  })
+})
+
+describe('tabLabel', () => {
+  const bound = {
+    activeConnectionId: 'c',
+    activeDatabase: 'shop',
+    capabilities: { serverHostsDatabases: true } as TabFields['capabilities'],
+    activeRef: null,
+    view: 'data' as const,
+  }
+  it('names the table, then where it is', () => {
+    expect(tabLabel({ ...bound, activeRef: ref('users') }, 'Prod')).toEqual({
+      name: 'users',
+      where: 'Prod / shop',
+    })
+  })
+  it('names the SQL editor SQL', () => {
+    expect(tabLabel({ ...bound, view: 'sql' }, 'Prod').name).toBe('SQL')
+  })
+  it('calls a tab with nothing in it New tab, and an unbound one nowhere', () => {
+    expect(tabLabel(bound, 'Prod')).toEqual({ name: 'New tab', where: 'Prod / shop' })
+    expect(tabLabel({ ...bound, activeConnectionId: null }, undefined)).toEqual({
+      name: 'New tab',
+      where: '',
+    })
+  })
+})
+
+describe('openRefKeys', () => {
+  const tab = (id: number, connectionId: string, name: string | null) => ({
+    ...newTab(id, {
+      ...blankFields(100, true),
+      activeConnectionId: connectionId,
+      activeRef: name ? ref(name) : null,
+    }),
+  })
+  it('keys the tables open in any tab on the connection, the live one too', () => {
+    const tabs = [tab(1, 'c', 'a'), tab(2, 'other', 'b'), tab(3, 'c', null), newTab(4, null)]
+    const keys = openRefKeys(tabs, 'c', ref('z'))
+    expect([...keys].sort()).toEqual([refKey('db', '', 'a'), refKey('db', '', 'z')].sort())
+  })
+  it('is empty with no connection', () => {
+    expect(openRefKeys([tab(1, 'c', 'a')], null, null).size).toBe(0)
   })
 })
 

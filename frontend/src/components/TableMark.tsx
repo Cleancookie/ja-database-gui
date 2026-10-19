@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import { tableKey } from '../edits'
 import { useStore } from '../store'
-import type { OpenTable } from '../tabs'
+import type { ObjectRef } from '../types'
 
 /**
  * The dot on a sidebar table that has staged changes.
@@ -27,19 +27,18 @@ export const TableMark = memo(function TableMark({ tableKey }: { tableKey: strin
 })
 
 /**
- * The dot on a collapsed tab with staged changes in any of its open tables.
+ * The dot on a tab whose table has staged changes.
  * A boolean selector for the same reason as `TableMark`.
  */
 export const TabMark = memo(function TabMark({
   connectionId,
-  openTables,
+  tableRef,
 }: {
   connectionId: string | null
-  openTables: OpenTable[]
+  tableRef: ObjectRef | null
 }) {
   const dirty = useStore(
-    (s) =>
-      !!connectionId && openTables.some((t) => s.dirtyTables.has(tableKey(connectionId, t.ref))),
+    (s) => !!connectionId && !!tableRef && s.dirtyTables.has(tableKey(connectionId, tableRef)),
   )
   if (!dirty) return null
   return (

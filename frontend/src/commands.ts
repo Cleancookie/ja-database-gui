@@ -16,7 +16,7 @@ import { rectOf, rectSize } from './selection'
 import { formatSqlInEditor, runSqlFromEditor } from './sqlEditorRun'
 import { FONT_SIZE_DEFAULT, FONT_SIZE_MAX, FONT_SIZE_MIN, PAGE_SIZES, type useStore } from './store'
 import { storageWarning } from './secrets'
-import { openTableKeys, pageTitle, tabHistory, tabTitle } from './tabs'
+import { openRefKeys, pageTitle, tabHistory, tabLabel } from './tabs'
 import { THEMES } from './themes'
 import { setPane } from './paneFocus'
 import type { ObjectType, SchemaObject } from './types'
@@ -88,8 +88,7 @@ export function buildNavigationCommands(s: Store): Command[] {
   //
   // Recently opened ones lead within that, and are grouped separately so the
   // few tables being worked on right now are visually distinct from the whole
-  // catalogue. Open tabs are offered further down; this list is what opens a
-  // table in the *current* tab.
+  // catalogue. A table already open in a tab is gone back to, not opened twice.
   if (s.activeConnectionId) {
     const recent = new Map(s.recentObjects.map((k, i) => [k, i]))
     // The object currently on screen is excluded from Recent: offering to
@@ -104,7 +103,7 @@ export function buildNavigationCommands(s: Store): Command[] {
     // wants it, and so does the command built from it.
     const position = new Map(s.objects.map((o) => [o, lookup(o)]))
     const indexOf = (o: SchemaObject) => position.get(o) ?? -1
-    const openHere = openTableKeys(s.openTables)
+    const open = openRefKeys(s.tabs, s.activeConnectionId, s.activeRef)
 
     for (const o of orderByRecency(s.objects, indexOf)) {
       const i = indexOf(o)
@@ -113,8 +112,8 @@ export function buildNavigationCommands(s: Store): Command[] {
         id: `object:${qualified}:${o.type}`,
         title: qualified,
         subtitle: o.type + (o.rowEstimate != null ? ` · ~${formatCount(o.rowEstimate)} rows` : ''),
-        group: openHere.has(refKey(s.activeDatabase, o.schema, o.name))
-          ? 'Open in this tab'
+        group: open.has(refKey(s.activeDatabase, o.schema, o.name))
+          ? 'Open in a tab'
           : i >= 0
             ? 'Recent'
             : 'Open',
@@ -128,14 +127,13 @@ export function buildNavigationCommands(s: Store): Command[] {
   const names = new Map(s.connections.map((c) => [c.id, c.name]))
   for (const t of s.tabs) {
     if (t.id === s.activeTabId || !t.saved) continue
-    const title = tabTitle(t.saved, names.get(t.saved.activeConnectionId ?? ''))
-    const open = t.saved.openTables.map((o) => o.ref.name)
+    const { name, where } = tabLabel(t.saved, names.get(t.saved.activeConnectionId ?? ''))
     cmds.push({
       id: `tab:${t.id}`,
-      title: `Tab: ${title}`,
-      subtitle: open.length ? `${open.length} open: ${open.join(', ')}` : undefined,
+      title: `Tab: ${name}`,
+      subtitle: where || undefined,
       group: 'Tabs',
-      candidate: { name: title, keywords: `tab switch open ${open.join(' ')}`, bias: -0.1 },
+      candidate: { name, keywords: `tab switch open ${where}`, bias: -0.1 },
       run: () => s.switchTab(t.id),
     })
   }

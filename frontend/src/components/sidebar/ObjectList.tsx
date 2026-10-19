@@ -13,7 +13,7 @@ import { useStore } from '../../store'
 import type { ObjectType, SchemaObject } from '../../types'
 import { ObjectListMenu, objectKey } from '../ObjectMenu'
 import { refKey } from '../../recency'
-import { openTableKeys } from '../../tabs'
+import { openRefKeys } from '../../tabs'
 import { Highlight } from '../Highlight'
 import { OpenDot } from '../OpenDot'
 import { TableMark } from '../TableMark'
@@ -59,8 +59,12 @@ export const ObjectList = memo(function ObjectList({
   const objects = useStore((s) => s.objects)
   const busy = useStore((s) => s.busy)
   const openObject = useStore((s) => s.openObject)
-  const openTables = useStore((s) => s.openTables)
-  const open = useMemo(() => openTableKeys(openTables), [openTables])
+  const tabs = useStore((s) => s.tabs)
+  const activeRef = useStore((s) => s.activeRef)
+  const open = useMemo(
+    () => openRefKeys(tabs, activeConnectionId, activeRef),
+    [tabs, activeConnectionId, activeRef],
+  )
   const current = useStore((s) =>
     s.view !== 'sql' && s.activeRef
       ? refKey(s.activeDatabase, s.activeRef.schema, s.activeRef.name)

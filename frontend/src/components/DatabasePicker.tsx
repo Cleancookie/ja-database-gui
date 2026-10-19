@@ -12,7 +12,7 @@ import { pickerModel } from '../picker'
  *
  * All the decisions are in `picker.ts`; this only renders them.
  */
-export function DatabasePicker() {
+export function DatabasePicker({ id = DATABASE_PICKER_ID }: { id?: string }) {
   const connections = useStore((s) => s.connections)
   const activeConnectionId = useStore((s) => s.activeConnectionId)
   const capabilities = useStore((s) => s.capabilities)
@@ -48,7 +48,7 @@ export function DatabasePicker() {
   if (model.kind === 'connections' && model.options.length === 0) {
     return (
       <button
-        id={DATABASE_PICKER_ID}
+        id={id}
         onClick={() => setDialog({ kind: 'connection', connection: null })}
         className="rounded-lg border border-[var(--color-border)] bg-[var(--color-elevated)] px-2 py-0.5 text-[var(--color-muted)] shadow-xs hover:border-[var(--color-accent)]"
       >
@@ -61,7 +61,7 @@ export function DatabasePicker() {
 
   return (
     <select
-      id={DATABASE_PICKER_ID}
+      id={id}
       aria-label={onDatabases ? 'Database' : 'Connection'}
       title={
         onDatabases

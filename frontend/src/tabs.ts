@@ -173,6 +173,32 @@ export function tabTitle(
   return `${name} / ${f.activeDatabase}`
 }
 
+/** A tab's row in the strip: what it shows, then where that is. */
+export function tabLabel(
+  f: Pick<
+    TabFields,
+    'activeConnectionId' | 'activeDatabase' | 'capabilities' | 'activeRef' | 'view'
+  >,
+  connectionName: string | undefined,
+): { name: string; where: string } {
+  const name = f.view === 'sql' ? 'SQL' : (f.activeRef?.name ?? 'New tab')
+  return { name, where: f.activeConnectionId ? tabTitle(f, connectionName) : '' }
+}
+
+/** The tables open in any tab on `connectionId`, as `refKey`s, for marking them in a list of every object. */
+export function openRefKeys(
+  tabs: Tab[],
+  connectionId: string | null,
+  live: ObjectRef | null,
+): Set<string> {
+  if (!connectionId) return new Set()
+  const refs = tabs.flatMap((t) =>
+    t.saved?.activeConnectionId === connectionId && t.saved.activeRef ? [t.saved.activeRef] : [],
+  )
+  if (live) refs.push(live)
+  return new Set(refs.map((r) => refKey(r.database, r.schema, r.name)))
+}
+
 /**
  * Pages.
  *

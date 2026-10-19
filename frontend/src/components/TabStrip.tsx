@@ -2,7 +2,8 @@ import { memo, useMemo } from 'react'
 import { isBound, useStore } from '../store'
 import { Highlight } from './Highlight'
 import { HOVER_PILL, PILL } from './sidebar/listKit'
-import { tabTitle } from '../tabs'
+import { tabLabel } from '../tabs'
+import { DatabasePicker } from './DatabasePicker'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import { ObjectList } from './sidebar/ObjectList'
 import { OpenList } from './sidebar/OpenList'
@@ -14,9 +15,10 @@ const WORKSPACE_EXTRAS = <OpenList />
 /**
  * The tab sidebar down the left edge.
  *
- * Two sections. Tabs: one line per tab, each a connection and a database.
- * Tables: the active tab's — the SQL editor, the ones open in it, then every
- * table and view. Choosing the database is the main panel's job (WorkspacePicker).
+ * Two sections. Tabs: one line per tab, each the table or SQL editor it shows,
+ * then its connection and database. Tables: every table and view in the active
+ * tab's database, which its ▾ changes by opening a tab on another. An unbound
+ * tab chooses its database in the main panel (WorkspacePicker).
  *
  * It lives in the app shell, so it subscribes to as little as it can: the tab
  * list, and the handful of live fields that name the active tab. Never the grid
@@ -29,6 +31,8 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
   const activeConnectionId = useStore((s) => s.activeConnectionId)
   const activeDatabase = useStore((s) => s.activeDatabase)
   const capabilities = useStore((s) => s.capabilities)
+  const activeRef = useStore((s) => s.activeRef)
+  const view = useStore((s) => s.view)
   const newTab = useStore((s) => s.newTab)
   const switchTab = useStore((s) => s.switchTab)
   const closeTab = useStore((s) => s.closeTab)
@@ -40,27 +44,37 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
     return tabs.map((t) => {
       const live = t.id === activeTabId
       const f = live
-        ? { activeConnectionId, activeDatabase, capabilities, openTables: [] }
+        ? { activeConnectionId, activeDatabase, capabilities, activeRef, view }
         : (t.saved ?? {
             activeConnectionId: null,
             activeDatabase: '',
             capabilities: null,
-            openTables: [],
+            activeRef: null,
+            view: 'data' as const,
           })
       const conn = f.activeConnectionId ? byId.get(f.activeConnectionId) : undefined
       return {
         id: t.id,
         live,
-        title: tabTitle(f, conn?.name),
+        ...tabLabel(f, conn?.name),
         colour: conn?.colour,
         connectionId: f.activeConnectionId,
-        openTables: f.openTables,
+        tableRef: f.activeRef,
       }
     })
-  }, [tabs, activeTabId, connections, activeConnectionId, activeDatabase, capabilities])
+  }, [
+    tabs,
+    activeTabId,
+    connections,
+    activeConnectionId,
+    activeDatabase,
+    capabilities,
+    activeRef,
+    view,
+  ])
 
-  const live = rows.find((r) => r.live)
   const bound = isBound({ activeConnectionId, activeDatabase, capabilities })
+  const connName = connections.find((c) => c.id === activeConnectionId)?.name
 
   const row = (r: (typeof rows)[number]) => (
     <div
@@ -78,7 +92,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
     >
       <button
         onClick={() => switchTab(r.id)}
-        title={r.title}
+        title={r.where ? `${r.name} — ${r.where}` : r.name}
         aria-current={r.live || undefined}
         className={`relative flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2 py-1.5 text-left ${
           r.live ? 'font-bold' : ''
@@ -88,18 +102,18 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
           className="h-2.5 w-2.5 shrink-0 rounded-full"
           style={{ background: r.colour || 'var(--color-border-strong)' }}
         />
-        <span className="min-w-0 flex-1 truncate">{r.title}</span>
-        {!r.live && <TabMark connectionId={r.connectionId} openTables={r.openTables} />}
-        {!r.live && r.openTables.length > 0 && (
-          <span className="shrink-0 font-normal text-[var(--color-faint)]" title="open tables">
-            {r.openTables.length}
-          </span>
-        )}
+        <span className="min-w-0 flex-1 truncate">
+          {r.name}
+          {r.where && (
+            <span className="ml-1.5 font-normal text-[var(--color-faint)]">{r.where}</span>
+          )}
+        </span>
+        <TabMark connectionId={r.connectionId} tableRef={r.tableRef} />
       </button>
       <button
         onClick={() => closeTab(r.id)}
         title="Close tab (Ctrl+W)"
-        aria-label={`Close ${r.title}`}
+        aria-label={`Close ${r.name}`}
         className="relative mr-1 shrink-0 rounded-full px-1.5 text-[var(--color-faint)] opacity-0 group-hover:opacity-100 hover:bg-[var(--color-elevated)] hover:text-[var(--color-text)] focus-visible:opacity-100"
       >
         ×
@@ -152,14 +166,18 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
           <div data-highlight-clip className="max-h-[35%] shrink-0 overflow-y-auto">
             {rows.map(row)}
           </div>
-          <h2 className="mt-1.5 flex items-baseline gap-2 border-t border-[var(--color-border)] px-1.5 pt-2.5 pb-1 font-bold tracking-wider text-[var(--color-faint)] uppercase">
-            Tables
-            {live && bound && (
-              <span className="min-w-0 truncate font-normal tracking-normal normal-case">
-                {live.title}
-              </span>
+          <div className="mt-1.5 flex items-center gap-2 border-t border-[var(--color-border)] px-1.5 pt-2.5 pb-1">
+            <h2 className="font-bold tracking-wider text-[var(--color-faint)] uppercase">Tables</h2>
+            {bound && (
+              <>
+                {capabilities?.serverHostsDatabases && (
+                  <span className="min-w-0 truncate text-[var(--color-faint)]">{connName} /</span>
+                )}
+                {/* Another database opens in a new tab: this one keeps what it shows. */}
+                <DatabasePicker id="sidebar-database-picker" />
+              </>
             )}
-          </h2>
+          </div>
           <div className="flex min-h-0 flex-1 flex-col">
             {bound ? (
               <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
