@@ -1136,8 +1136,11 @@ export const useStore = create<State>((set, get) => {
     async stepHistory(delta) {
       const s = get()
       let i = s.navAt + delta
-      // Pages of tabs that have since been closed are skipped.
-      while (s.nav[i] && !s.tabs.some((t) => t.id === s.nav[i].tabId)) i += delta
+      // Pages of tabs that have since been closed are skipped, and so are empty
+      // pages: a tab is empty only on its way to a table, and going back there
+      // would take the table out of it.
+      const skip = (p: Page) => p.kind === 'empty' || !s.tabs.some((t) => t.id === p.tabId)
+      while (s.nav[i] && skip(s.nav[i])) i += delta
       await get().goToVisit(i)
     },
 

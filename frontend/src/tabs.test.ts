@@ -264,16 +264,27 @@ describe('store routes', () => {
   }
   const table = (name: string) => ({ schema: '', name, type: 'table' as const })
 
-  it('goes back from a table to the empty page, and forward again', async () => {
+  it('goes back and forward between table tabs past their empty pages', async () => {
+    const useStore = await fresh()
+    const s = () => useStore.getState()
+    await s().openObject(table('users'))
+    const first = s().activeTabId
+    await s().openObject(table('orders'))
+    const second = s().activeTabId
+
+    await s().stepHistory(-1)
+    expect(s().activeTabId).toBe(first)
+    expect(s().activeRef?.name).toBe('users')
+
+    await s().stepHistory(1)
+    expect(s().activeTabId).toBe(second)
+    expect(s().activeRef?.name).toBe('orders')
+  })
+
+  it('does not go back to the empty page a table was opened from', async () => {
     const useStore = await fresh()
     await useStore.getState().openObject(table('users'))
-    expect(useStore.getState().activeRef?.name).toBe('users')
-
     await useStore.getState().stepHistory(-1)
-    expect(useStore.getState().activeRef).toBeNull()
-    expect(useStore.getState().view).toBe('data')
-
-    await useStore.getState().stepHistory(1)
     expect(useStore.getState().activeRef?.name).toBe('users')
   })
 
