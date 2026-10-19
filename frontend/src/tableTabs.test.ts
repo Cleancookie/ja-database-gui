@@ -66,6 +66,23 @@ describe('table tabs', () => {
     expect(s().sortChosen).toBe(true)
   })
 
+  it('opens the SQL editor in an empty tab, else in a new tab on the same database', async () => {
+    const useStore = await fresh()
+    const s = () => useStore.getState()
+    s().openSql()
+    expect(s().tabs).toHaveLength(1)
+    expect(s().view).toBe('sql')
+    s().openSql()
+    expect(s().tabs).toHaveLength(1)
+    await s().openObject(table('a'))
+    expect(s().tabs).toHaveLength(2)
+    s().openSql()
+    expect(s().tabs).toHaveLength(3)
+    expect(s().view).toBe('sql')
+    expect(s().activeRef).toBeNull()
+    expect(s().activeDatabase).toBe('db')
+  })
+
   it('opens the details of a table in that table’s tab', async () => {
     const useStore = await fresh()
     const s = () => useStore.getState()
@@ -187,5 +204,15 @@ describe('openWorkspace', () => {
     expect(s().activeTabId).not.toBe(first)
     expect(s().activeDatabase).toBe('two')
     expect(s().tabs.find((t) => t.id === first)?.saved?.activeDatabase).toBe('one')
+  })
+
+  it('shows the view it is asked for in the new tab', async () => {
+    const useStore = await server()
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    await s().openWorkspace('c', 'two', 'sql')
+    expect(s().view).toBe('sql')
+    await s().openWorkspace('c', 'one')
+    expect(s().view).toBe('data')
   })
 })

@@ -85,8 +85,9 @@ export function SqlEditor() {
         {/* Which database the statement will run against, and a way to change
             it without leaving the editor. Always rendered: as a chip shown
             only when a database was already chosen, it went missing in exactly
-            the case where the user needed it most. */}
-        <DatabasePicker />
+            the case where the user needed it most. Another database opens an
+            editor tab on it. */}
+        <DatabasePicker view="sql" />
         <button
           onClick={() => void runSqlFromEditor()}
           disabled={busy || !sqlText.trim()}

@@ -8,7 +8,7 @@ export function EmptyPanel() {
   const hints: [string, string][] = [
     ['Ctrl+L', 'search the tables in the sidebar'],
     ['Ctrl+P', 'jump to a table'],
-    ['Ctrl+E', 'write SQL'],
+    ['Ctrl+E', 'write SQL in this tab'],
     ['Ctrl+T', 'open another database in a new tab'],
   ]
   return (

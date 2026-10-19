@@ -339,9 +339,9 @@ export interface State extends EditState, EditActions {
   /**
    * Points a tab at a connection and database: this one while it is not yet
    * pointed at a database, a new one otherwise. `database` '' leaves the choice
-   * to the connection's saved default, or to the user.
+   * to the connection's saved default, or to the user. A new tab shows `view`.
    */
-  openWorkspace: (connectionId: string, database?: string) => Promise<void>
+  openWorkspace: (connectionId: string, database?: string, view?: View) => Promise<void>
   openObject: (o: SchemaObject) => Promise<void>
   /**
    * Closes one of the tab's open tables, the one on screen by default, and
@@ -377,8 +377,8 @@ export interface State extends EditState, EditActions {
   toggleSort: (column: string) => Promise<void>
   clearSort: () => Promise<void>
   setView: (v: View) => void
-  /** Opens the SQL editor in a new tab on the current connection and database, or leaves it. */
-  toggleSql: () => void
+  /** Shows the SQL editor: in this tab while it has nothing open, else in a new one on the same database. */
+  openSql: () => void
   toggleTransposed: () => void
   /** Starts a new selection at one cell — a plain click, or an arrow key. */
   selectCell: (source: ResultSource, pos: CellPos) => void
@@ -1041,14 +1041,13 @@ export const useStore = create<State>((set, get) => {
       }
     },
 
-    async openWorkspace(connectionId, database = '') {
+    async openWorkspace(connectionId, database = '', view) {
       const s = get()
       if (s.activeConnectionId === connectionId && (!database || database === s.activeDatabase))
         return
       if (s.activeConnectionId && s.activeDatabase) {
         get().newTab()
-        // Choosing a database from the editor is asking to write SQL against it.
-        if (s.view === 'sql') set({ view: 'sql' })
+        if (view) set({ view })
       }
       if (get().activeConnectionId === connectionId) await get().selectDatabase(database)
       else await get().connect(connectionId, null, database)
@@ -1371,13 +1370,10 @@ export const useStore = create<State>((set, get) => {
       await get().openObject({ schema: spec.ref.schema, name: spec.ref.name, type: 'table' })
     },
 
-    toggleSql() {
+    openSql() {
       const s = get()
-      if (s.view === 'sql') {
-        s.setView('data')
-        return
-      }
-      if (!s.activeConnectionId) {
+      if (s.view === 'sql') return
+      if (!s.activeConnectionId || (!s.activeRef && s.view === 'data')) {
         s.setView('sql')
         return
       }

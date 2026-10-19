@@ -20,7 +20,7 @@ const SHORTCUTS: [string, string][] = [
   ['Alt+W', 'Close the table on screen (the tab keeps its other open tables)'],
   ['Alt+PageUp  /  Alt+PageDown', 'Previous / next open table in this tab'],
   ['Enter', 'Apply the filter'],
-  ['Ctrl+E', 'Toggle the SQL editor'],
+  ['Ctrl+E', 'New SQL editor tab on this database'],
   ['Ctrl+Enter', 'Run the query, or only the selected text (in the editor)'],
   ['Shift+Alt+F', 'Format the SQL editor text, or only the selected text'],
   ['Ctrl+.', 'Cancel the running SQL editor query'],

@@ -332,7 +332,7 @@ function useGlobalHotkeys() {
 
       if (mod && e.key.toLowerCase() === 'e') {
         e.preventDefault()
-        s.toggleSql()
+        s.openSql()
         return
       }
 

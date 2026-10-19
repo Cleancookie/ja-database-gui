@@ -1,5 +1,5 @@
 import { DATABASE_PICKER_ID } from '../commands'
-import { useStore } from '../store'
+import { useStore, type View } from '../store'
 import { pickerModel } from '../picker'
 
 /**
@@ -12,7 +12,14 @@ import { pickerModel } from '../picker'
  *
  * All the decisions are in `picker.ts`; this only renders them.
  */
-export function DatabasePicker({ id = DATABASE_PICKER_ID }: { id?: string }) {
+export function DatabasePicker({
+  id = DATABASE_PICKER_ID,
+  view,
+}: {
+  id?: string
+  /** What a tab opened on another database shows. */
+  view?: View
+}) {
   const connections = useStore((s) => s.connections)
   const activeConnectionId = useStore((s) => s.activeConnectionId)
   const capabilities = useStore((s) => s.capabilities)
@@ -73,8 +80,8 @@ export function DatabasePicker({ id = DATABASE_PICKER_ID }: { id?: string }) {
         const v = e.target.value
         if (v === '') return
         void (onDatabases && activeConnectionId
-          ? openWorkspace(activeConnectionId, v)
-          : openWorkspace(v))
+          ? openWorkspace(activeConnectionId, v, view)
+          : openWorkspace(v, '', view))
       }}
       className={`max-w-[14rem] rounded-lg border border-[var(--color-border)] bg-[var(--color-elevated)] px-1.5 py-0.5 font-[var(--font-mono)] shadow-xs outline-none ${
         model.value === '' ? 'text-[var(--color-warn)]' : 'text-[var(--color-muted)]'

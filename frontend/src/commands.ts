@@ -376,12 +376,12 @@ export function buildActionCommands(s: Store): Command[] {
   }
 
   cmds.push({
-    id: 'sql:toggle',
-    title: s.view === 'sql' ? 'Close SQL editor' : 'Open SQL editor',
+    id: 'sql:open',
+    title: 'New SQL editor',
     group: 'Query',
     shortcut: 'Ctrl+E',
-    candidate: { name: 'SQL editor', keywords: 'query write execute run' },
-    run: () => s.toggleSql(),
+    candidate: { name: 'New SQL editor', keywords: 'query write execute run tab' },
+    run: () => s.openSql(),
   })
 
   // Only offered in the editor: elsewhere there is nothing to run. The title
