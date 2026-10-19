@@ -62,3 +62,11 @@ describe('the sidebar', () => {
     }
   })
 })
+
+describe('the app shell', () => {
+  it('never subscribes to the grid selection or the staged edits', () => {
+    // The record pane reads the selection itself, so the shell need not.
+    const app = files.find((f) => f.name === 'components/App.tsx')!
+    expect(app.code).not.toMatch(/=>\s*s\.(selection|staged|stagedSummary|dirtyTables|editing)\b/)
+  })
+})

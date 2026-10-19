@@ -1119,7 +1119,7 @@ function CellContextMenu({
  * would be the first thing scrolled out of sight, since capped values always
  * overflow.
  */
-function CellBody({ view, cut }: { view: CellView; cut: boolean }) {
+export function CellBody({ view, cut }: { view: CellView; cut: boolean }) {
   const value = view.value
   if (view.isDefault) return <span className="text-[var(--color-faint)] italic">DEFAULT</span>
   if (value === null) return <span className="text-[var(--color-faint)] italic">NULL</span>
@@ -1140,7 +1140,7 @@ function CellBody({ view, cut }: { view: CellView; cut: boolean }) {
 }
 
 /** The tooltip for one cell, shared by both orientations. */
-function cellTitle(view: CellView, cut: boolean, textCap: number): string {
+export function cellTitle(view: CellView, cut: boolean, textCap: number): string {
   const value = view.value
   if (view.isDefault) return 'DEFAULT'
   if (view.state === 'dirty') {

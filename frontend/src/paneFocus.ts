@@ -3,7 +3,7 @@ import type { useStore } from './store'
 
 type Store = ReturnType<typeof useStore.getState>
 
-export type Pane = 'main' | 'left' | 'tray'
+export type Pane = 'main' | 'left' | 'right' | 'tray'
 
 /**
  * The attribute a pane's root carries (`data-pane="left"`), and the one its
@@ -37,7 +37,9 @@ export function focusPane(pane: Pane) {
 /** Shows or hides a pane, taking focus into one that opens and back to the page from one that closes. */
 export async function setPane(s: Store, pane: Exclude<Pane, 'main'>, open: boolean) {
   if (pane === 'left') await s.setTabStrip(open)
-  else s.setTrayOpen(open)
+  else if (pane === 'right') {
+    if (s.settings.rowPaneOpen !== open) await s.saveSettings({ ...s.settings, rowPaneOpen: open })
+  } else s.setTrayOpen(open)
   focusPane(open ? pane : 'main')
 }
 

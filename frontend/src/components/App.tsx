@@ -21,6 +21,7 @@ import { NewTableDialog } from './NewTableDialog'
 import { ConfirmDropDialog, ConfirmTruncateDialog } from './ObjectMenu'
 import { Paginator } from './Paginator'
 import { ReviewChangesDialog } from './ReviewChangesDialog'
+import { RowPane } from './RowPane'
 import { SettingsDialog } from './SettingsDialog'
 import { PasswordDialog } from './PasswordDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
@@ -34,6 +35,7 @@ import { recoverFocus, setPane } from '../paneFocus'
 export function App() {
   const init = useStore((s) => s.init)
   const tabStripHidden = useStore((s) => s.settings.tabStripHidden)
+  const rowPaneOpen = useStore((s) => s.settings.rowPaneOpen)
   const dialog = useStore((s) => s.dialog)
   const view = useStore((s) => s.view)
   const bound = useStore(isBound)
@@ -111,6 +113,8 @@ export function App() {
             <WorkspacePicker />
           )}
         </main>
+
+        <RowPane open={rowPaneOpen} />
       </div>
 
       {/* Below every view, including the activity page: what is running is
@@ -374,11 +378,17 @@ function useGlobalHotkeys() {
       }
 
       // Ctrl+arrow toggles the pane on that edge. Skipped while typing, where
-      // Ctrl+Left/Right mean "move by word". There is no top or right pane, so
-      // those arrows are free.
+      // Ctrl+Left/Right mean "move by word". There is no top pane, so Ctrl+Up
+      // is free. Ctrl+Space toggles the right pane too, and only outside a
+      // field: in the SQL editor it is autocomplete.
       if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault()
         void setPane(s, 'left', s.settings.tabStripHidden)
+        return
+      }
+      if (!typing && mod && !e.shiftKey && !e.altKey && (e.key === 'ArrowRight' || e.key === ' ')) {
+        e.preventDefault()
+        void setPane(s, 'right', !s.settings.rowPaneOpen)
         return
       }
       if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowDown') {

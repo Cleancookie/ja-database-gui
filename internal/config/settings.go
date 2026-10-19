@@ -65,6 +65,10 @@ type Settings struct {
 	// TabsFolded and TablesFolded fold the sidebar's two cards to their headers.
 	TabsFolded   bool `json:"tabsFolded"`
 	TablesFolded bool `json:"tablesFolded"`
+	// RowPaneOpen shows the selected record down the right edge (Ctrl+→).
+	RowPaneOpen bool `json:"rowPaneOpen"`
+	// RowPaneWidthPx is that pane's width, dragged like the sidebar's.
+	RowPaneWidthPx int `json:"rowPaneWidthPx"`
 	// AnimationScale multiplies every animation's duration: 0.5 is twice as
 	// fast, 0 is off. Nil follows the OS reduced-motion preference.
 	AnimationScale *float64 `json:"animationScale"`
@@ -97,6 +101,7 @@ func DefaultSettings() Settings {
 		TrayHeightPx:       260,
 		SqlEditorHeightPx:  160,
 		OpenListHeightPx:   160,
+		RowPaneWidthPx:     320,
 	}
 }
 
@@ -130,6 +135,9 @@ func (s Settings) clamp() Settings {
 	}
 	if s.OpenListHeightPx < 48 || s.OpenListHeightPx > 720 {
 		s.OpenListHeightPx = d.OpenListHeightPx
+	}
+	if s.RowPaneWidthPx < 220 || s.RowPaneWidthPx > 720 {
+		s.RowPaneWidthPx = d.RowPaneWidthPx
 	}
 	if a := s.AnimationScale; a != nil && !(*a >= 0 && *a <= MaxAnimationScale) {
 		s.AnimationScale = nil

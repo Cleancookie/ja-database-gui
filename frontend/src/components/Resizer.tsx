@@ -21,6 +21,7 @@ export const LIMITS = {
   tray: { min: 96, max: 720, default: 260 },
   sqlEditor: { min: 64, max: 720, default: 160 },
   openList: { min: 48, max: 720, default: 160 },
+  rowPane: { min: 220, max: 720, default: 320 },
 } as const
 
 export type Axis = 'x' | 'y'
@@ -44,7 +45,8 @@ export interface Resizable {
  * round trip per pixel of travel.
  */
 export function useResizable(
-  field: 'sidebarWidthPx' | 'trayHeightPx' | 'sqlEditorHeightPx' | 'openListHeightPx',
+  field:
+    'sidebarWidthPx' | 'trayHeightPx' | 'sqlEditorHeightPx' | 'openListHeightPx' | 'rowPaneWidthPx',
   limits: { min: number; max: number; default: number },
 ): Resizable {
   const saved = useStore((s) => s.settings[field])

@@ -403,6 +403,9 @@ export interface Settings {
   /** The sidebar's TABS and TABLES cards folded to their headers. */
   tabsFolded: boolean
   tablesFolded: boolean
+  /** Whether the record pane down the right edge is shown (Ctrl+→). */
+  rowPaneOpen: boolean
+  rowPaneWidthPx: number
   /** Multiplies every animation's duration; 0 is off. Null follows the OS. */
   animationScale: number | null
   /** Load the next page when the last row scrolls into view. */

@@ -6,6 +6,7 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+Shift+P', 'Run a command — settings, editor, activity'],
   ['Ctrl+,', 'Settings'],
   ['Ctrl+B  /  Ctrl+←', 'Show / hide the left pane (tabs and tables)'],
+  ['Ctrl+→  /  Ctrl+Space', 'Show / hide the right pane (the selected record)'],
   ['Ctrl+`  /  Ctrl+↓', 'Show / hide the bottom pane (activity tray)'],
   ['Ctrl+T  /  Ctrl+W', 'New tab / close the tab'],
   ['Ctrl+Shift+T', 'Reopen the last closed tab'],

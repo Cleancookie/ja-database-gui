@@ -478,6 +478,15 @@ export function buildActionCommands(s: Store): Command[] {
       keywords: 'sidebar tabs vertical',
     }),
     ...paneCommands({
+      id: 'right',
+      label: 'right pane',
+      what: 'record detail',
+      open: s.settings.rowPaneOpen,
+      set: (open) => setPane(s, 'right', open),
+      shortcut: 'Ctrl+→ / Ctrl+Space',
+      keywords: 'row record detail columns values inspector transpose vertical',
+    }),
+    ...paneCommands({
       id: 'bottom',
       label: 'bottom pane',
       what: 'activity tray',
@@ -1135,7 +1144,7 @@ export function formatDuration(ms: number): string {
  * Show, Hide and Toggle for one pane. Every pane gets the same three so the
  * palette answers "hide the left pane" the same way for each, and Show / Hide
  * only appear when they would do something. A pane with no content yet (there
- * is no right or top pane) gets none: a command that toggles nothing is noise.
+ * is no top pane) gets none: a command that toggles nothing is noise.
  */
 function paneCommands(p: {
   id: string

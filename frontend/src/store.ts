@@ -172,6 +172,8 @@ export const DEFAULT_SETTINGS: Settings = {
   tabStripHidden: false,
   tabsFolded: false,
   tablesFolded: false,
+  rowPaneOpen: false,
+  rowPaneWidthPx: 320,
   animationScale: null,
   infiniteScroll: false,
   dockedBottomPane: false,
