@@ -62,6 +62,9 @@ type Settings struct {
 	OpenListHeightPx int `json:"openListHeightPx"`
 	// TabStripHidden hides the tab strip down the left edge (Ctrl+B).
 	TabStripHidden bool `json:"tabStripHidden"`
+	// TabsFolded and TablesFolded fold the sidebar's two cards to their headers.
+	TabsFolded   bool `json:"tabsFolded"`
+	TablesFolded bool `json:"tablesFolded"`
 	// AnimationScale multiplies every animation's duration: 0.5 is twice as
 	// fast, 0 is off. Nil follows the OS reduced-motion preference.
 	AnimationScale *float64 `json:"animationScale"`

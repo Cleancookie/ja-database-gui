@@ -170,6 +170,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sqlEditorHeightPx: 160,
   openListHeightPx: 160,
   tabStripHidden: false,
+  tabsFolded: false,
+  tablesFolded: false,
   animationScale: null,
   infiniteScroll: false,
   dockedBottomPane: false,
@@ -380,6 +382,8 @@ export interface State extends EditState, EditActions {
   /** Mouse back / forward: walks the pages the main panel has shown, across tabs. */
   stepHistory: (delta: number) => Promise<void>
   setTabStrip: (open: boolean) => Promise<void>
+  /** Folds or unfolds a sidebar card; without `folded`, flips it. */
+  toggleSection: (which: 'tabs' | 'tables', folded?: boolean) => Promise<void>
   setFilter: (f: string) => void
   applyFilter: (f: string) => Promise<void>
   setPage: (p: number) => Promise<void>
@@ -1268,6 +1272,14 @@ export const useStore = create<State>((set, get) => {
       const { settings, saveSettings } = get()
       if (settings.tabStripHidden === !open) return
       await saveSettings({ ...settings, tabStripHidden: !open })
+    },
+
+    async toggleSection(which, folded) {
+      const { settings, saveSettings } = get()
+      const field = which === 'tabs' ? 'tabsFolded' : 'tablesFolded'
+      const next = folded ?? !settings[field]
+      if (settings[field] === next) return
+      await saveSettings({ ...settings, [field]: next })
     },
 
     async stepHistory(delta) {

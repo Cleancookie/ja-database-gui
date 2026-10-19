@@ -245,6 +245,24 @@ export function buildActionCommands(s: Store): Command[] {
     })
   }
   cmds.push({
+    id: 'sidebar:tabs',
+    title: 'Toggle tabs section',
+    subtitle: s.settings.tabsFolded ? 'Unfold the TABS card' : 'Fold the TABS card to its header',
+    group: 'Panes',
+    candidate: { name: 'Toggle tabs section', keywords: 'sidebar fold collapse expand card' },
+    run: () => s.toggleSection('tabs'),
+  })
+  cmds.push({
+    id: 'sidebar:tables',
+    title: 'Toggle tables section',
+    subtitle: s.settings.tablesFolded
+      ? 'Unfold the TABLES card'
+      : 'Fold the TABLES card to its header',
+    group: 'Panes',
+    candidate: { name: 'Toggle tables section', keywords: 'sidebar fold collapse expand card' },
+    run: () => s.toggleSection('tables'),
+  })
+  cmds.push({
     id: 'page:back',
     title: 'Go back',
     subtitle: 'To the previous page in the main panel, across tabs',
@@ -1071,6 +1089,7 @@ export const TABLE_SEARCH_ID = 'table-search'
 /** Focuses the sidebar's table search, showing the sidebar first if it is hidden. */
 export async function focusTableSearch(s: Store) {
   if (s.settings.tabStripHidden) await s.setTabStrip(true)
+  await s.toggleSection('tables', false)
   requestAnimationFrame(() => {
     const el = document.getElementById(TABLE_SEARCH_ID) as HTMLInputElement | null
     el?.focus()

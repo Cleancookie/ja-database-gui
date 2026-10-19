@@ -1,4 +1,4 @@
-import { memo, useMemo } from 'react'
+import { memo, useMemo, type ReactNode } from 'react'
 import { isBound, useStore } from '../store'
 import { Highlight } from './Highlight'
 import { HOVER_PILL, PILL } from './sidebar/listKit'
@@ -35,6 +35,9 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
   const closeTab = useStore((s) => s.closeTab)
 
   const resize = useResizable('sidebarWidthPx', LIMITS.sidebar)
+  const tabsFolded = useStore((s) => s.settings.tabsFolded)
+  const tablesFolded = useStore((s) => s.settings.tablesFolded)
+  const toggleSection = useStore((s) => s.toggleSection)
 
   const rows = useMemo(() => {
     const byId = new Map(connections.map((c) => [c.id, c]))
@@ -142,53 +145,140 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
     >
       <aside
         style={{ width: resize.size }}
-        className={`chrome island relative flex h-full flex-col ${
+        className={`relative flex h-full flex-col gap-2 ${
           resize.dragging
             ? ''
             : 'transition-transform duration-(--drawer-duration) ease-(--ease-snap)'
         } ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <Resizer {...resize} axis="x" label="Resize the tab strip" className="right-0" />
-        <div className="flex items-center border-b border-[var(--color-border)]">
-          <h2 className="flex-1 px-3 py-2 font-bold tracking-wider text-[var(--color-faint)] uppercase">
-            Tabs
-            <span className="ml-1 opacity-60">{tabs.length}</span>
-          </h2>
-          <button
-            onClick={newTab}
-            title="New tab (Ctrl+T)"
-            className="mr-2 rounded-full bg-[var(--color-elevated)] px-2 leading-6 font-bold text-[var(--color-muted)] shadow-xs hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)]"
-          >
-            +
-          </button>
-        </div>
-        <Highlight
-          className="flex min-h-0 flex-1 flex-col p-1.5"
-          pillClassName={PILL}
-          hoverClassName={HOVER_PILL}
+        <Resizer {...resize} axis="x" label="Resize the tab strip" className="right-0 z-10" />
+        {/* The open card takes the height a folded one gives up. */}
+        <section
+          className={`chrome island relative flex flex-col ${
+            tabsFolded
+              ? 'shrink-0'
+              : tablesFolded
+                ? 'min-h-0 flex-1'
+                : 'max-h-[40%] min-h-0 shrink-0'
+          }`}
         >
-          <div data-highlight-clip className="max-h-[35%] shrink-0 overflow-y-auto">
-            {rows.map(row)}
+          <div className="flex items-center">
+            <SectionHead
+              title="Tabs"
+              count={tabs.length}
+              folded={tabsFolded}
+              controls="sidebar-tabs"
+              onToggle={() => void toggleSection('tabs')}
+            />
+            <button
+              onClick={newTab}
+              title="New tab (Ctrl+T)"
+              className="mr-2 rounded-full bg-[var(--color-elevated)] px-2 leading-6 font-bold text-[var(--color-muted)] shadow-xs hover:bg-[var(--color-accent)] hover:text-[var(--color-on-accent)]"
+            >
+              +
+            </button>
           </div>
-          <div className="mt-1.5 flex items-center gap-2 border-t border-[var(--color-border)] px-1.5 pt-2.5 pb-1">
-            <h2 className="font-bold tracking-wider text-[var(--color-faint)] uppercase">Tables</h2>
+          <Fold id="sidebar-tabs" folded={tabsFolded}>
+            <Highlight
+              className="flex min-h-0 flex-1 flex-col border-t border-[var(--color-border)] p-1.5"
+              pillClassName={PILL}
+              hoverClassName={HOVER_PILL}
+            >
+              <div data-highlight-clip className="min-h-0 overflow-y-auto">
+                {rows.map(row)}
+              </div>
+            </Highlight>
+          </Fold>
+        </section>
+        <section
+          className={`chrome island relative flex flex-col ${
+            tablesFolded ? 'shrink-0' : 'min-h-0 flex-1'
+          }`}
+        >
+          <div className="flex items-center gap-2 pr-2">
+            <SectionHead
+              title="Tables"
+              folded={tablesFolded}
+              controls="sidebar-tables"
+              onToggle={() => void toggleSection('tables')}
+            />
             <BrowsePicker />
           </div>
-          <div className="flex min-h-0 flex-1 flex-col">
-            {browsing ? (
-              <ObjectList active={false} />
-            ) : (
-              <p className="px-3 py-1.5 text-[var(--color-faint)]">
-                {!browseConnectionId
-                  ? 'Choose a server'
-                  : browseBusy
-                    ? 'Connecting…'
-                    : 'Choose a database'}
-              </p>
-            )}
-          </div>
-        </Highlight>
+          <Fold id="sidebar-tables" folded={tablesFolded}>
+            <Highlight
+              className="flex min-h-0 flex-1 flex-col border-t border-[var(--color-border)] p-1.5"
+              pillClassName={PILL}
+              hoverClassName={HOVER_PILL}
+            >
+              {browsing ? (
+                <ObjectList active={false} />
+              ) : (
+                <p className="px-3 py-1.5 text-[var(--color-faint)]">
+                  {!browseConnectionId
+                    ? 'Choose a server'
+                    : browseBusy
+                      ? 'Connecting…'
+                      : 'Choose a database'}
+                </p>
+              )}
+            </Highlight>
+          </Fold>
+        </section>
       </aside>
     </div>
   )
 })
+
+/** A card's title, which folds the card. */
+function SectionHead({
+  title,
+  count,
+  folded,
+  controls,
+  onToggle,
+}: {
+  title: string
+  count?: number
+  folded: boolean
+  controls: string
+  onToggle: () => void
+}) {
+  return (
+    <h2 className="shrink-0">
+      <button
+        onClick={onToggle}
+        aria-expanded={!folded}
+        aria-controls={controls}
+        title={folded ? `Show ${title.toLowerCase()}` : `Hide ${title.toLowerCase()}`}
+        className="flex items-center gap-1.5 px-3 py-2 font-bold tracking-wider text-[var(--color-faint)] uppercase hover:text-[var(--color-muted)]"
+      >
+        <span
+          aria-hidden
+          className={`transition-transform duration-[calc(150ms*var(--motion))] ${folded ? '' : 'rotate-90'}`}
+        >
+          ›
+        </span>
+        {title}
+        {count !== undefined && <span className="opacity-60">{count}</span>}
+      </button>
+    </h2>
+  )
+}
+
+/**
+ * A card's body. Rows of 1fr ↔ 0fr: a grid track animates to and from the
+ * height of its content, which no height transition can.
+ */
+function Fold({ id, folded, children }: { id: string; folded: boolean; children: ReactNode }) {
+  return (
+    <div
+      id={id}
+      inert={folded}
+      className={`grid min-h-0 flex-1 transition-[grid-template-rows,opacity] duration-(--drawer-duration) ease-(--ease-snap) motion-reduce:transition-none ${
+        folded ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr]'
+      }`}
+    >
+      <div className="flex min-h-0 flex-col overflow-hidden">{children}</div>
+    </div>
+  )
+}
