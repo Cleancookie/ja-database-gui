@@ -160,11 +160,18 @@ describe('table tabs', () => {
 async function server() {
   vi.resetModules()
   const api = {
-    connect: async (_id: string, _pw: string | null, database: string) => ({
-      capabilities: { serverHostsDatabases: true },
-      databases: [{ name: 'one' }, { name: 'two' }],
-      defaultDatabase: database || 'one',
-    }),
+    connect: async (id: string, _pw: string | null, database: string) =>
+      id === 'file'
+        ? {
+            capabilities: { serverHostsDatabases: false },
+            databases: [{ name: 'main' }],
+            defaultDatabase: 'main',
+          }
+        : {
+            capabilities: { serverHostsDatabases: true },
+            databases: [{ name: 'one' }, { name: 'two' }],
+            defaultDatabase: database || 'one',
+          },
     listObjects: async () => [],
   }
   vi.doMock('./api', () => ({
@@ -175,7 +182,12 @@ async function server() {
     transportName: 'test',
   }))
   const { useStore } = await import('./store')
-  useStore.setState({ connections: [{ id: 'c', name: 'C', kind: 'postgres' }] })
+  useStore.setState({
+    connections: [
+      { id: 'c', name: 'C', kind: 'postgres' },
+      { id: 'file', name: 'File', kind: 'sqlite' },
+    ],
+  })
   return useStore
 }
 
@@ -283,6 +295,34 @@ describe('the TABLES browser', () => {
     await s().openObject(table('b'), browsePlace(s()))
     expect(s().tabs).toHaveLength(2)
     expect(s().activeRef).toEqual({ database: 'one', schema: '', name: 'b' })
+  })
+
+  it('waits for a database on a server with several and none saved', async () => {
+    const useStore = await server()
+    const s = () => useStore.getState()
+    await s().openWorkspace('file')
+    await s().browse('c')
+    expect(s().browseConnectionId).toBe('c')
+    expect(s().browseDatabase).toBe('')
+    expect(s().browseDatabases).toEqual(['one', 'two'])
+    expect(s().tabs).toHaveLength(1)
+    expect(s().activeConnectionId).toBe('file')
+  })
+
+  it('opens a table from another server in a tab bound there', async () => {
+    const useStore = await server()
+    const { browsePlace } = await import('./store')
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    await s().openObject(table('a'))
+    await s().browse('file')
+    expect(s().browseDatabase).toBe('main')
+    expect(s().activeConnectionId).toBe('c')
+    await s().openObject(table('b'), browsePlace(s()))
+    expect(s().tabs).toHaveLength(2)
+    expect(s().activeConnectionId).toBe('file')
+    expect(s().capabilities?.serverHostsDatabases).toBe(false)
+    expect(s().activeRef?.name).toBe('b')
   })
 
   it('lets go of a disconnected connection', async () => {

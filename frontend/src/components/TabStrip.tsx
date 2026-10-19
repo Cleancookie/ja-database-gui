@@ -71,6 +71,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
   ])
 
   const browseConnectionId = useStore((s) => s.browseConnectionId)
+  const browseBusy = useStore((s) => s.browseBusy)
   const browsing = useStore((s) =>
     isBound({
       activeConnectionId: s.browseConnectionId,
@@ -178,9 +179,11 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
               <ObjectList active={false} />
             ) : (
               <p className="px-3 py-1.5 text-[var(--color-faint)]">
-                {browseConnectionId
-                  ? 'Choose a database'
-                  : 'Choose the server and database in the main panel'}
+                {!browseConnectionId
+                  ? 'Choose a server'
+                  : browseBusy
+                    ? 'Connecting…'
+                    : 'Choose a database'}
               </p>
             )}
           </div>
