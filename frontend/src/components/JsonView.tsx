@@ -469,7 +469,7 @@ export function JsonView({
             e.currentTarget.querySelector<HTMLElement>('[data-tree-editor]')?.focus()
           }
         }}
-        className="p-3 font-[var(--font-mono)] leading-relaxed outline-none"
+        className="p-3 font-[var(--font-mono)] leading-relaxed outline-none select-text"
       >
         <Highlight pillClassName="rounded-lg bg-[var(--color-accent-dim)]/60">
           {rows.map((row, i) => (
@@ -585,7 +585,8 @@ function RowView({
         aria-selected={focused}
         data-item
         data-highlight={focused || undefined}
-        onClick={(e) => !fromEditor(e) && onClick()}
+        // A drag that selected text ends in a click; it must not fold the row.
+        onClick={(e) => !fromEditor(e) && !window.getSelection()?.toString() && onClick()}
         onContextMenu={onContextMenu}
         className={`relative flex items-baseline gap-2 rounded-lg px-1 ${
           mark === 'self' ? editCellClass('dirty', false) : ''
