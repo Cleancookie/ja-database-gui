@@ -979,3 +979,18 @@ Changing the database in the `TABLES` header opened a tab. It must only change w
 | Folding | The title (chevron, `aria-expanded`) folds a card to its header; the other takes the height. Both may be folded. Palette: "Toggle tabs section", "Toggle tables section" |
 | Persisted | `tabsFolded`, `tablesFolded` in settings, as `tabStripHidden` |
 | Table search | `Ctrl+L` / `/` unfolds `TABLES` first |
+
+## 2026-10-19 — the record pane
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| What | A right pane showing the grid's cursor row, one line per column: name left, value right. Same cell formatting as the grid (NULL, empty, CUT), truncated with the full value as a tooltip. Staged edits show their staged value. Read-only |
+| Which grids | The table grid and the SQL editor's result, whichever is on screen. The cursor is the selection's focus cell |
+| No row selected | Every column with its type in place of a value, and a hint to select a cell. Search and click still work |
+| Search | Fuzzy over column names with the palette's matcher and cutoff; matched characters highlighted. Enter takes the top match |
+| Click a column | Selects that cell in the cursor row, so the grid scrolls to it. With no row, the grid scrolls the column into view and the selection is untouched |
+| Toggle | Ctrl+→, Ctrl+Space, and Show / Hide / Toggle right pane in the palette. Neither key fires while typing: Ctrl+→ is move-by-word, Ctrl+Space is the editor's autocomplete |
+| Persistence | `rowPaneOpen` and `rowPaneWidthPx` in Settings, like the left pane's. Width 220–720px, 320 by default |
+| Re-renders | Only the pane subscribes to the selection, and only to the cursor's row and column. App must not (`invariants.test.ts`) |

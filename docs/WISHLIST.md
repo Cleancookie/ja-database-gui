@@ -100,6 +100,15 @@ Worth doing only when someone needs a multi-statement edit session across runs.
 
 ---
 
+## 4. Record pane: editing and keyboard
+
+The record pane is read-only. Editing a value there, through the same staged
+edits the grid uses, is the obvious next step. So are arrow keys to move
+through the filtered column list, and a pane-local toggle for showing types
+beside values when a row is selected.
+
+---
+
 ## Built since
 
 - **Manual page size** — a free-text page size beside the presets, as a one-off

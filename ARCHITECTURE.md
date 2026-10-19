@@ -207,6 +207,14 @@ Focus moves with the panes (`frontend/src/paneFocus.ts`): each pane's root
 carries `data-pane`, and the control its keys drive carries `data-focus-home`.
 Opening a pane focuses its home; closing one returns focus to the page.
 
+The right pane (`RowPane.tsx`) is the grid's cursor row transposed: one line
+per column, names fuzzy-searched with the palette's matcher (`rowPane.ts`). It
+is the only pane that subscribes to the selection, and only to the cursor's row
+and column as numbers, so App and the sidebar stay out of it. A click selects
+that cell in the cursor row, which the grid's own scroll effect follows; with no
+row, `revealColumn` asks the grid to scroll the column into view and leaves the
+selection alone.
+
 Objects are still offered most-recently-opened first, in a `Recent` group above
 the rest of the catalogue. Alphabetical order is no help when switching between
 two tables, since the two being compared are rarely neighbours in the alphabet.
