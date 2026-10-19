@@ -3,6 +3,7 @@ import { Fragment, memo, Profiler, useEffect, useMemo, useRef, useState } from '
 import { isTypingTarget } from '../dom'
 import { handleEditKey } from '../gridEditKeys'
 import { onCommit } from '../perf'
+import { onRevealColumn } from '../rowPane'
 import { inAny, rectsOf, type CellPos, type Rect } from '../selection'
 import { measuredSpan, offsetToShow, scrollTo, uniformSpan } from '../scroll'
 import { useStore, type ResultSource } from '../store'
@@ -313,6 +314,23 @@ function Grid({
     )
   }, [focus, transposed, gm, widths])
 
+  // The record pane asks for a column with no cursor row to put it in.
+  useEffect(() => {
+    if (transposed) return
+    return onRevealColumn(source, (col) => {
+      const el = scrollRef.current
+      if (!el) return
+      scrollTo(
+        el,
+        el.scrollTop,
+        offsetToShow(
+          { offset: el.scrollLeft, length: el.clientWidth, sticky: 0 },
+          measuredSpan(col, widths, gm.gutter),
+        ),
+      )
+    })
+  }, [source, transposed, gm, widths])
+
   // Ctrl+C copies the selection, Enter opens the focused cell, and the arrows
   // move — with shift held, they extend the range instead. Copying what you are
   // looking at is the single most common thing done with a result grid; opening
@@ -443,6 +461,7 @@ function Grid({
   if (transposed) {
     return (
       <RecordsGrid
+        source={source}
         result={result}
         meta={meta}
         cutCells={cutCells}
@@ -817,6 +836,7 @@ interface ColMeta extends ResultColumn {
 type Metrics = ReturnType<typeof metrics>
 
 interface RecordsProps {
+  source: ResultSource
   result: ResultSet
   meta: ColMeta[]
   cutCells: Set<string>
@@ -855,6 +875,7 @@ interface RecordsProps {
  * columns are all different widths is much harder to read down.
  */
 function RecordsGrid({
+  source,
   result,
   meta,
   cutCells,
@@ -944,6 +965,24 @@ function RecordsGrid({
       repeatRef.current,
     )
   }, [focus, gm, labelWidth, cellWidth, repeatRef])
+
+  // Columns run down this way round, so revealing one is a vertical scroll.
+  useEffect(
+    () =>
+      onRevealColumn(source, (col) => {
+        const el = scrollRef.current
+        if (!el) return
+        scrollTo(
+          el,
+          offsetToShow(
+            { offset: el.scrollTop, length: el.clientHeight, sticky: gm.headerHeight },
+            uniformSpan(col, gm.rowHeight, gm.headerHeight),
+          ),
+          el.scrollLeft,
+        )
+      }),
+    [source, gm],
+  )
 
   const cols = colV.getVirtualItems()
   const totalWidth = labelWidth + colV.getTotalSize()

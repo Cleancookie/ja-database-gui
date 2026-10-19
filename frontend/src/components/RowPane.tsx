@@ -1,10 +1,13 @@
-import { memo } from 'react'
+import { memo, useMemo, useState } from 'react'
 import { isCellTruncated } from '../cells'
+import { columnJump, filterColumns, revealColumn } from '../rowPane'
 import { activeSqlResult, useStore, type ResultSource } from '../store'
 import type { ResultSet } from '../types'
 import { editCellClass, useGridEdits } from '../useGridEdits'
+import { Highlighted } from './CommandPalette'
 import { CellBody, cellTitle } from './DataGrid'
 import { LIMITS, Resizer, useResizable } from './Resizer'
+import { INPUT, PILL } from './sidebar/listKit'
 
 /**
  * The record pane down the right edge: the grid's cursor row, one line per
@@ -65,26 +68,63 @@ function Record({ source, result }: { source: ResultSource; result: ResultSet })
   const col = useStore((s) => (s.selection?.source === source ? s.selection.focus.col : null))
   const ed = useGridEdits(source, result)
   const live = row !== null && row < ed.rowCount ? row : null
+  const [query, setQuery] = useState('')
+  const hits = useMemo(
+    () =>
+      filterColumns(
+        query,
+        result.columns.map((c) => c.name),
+      ),
+    [query, result.columns],
+  )
+
+  const jump = (i: number) => {
+    const j = columnJump(row, i, ed.rowCount)
+    if (j.kind === 'select') useStore.getState().selectCell(source, { row: j.row, col: j.col })
+    else revealColumn(source, j.col)
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className="px-1.5 pt-1.5">
+        <input
+          data-focus-home
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && hits.length > 0) {
+              e.preventDefault()
+              jump(hits[0].index)
+            } else if (e.key === 'Escape' && query) {
+              setQuery('')
+            }
+          }}
+          placeholder="Search columns…"
+          aria-label="Search columns"
+          spellCheck={false}
+          className={INPUT}
+        />
+      </div>
       {live === null && <Hint text="Select a cell to see its row" />}
       <ul className="min-h-0 flex-1 overflow-y-auto p-1.5 font-[var(--font-mono)]">
-        {result.columns.map((c, i) => {
+        {hits.length === 0 && <Hint text="No column matches" />}
+        {hits.map(({ index: i, positions }) => {
+          const c = result.columns[i]
           const view = live === null ? null : ed.cell(live, i)
           const cut = live !== null && isCellTruncated(result, live, i)
           return (
             <li
-              key={c.name}
-              className={`grid grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2 rounded-lg px-2 py-0.5 ${
-                i === col && live !== null ? 'bg-[var(--color-elevated)]' : ''
+              key={i}
+              onClick={() => jump(i)}
+              className={`grid cursor-pointer grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-2 rounded-lg px-2 py-0.5 hover:bg-[var(--color-accent-dim)]/25 ${
+                i === col && live !== null ? PILL : ''
               }`}
             >
               <span
                 className="truncate text-[var(--color-muted)]"
                 title={`${c.name} · ${c.dbType}`}
               >
-                {c.name}
+                <Highlighted text={c.name} positions={positions} />
               </span>
               {view ? (
                 <span

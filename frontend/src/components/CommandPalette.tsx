@@ -277,7 +277,7 @@ function alignToTitle(item: Command, positions: number[]): number[] {
 /**
  * Highlights the matched characters.
  */
-function Highlighted({ text, positions }: { text: string; positions: number[] }) {
+export function Highlighted({ text, positions }: { text: string; positions: number[] }) {
   if (positions.length === 0) return <>{text}</>
   const set = new Set(positions)
   const out: React.ReactNode[] = []
