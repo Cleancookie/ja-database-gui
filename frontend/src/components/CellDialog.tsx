@@ -220,7 +220,8 @@ export function CellDialog({ cell }: { cell: CellTarget }) {
           // because it shows hundreds of rows at once; this dialog shows one
           // value the user has stopped to read. Still in rem, so the root-size
           // knob in Settings scales it with everything else.
-          <pre className="p-3 font-[var(--font-mono)] leading-relaxed break-all whitespace-pre-wrap">
+          // select-text undoes the dialog's chrome so part of a value can be copied.
+          <pre className="p-3 font-[var(--font-mono)] leading-relaxed break-all whitespace-pre-wrap select-text">
             {text}
           </pre>
         )}
