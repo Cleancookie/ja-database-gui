@@ -14,14 +14,37 @@ async function fresh() {
 const table = (name: string) => ({ schema: '', name, type: 'table' as const })
 const ref = (name: string) => ({ database: 'db', schema: '', name })
 
-describe('open tables', () => {
-  it('lists each table opened in the tab once', async () => {
+describe('table tabs', () => {
+  it('opens a table in the empty tab it is opened from', async () => {
     const useStore = await fresh()
     const s = () => useStore.getState()
     await s().openObject(table('a'))
+    expect(s().tabs).toHaveLength(1)
+    expect(s().activeRef?.name).toBe('a')
+  })
+
+  it('opens another table in a new tab on the same database', async () => {
+    const useStore = await fresh()
+    const s = () => useStore.getState()
+    await s().openObject(table('a'))
+    const first = s().activeTabId
+    await s().openObject(table('b'))
+    expect(s().tabs).toHaveLength(2)
+    expect(s().activeTabId).not.toBe(first)
+    expect(s().activeRef?.name).toBe('b')
+    expect(s().activeDatabase).toBe('db')
+    expect(s().tabs.find((t) => t.id === first)?.saved?.activeRef?.name).toBe('a')
+  })
+
+  it('switches to the tab a table is already open in', async () => {
+    const useStore = await fresh()
+    const s = () => useStore.getState()
+    await s().openObject(table('a'))
+    const first = s().activeTabId
     await s().openObject(table('b'))
     await s().openObject(table('a'))
-    expect(s().openTables.map((t) => t.ref.name)).toEqual(['a', 'b'])
+    expect(s().tabs).toHaveLength(2)
+    expect(s().activeTabId).toBe(first)
   })
 
   it('brings back a table’s filter, sort and page when it is returned to', async () => {
@@ -43,40 +66,15 @@ describe('open tables', () => {
     expect(s().sortChosen).toBe(true)
   })
 
-  it('closes onto the next table, then the previous, then nothing', async () => {
-    const useStore = await fresh()
-    const s = () => useStore.getState()
-    for (const n of ['a', 'b', 'c']) await s().openObject(table(n))
-    await s().openObject(table('b'))
-    await s().closeOpenTable()
-    expect(s().activeRef?.name).toBe('c')
-    await s().closeOpenTable()
-    expect(s().activeRef?.name).toBe('a')
-    await s().closeOpenTable()
-    expect(s().activeRef).toBeNull()
-    expect(s().openTables).toEqual([])
-  })
-
-  it('cycles through the open tables, wrapping at either end', async () => {
-    const useStore = await fresh()
-    const s = () => useStore.getState()
-    for (const n of ['a', 'b', 'c']) await s().openObject(table(n))
-    await s().cycleOpenTable(1)
-    expect(s().activeRef?.name).toBe('a')
-    await s().cycleOpenTable(-1)
-    expect(s().activeRef?.name).toBe('c')
-    await s().cycleOpenTable(-1)
-    expect(s().activeRef?.name).toBe('b')
-  })
-
-  it('closes a table that is not on screen without leaving the one that is', async () => {
+  it('opens the details of a table in that table’s tab', async () => {
     const useStore = await fresh()
     const s = () => useStore.getState()
     await s().openObject(table('a'))
+    const first = s().activeTabId
     await s().openObject(table('b'))
-    await s().closeOpenTable(ref('a'))
-    expect(s().activeRef?.name).toBe('b')
-    expect(s().openTables.map((t) => t.ref.name)).toEqual(['b'])
+    await s().openDetails(ref('a'))
+    expect(s().activeTabId).toBe(first)
+    expect(s().view).toBe('details')
   })
 
   it('asks before closing a table with staged edits, and drops only its edits', async () => {
@@ -108,63 +106,37 @@ describe('open tables', () => {
     expect(s().dirtyTables.has(other)).toBe(true)
   })
 
-  it('keeps each tab’s open tables to itself', async () => {
-    const useStore = await fresh()
-    const s = () => useStore.getState()
-    await s().openObject(table('a'))
-    const first = s().activeTabId
-    s().newTab()
-    useStore.setState({ activeConnectionId: 'c', activeDatabase: 'db' })
-    await s().openObject(table('x'))
-    s().switchTab(first)
-    expect(s().openTables.map((t) => t.ref.name)).toEqual(['a'])
-  })
-
-  it('reopens a closed tab with its open tables', async () => {
+  it('reopens a closed tab with its table', async () => {
     const useStore = await fresh()
     const s = () => useStore.getState()
     await s().openObject(table('a'))
     await s().openObject(table('b'))
     s().closeTab()
-    expect(s().openTables).toEqual([])
-    s().reopenTab()
-    expect(s().openTables.map((t) => t.ref.name)).toEqual(['a', 'b'])
-    expect(s().activeRef?.name).toBe('b')
-  })
-
-  it('reopens a table that was closed when going back to it', async () => {
-    const useStore = await fresh()
-    const s = () => useStore.getState()
-    await s().openObject(table('a'))
-    await s().openObject(table('b'))
-    await s().closeOpenTable(ref('a'))
-    await s().stepHistory(-1)
     expect(s().activeRef?.name).toBe('a')
-    expect(s().openTables.map((t) => t.ref.name)).toEqual(['b', 'a'])
+    s().reopenTab()
+    expect(s().activeRef?.name).toBe('b')
   })
 
   it('forgets a dropped table in every tab', async () => {
     const useStore = await fresh()
     const s = () => useStore.getState()
     await s().openObject(table('a'))
-    await s().openObject(table('b'))
     const first = s().activeTabId
-    s().newTab()
-    useStore.setState({ activeConnectionId: 'c', activeDatabase: 'db' })
-    await s().openObject(table('a'))
+    await s().openObject(table('b'))
+    await s().runDrop(ref('a'), 'table')
+    expect(s().activeRef?.name).toBe('b')
+    expect(s().tabs.find((t) => t.id === first)?.saved?.activeRef).toBeNull()
+    s().switchTab(first)
     await s().runDrop(ref('a'), 'table')
     expect(s().activeRef).toBeNull()
-    expect(s().openTables).toEqual([])
-    const saved = s().tabs.find((t) => t.id === first)?.saved
-    expect(saved?.openTables.map((t) => t.ref.name)).toEqual(['b'])
   })
 
-  it('forgets the open tables of a disconnected connection', async () => {
+  it('forgets the table of a disconnected connection', async () => {
     const useStore = await fresh()
     const s = () => useStore.getState()
     await s().openObject(table('a'))
     await s().disconnect('c')
-    expect(s().openTables).toEqual([])
+    expect(s().activeRef).toBeNull()
   })
 })
 

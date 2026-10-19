@@ -710,6 +710,21 @@ export const useStore = create<State>((set, get) => {
     if (tab.needsLoad && tab.saved?.activeRef) void fetchRows()
   }
 
+  /** Opens a tab on the active tab's connection and database, showing `view`. */
+  function openBoundTab(view: View) {
+    const s = get()
+    const tab = makeTab(++tabSeq, {
+      ...blank(),
+      activeConnectionId: s.activeConnectionId,
+      capabilities: s.capabilities,
+      databases: s.databases,
+      activeDatabase: s.activeDatabase,
+      objects: s.objects,
+      view,
+    })
+    enter(tab, [...stashed(), tab])
+  }
+
   /** Points the active tab at a table; `restore` brings back how it was filtered, sorted and paged. */
   async function openObjectAt(o: SchemaObject, restore?: Controls) {
     const s = get()
@@ -1040,6 +1055,24 @@ export const useStore = create<State>((set, get) => {
     },
 
     async openObject(o) {
+      const s = get()
+      if (!s.activeConnectionId) return
+      if (o.type === 'function' || o.type === 'procedure') return openObjectAt(o)
+      const ref = { database: s.activeDatabase, schema: o.schema, name: o.name }
+      if (sameRef(s.activeRef, ref)) {
+        if (s.view !== 'data') s.setView('data')
+        return
+      }
+      // A table already open in a tab is gone back to, as a browser would a tab.
+      const there = s.tabs.find(
+        (t) =>
+          t.saved?.activeConnectionId === s.activeConnectionId && sameRef(t.saved.activeRef, ref),
+      )
+      if (there) {
+        s.switchTab(there.id)
+        return
+      }
+      if (s.activeRef || s.view !== 'data') openBoundTab('data')
       await openObjectAt(o)
     },
 
@@ -1233,6 +1266,9 @@ export const useStore = create<State>((set, get) => {
     },
 
     async openDetails(ref) {
+      if (!get().activeConnectionId) return
+      // Details are a view of a table's tab, so the table gets one first.
+      if (!sameRef(get().activeRef, ref)) await get().openObject(objectFor(ref))
       const connID = get().activeConnectionId
       if (!connID) return
       const tabId = get().activeTabId
@@ -1345,16 +1381,7 @@ export const useStore = create<State>((set, get) => {
         s.setView('sql')
         return
       }
-      const tab = makeTab(++tabSeq, {
-        ...blank(),
-        activeConnectionId: s.activeConnectionId,
-        capabilities: s.capabilities,
-        databases: s.databases,
-        activeDatabase: s.activeDatabase,
-        objects: s.objects,
-        view: 'sql',
-      })
-      enter(tab, [...stashed(), tab])
+      openBoundTab('sql')
     },
 
     setView(view) {
