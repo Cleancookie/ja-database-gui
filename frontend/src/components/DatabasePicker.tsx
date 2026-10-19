@@ -2,6 +2,13 @@ import { DATABASE_PICKER_ID } from '../commands'
 import { useStore, type View } from '../store'
 import { pickerModel } from '../picker'
 
+/** A header `<select>`, warning-coloured while nothing is chosen. */
+export function pickerClass(unchosen: boolean): string {
+  return `max-w-[14rem] rounded-lg border border-[var(--color-border)] bg-[var(--color-elevated)] px-1.5 py-0.5 font-[var(--font-mono)] shadow-xs outline-none ${
+    unchosen ? 'text-[var(--color-warn)]' : 'text-[var(--color-muted)]'
+  }`
+}
+
 /**
  * Which database the statement runs against, and a way to change it.
  *
@@ -83,9 +90,7 @@ export function DatabasePicker({
           ? openWorkspace(activeConnectionId, v, view)
           : openWorkspace(v, '', view))
       }}
-      className={`max-w-[14rem] rounded-lg border border-[var(--color-border)] bg-[var(--color-elevated)] px-1.5 py-0.5 font-[var(--font-mono)] shadow-xs outline-none ${
-        model.value === '' ? 'text-[var(--color-warn)]' : 'text-[var(--color-muted)]'
-      }`}
+      className={pickerClass(model.value === '')}
     >
       {/* Only while nothing is chosen: once it is, an empty entry is a way to
           select nothing, which no statement can run against. */}

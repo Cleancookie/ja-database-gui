@@ -124,6 +124,7 @@ export function App() {
           connection={dialog.connection}
           database={dialog.database}
           error={dialog.error}
+          browse={dialog.browse}
         />
       )}
       {dialog.kind === 'shortcuts' && <ShortcutsDialog />}

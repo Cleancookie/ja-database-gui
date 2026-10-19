@@ -3,7 +3,7 @@ import { isBound, useStore } from '../store'
 import { Highlight } from './Highlight'
 import { HOVER_PILL, PILL } from './sidebar/listKit'
 import { tabLabel } from '../tabs'
-import { DatabasePicker } from './DatabasePicker'
+import { BrowsePicker } from './sidebar/BrowsePicker'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import { ObjectList } from './sidebar/ObjectList'
 import { TabMark } from './TableMark'
@@ -12,9 +12,10 @@ import { TabMark } from './TableMark'
  * The tab sidebar down the left edge.
  *
  * Two sections. Tabs: one line per tab, each the table or SQL editor it shows,
- * then its connection and database. Tables: every table and view in the active
- * tab's database, which its ▾ changes by opening a tab on another. An unbound
- * tab chooses its database in the main panel (WorkspacePicker).
+ * then its connection and database. Tables: every table and view in a database
+ * of its own choosing, apart from the tabs: switching tabs leaves it be, and
+ * changing it opens nothing. An unbound tab chooses its database in the main
+ * panel (WorkspacePicker).
  *
  * It lives in the app shell, so it subscribes to as little as it can: the tab
  * list, and the handful of live fields that name the active tab. Never the grid
@@ -69,8 +70,14 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
     view,
   ])
 
-  const bound = isBound({ activeConnectionId, activeDatabase, capabilities })
-  const connName = connections.find((c) => c.id === activeConnectionId)?.name
+  const browseConnectionId = useStore((s) => s.browseConnectionId)
+  const browsing = useStore((s) =>
+    isBound({
+      activeConnectionId: s.browseConnectionId,
+      activeDatabase: s.browseDatabase,
+      capabilities: s.browseCapabilities,
+    }),
+  )
 
   const row = (r: (typeof rows)[number]) => (
     <div
@@ -164,22 +171,16 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
           </div>
           <div className="mt-1.5 flex items-center gap-2 border-t border-[var(--color-border)] px-1.5 pt-2.5 pb-1">
             <h2 className="font-bold tracking-wider text-[var(--color-faint)] uppercase">Tables</h2>
-            {bound && (
-              <>
-                {capabilities?.serverHostsDatabases && (
-                  <span className="min-w-0 truncate text-[var(--color-faint)]">{connName} /</span>
-                )}
-                {/* Another database opens in a new tab: this one keeps what it shows. */}
-                <DatabasePicker id="sidebar-database-picker" />
-              </>
-            )}
+            <BrowsePicker />
           </div>
           <div className="flex min-h-0 flex-1 flex-col">
-            {bound ? (
+            {browsing ? (
               <ObjectList active={false} />
             ) : (
               <p className="px-3 py-1.5 text-[var(--color-faint)]">
-                Choose the server and database in the main panel
+                {browseConnectionId
+                  ? 'Choose a database'
+                  : 'Choose the server and database in the main panel'}
               </p>
             )}
           </div>

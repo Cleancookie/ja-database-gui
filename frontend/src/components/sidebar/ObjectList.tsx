@@ -37,7 +37,7 @@ type Row =
   | { kind: 'object'; o: SchemaObject; index: number }
 
 /**
- * Every table and view in the tab's database, grouped by kind, under a filter
+ * Every table and view in the database TABLES is on, grouped by kind, under a filter
  * field. Enter in the field opens the highlighted one.
  *
  * Virtualised and memoised: it is always on screen, a database can hold
@@ -51,21 +51,28 @@ export const ObjectList = memo(function ObjectList({
   active?: boolean
   className?: string
 }) {
-  const activeConnectionId = useStore((s) => s.activeConnectionId)
-  const activeDatabase = useStore((s) => s.activeDatabase)
-  const objects = useStore((s) => s.objects)
-  const busy = useStore((s) => s.busy)
+  const connectionId = useStore((s) => s.browseConnectionId)
+  const database = useStore((s) => s.browseDatabase)
+  const objects = useStore((s) => s.browseObjects)
+  const busy = useStore((s) => s.browseBusy)
   const openObject = useStore((s) => s.openObject)
   const tabs = useStore((s) => s.tabs)
-  const activeRef = useStore((s) => s.activeRef)
+  // The active tab's table, when it is one of these.
+  const liveRef = useStore((s) =>
+    s.activeConnectionId === s.browseConnectionId ? s.activeRef : null,
+  )
   const open = useMemo(
-    () => openRefKeys(tabs, activeConnectionId, activeRef),
-    [tabs, activeConnectionId, activeRef],
+    () => openRefKeys(tabs, connectionId, liveRef),
+    [tabs, connectionId, liveRef],
   )
   const current = useStore((s) =>
-    s.view !== 'sql' && s.activeRef
+    s.view !== 'sql' && s.activeRef && s.activeConnectionId === s.browseConnectionId
       ? refKey(s.activeDatabase, s.activeRef.schema, s.activeRef.name)
       : null,
+  )
+  const place = useMemo(
+    () => (connectionId ? { connectionId, database } : undefined),
+    [connectionId, database],
   )
 
   const [query, setQuery] = useState('')
@@ -123,7 +130,7 @@ export const ObjectList = memo(function ObjectList({
   })
   const { selected, setSelected, onKeyDown } = useListKeys(
     order.length,
-    (i) => void openObject(order[i]),
+    (i) => void openObject(order[i], place),
   )
   useEffect(() => {
     if (active) setSelected(0)
@@ -134,7 +141,7 @@ export const ObjectList = memo(function ObjectList({
     if (row !== undefined) virtualizer.scrollToIndex(row, { align: 'auto' })
   }, [selected, rowOf, virtualizer])
 
-  if (!activeConnectionId) return null
+  if (!connectionId) return null
 
   return (
     <div
@@ -143,7 +150,7 @@ export const ObjectList = memo(function ObjectList({
         if (focused) return
         setFocused(true)
         // The key cursor starts where the pill already is, not back at the top.
-        const at = order.findIndex((o) => refKey(activeDatabase, o.schema, o.name) === current)
+        const at = order.findIndex((o) => refKey(database, o.schema, o.name) === current)
         if (at >= 0) setSelected(at)
       }}
       onBlur={(e) => {
@@ -226,16 +233,16 @@ export const ObjectList = memo(function ObjectList({
                         highlighted={
                           focused
                             ? row.index === selected
-                            : current === refKey(activeDatabase, row.o.schema, row.o.name)
+                            : current === refKey(database, row.o.schema, row.o.name)
                         }
-                        open={open.has(refKey(activeDatabase, row.o.schema, row.o.name))}
-                        connectionId={activeConnectionId}
-                        database={activeDatabase}
+                        open={open.has(refKey(database, row.o.schema, row.o.name))}
+                        connectionId={connectionId}
+                        database={database}
                         onOpen={(o) => {
                           // A click focuses the list, which shows the key
                           // cursor; it has to be on the row that was opened.
                           setSelected(row.index)
-                          void openObject(o)
+                          void openObject(o, place)
                         }}
                       />
                     )}

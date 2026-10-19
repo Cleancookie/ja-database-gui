@@ -118,7 +118,14 @@ export type DialogState =
   | { kind: 'connection'; connection: Connection | null }
   | { kind: 'shortcuts' }
   /** Asks for an ask-every-time connection's password. `error` is why the last try failed. */
-  | { kind: 'password'; connection: Connection; database: string; error?: string }
+  | {
+      kind: 'password'
+      connection: Connection
+      database: string
+      error?: string
+      /** Asked for TABLES, so the answer goes to `browse`, not to the tab. */
+      browse?: boolean
+    }
   | { kind: 'settings' }
   | { kind: 'confirmDelete'; connection: Connection }
   | { kind: 'confirmResetSample' }
@@ -194,6 +201,18 @@ export interface State extends EditState, EditActions {
   databases: string[]
   activeDatabase: string
   objects: SchemaObject[]
+
+  /**
+   * What the sidebar's TABLES section lists. Not tab state: switching tabs
+   * leaves it where it is, and only its own dropdowns move it. Seeded from the
+   * first tab to reach a database (the subscription at the bottom of this file).
+   */
+  browseConnectionId: string | null
+  browseCapabilities: Capabilities | null
+  browseDatabases: string[]
+  browseDatabase: string
+  browseObjects: SchemaObject[]
+  browseBusy: boolean
 
   // active object
   activeRef: ObjectRef | null
@@ -335,7 +354,10 @@ export interface State extends EditState, EditActions {
    * to the connection's saved default, or to the user. A new tab shows `view`.
    */
   openWorkspace: (connectionId: string, database?: string, view?: View) => Promise<void>
-  openObject: (o: SchemaObject) => Promise<void>
+  /** Points TABLES at a server and database; '' leaves a server's database to be chosen. */
+  browse: (connectionId: string, database?: string, password?: string | null) => Promise<void>
+  /** Opens `o` from the active tab's database, or from `at` when given. */
+  openObject: (o: SchemaObject, at?: Place) => Promise<void>
   reload: () => Promise<void>
   /** Counts the open table's rows under the current filter, once. */
   countRows: () => Promise<void>
@@ -496,6 +518,41 @@ export function isBound(s: {
 }): boolean {
   return !!s.activeConnectionId && (!s.capabilities?.serverHostsDatabases || !!s.activeDatabase)
 }
+
+/** A connection and database, as TABLES points at one. */
+export interface Place {
+  connectionId: string
+  database: string
+}
+
+/** Where TABLES is, once it has a database to list. */
+export function browsePlace(s: {
+  browseConnectionId: string | null
+  browseDatabase: string
+}): Place | undefined {
+  return s.browseConnectionId && s.browseDatabase
+    ? { connectionId: s.browseConnectionId, database: s.browseDatabase }
+    : undefined
+}
+
+/** Whether the active tab is on `p`. */
+export function tabIsAt(
+  s: { activeConnectionId: string | null; activeDatabase: string },
+  p: Place,
+): boolean {
+  return s.activeConnectionId === p.connectionId && s.activeDatabase === p.database
+}
+
+const NO_BROWSE = {
+  browseConnectionId: null,
+  browseCapabilities: null,
+  browseDatabases: [],
+  browseDatabase: '',
+  browseObjects: [],
+  browseBusy: false,
+}
+/** Like requestSeq, for what TABLES lists. */
+let browseSeq = 0
 
 /**
  * Responses are matched against this counter before being applied. Paging
@@ -798,6 +855,7 @@ export const useStore = create<State>((set, get) => {
     databases: [],
     activeDatabase: '',
     objects: [],
+    ...NO_BROWSE,
     activeRef: null,
     recentObjects: [],
     columns: [],
@@ -971,7 +1029,10 @@ export const useStore = create<State>((set, get) => {
         get().pushToast('error', errorMessage(e))
       }
       const stillActive = get().activeConnectionId === id
+      const browsing = get().browseConnectionId === id
+      if (browsing) browseSeq++
       set({
+        ...(browsing ? NO_BROWSE : {}),
         connectedIds: get().connectedIds.filter((c) => c !== id),
         // Other tabs on this connection have nothing left to show.
         tabs: get().tabs.map((t) =>
@@ -997,12 +1058,21 @@ export const useStore = create<State>((set, get) => {
       const id = get().activeConnectionId
       if (!id) return
       const tabId = get().activeTabId
+      // TABLES on the same database is given the same list, so a table created,
+      // dropped or emptied here shows there without a second request.
+      const mirror = (patch: Partial<State>) => {
+        const b = get()
+        if (b.browseConnectionId === id && b.browseDatabase === name) set(patch)
+      }
+      mirror({ browseBusy: true })
       set({ activeDatabase: name, busy: true, objects: [] })
       try {
         const objects = await tracked(() => api.listObjects(id, name))
+        mirror({ browseObjects: objects, browseBusy: false })
         if (get().activeTabId !== tabId) return
         set({ objects, busy: false })
       } catch (e) {
+        mirror({ browseBusy: false })
         set({ busy: false })
         // Each database of an ask-every-time connection is its own session.
         const conn = get().connections.find((c) => c.id === id)
@@ -1026,25 +1096,92 @@ export const useStore = create<State>((set, get) => {
       else await get().connect(connectionId, null, database)
     },
 
-    async openObject(o) {
+    async browse(connectionId, database = '', password = null) {
       const s = get()
-      if (!s.activeConnectionId) return
+      const conn = s.connections.find((c) => c.id === connectionId)
+      // Same server: its capabilities and databases are already known.
+      // A typed password always reconnects: it is for a session not yet open.
+      const same =
+        password === null && s.browseConnectionId === connectionId && !!s.browseCapabilities
+      if (!same && needsPasswordPrompt(conn, s.connectedIds.includes(connectionId), password)) {
+        set({ dialog: { kind: 'password', connection: conn!, database, browse: true } })
+        return
+      }
+      const seq = ++browseSeq
+      set({
+        browseConnectionId: connectionId,
+        browseDatabase: database,
+        browseObjects: [],
+        browseBusy: true,
+        ...(same ? {} : { browseCapabilities: null, browseDatabases: [] }),
+      })
+      try {
+        let chosen = database
+        if (!same) {
+          const res = await tracked(() => api.connect(connectionId, password, database))
+          if (seq !== browseSeq) return
+          // As connect: a server with several databases and none named waits for a choice.
+          const named = !!database || !!conn?.database || !res.capabilities.serverHostsDatabases
+          chosen = named ? res.defaultDatabase || res.databases[0]?.name || '' : ''
+          set({
+            browseCapabilities: res.capabilities,
+            browseDatabases: res.databases.map((d) => d.name),
+            browseDatabase: chosen,
+            connectedIds: Array.from(new Set([...get().connectedIds, connectionId])),
+          })
+        }
+        const objects = chosen ? await tracked(() => api.listObjects(connectionId, chosen)) : []
+        if (seq !== browseSeq) return
+        set({ browseObjects: objects, browseBusy: false })
+      } catch (e) {
+        if (seq !== browseSeq) return
+        set({ browseBusy: false })
+        const message = errorMessage(e)
+        if (conn && (isPasswordRequired(message) || (conn.askPassword && password !== null))) {
+          set({
+            dialog: {
+              kind: 'password',
+              connection: conn,
+              database,
+              browse: true,
+              ...(password !== null ? { error: message } : {}),
+            },
+          })
+          return
+        }
+        get().pushToast('error', message)
+      }
+    },
+
+    async openObject(o, at) {
+      const s = get()
+      const connectionId = at?.connectionId ?? s.activeConnectionId
+      const database = at ? at.database : s.activeDatabase
+      if (!connectionId) return
       if (o.type === 'function' || o.type === 'procedure') return openObjectAt(o)
-      const ref = { database: s.activeDatabase, schema: o.schema, name: o.name }
-      if (sameRef(s.activeRef, ref)) {
+      const here = tabIsAt(s, { connectionId, database })
+      const ref = { database, schema: o.schema, name: o.name }
+      if (here && sameRef(s.activeRef, ref)) {
         if (s.view !== 'data') s.setView('data')
         return
       }
       // A table already open in a tab is gone back to, as a browser would a tab.
       const there = s.tabs.find(
-        (t) =>
-          t.saved?.activeConnectionId === s.activeConnectionId && sameRef(t.saved.activeRef, ref),
+        (t) => t.saved?.activeConnectionId === connectionId && sameRef(t.saved.activeRef, ref),
       )
       if (there) {
         s.switchTab(there.id)
         return
       }
-      if (s.activeRef || s.view !== 'data') openBoundTab('data')
+      if (here) {
+        if (s.activeRef || s.view !== 'data') openBoundTab('data')
+      } else {
+        // Only a tab with nothing to lose is moved to another database.
+        if (isBound(s) || s.activeRef || s.view !== 'data') get().newTab()
+        const tabId = get().activeTabId
+        await get().openWorkspace(connectionId, database)
+        if (get().activeTabId !== tabId || !tabIsAt(get(), { connectionId, database })) return
+      }
       await openObjectAt(o)
     },
 
@@ -1681,7 +1818,8 @@ export const useStore = create<State>((set, get) => {
     async deleteConnection(id) {
       try {
         await api.deleteConnection(id)
-        if (get().activeConnectionId === id) await get().disconnect(id)
+        if (get().activeConnectionId === id || get().browseConnectionId === id)
+          await get().disconnect(id)
         await get().refreshConnections()
         set({ dialog: { kind: 'none' } })
       } catch (e) {
@@ -1960,6 +2098,20 @@ useStore.subscribe((s, prev) => {
   if (samePage(now, before)) return
   const { nav, at } = recordPage(s.nav, s.navAt, before, now)
   useStore.setState({ nav, navAt: at })
+})
+
+// TABLES starts on the first database a tab reaches, and while it has nowhere
+// to be. From then on only its own dropdowns move it.
+useStore.subscribe((s) => {
+  if (s.browseConnectionId || !isBound(s)) return
+  useStore.setState({
+    browseConnectionId: s.activeConnectionId,
+    browseCapabilities: s.capabilities,
+    browseDatabases: s.databases,
+    browseDatabase: s.activeDatabase,
+    browseObjects: s.objects,
+    browseBusy: s.busy,
+  })
 })
 
 /**

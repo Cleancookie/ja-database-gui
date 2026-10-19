@@ -13,13 +13,15 @@ export function PasswordDialog({
   connection,
   database,
   error,
+  browse = false,
 }: {
   connection: Connection
   database: string
   error?: string
+  browse?: boolean
 }) {
   const setDialog = useStore((s) => s.setDialog)
-  const connect = useStore((s) => s.connect)
+  const connect = useStore((s) => (browse ? s.browse : s.connect))
   const [password, setPassword] = useState('')
 
   const close = () => setDialog({ kind: 'none' })

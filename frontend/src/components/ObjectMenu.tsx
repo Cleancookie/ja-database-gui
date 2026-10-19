@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import { refLabel, useStore } from '../store'
+import { browsePlace, refLabel, tabIsAt, useStore } from '../store'
 import { ContextMenu, Dialog, dialogButton, type MenuItem } from '../ui'
 import { qualifiedName } from '../commands'
 import type { ObjectRef, ObjectType, SchemaObject } from '../types'
@@ -18,37 +18,46 @@ import type { ObjectRef, ObjectType, SchemaObject } from '../types'
  */
 export function objectMenuItems(object: SchemaObject): MenuItem[] {
   const s = useStore.getState()
+  const at = browsePlace(s)
   const ref = {
-    database: s.activeDatabase,
+    database: at?.database ?? s.activeDatabase,
     schema: object.schema,
     name: object.name,
   }
+  // The actions work on the active tab, so one on another database first opens
+  // the table in its tab.
+  const there = (act: () => unknown) => async () => {
+    if (at && !tabIsAt(useStore.getState(), at)) await s.openObject(object, at)
+    act()
+  }
 
   const items: MenuItem[] = [
-    { label: 'Open rows', onSelect: () => void s.openObject(object) },
-    { label: 'Show details', onSelect: () => void s.openDetails(ref) },
+    { label: 'Open rows', onSelect: () => void s.openObject(object, at) },
+    { label: 'Show details', onSelect: there(() => s.openDetails(ref)) },
     {
       label: 'New table…',
       separatorBefore: true,
       // Defaulted to this object's schema, which is nearly always where a table
       // being added alongside it belongs.
-      onSelect: () => s.newTable(object.schema),
+      onSelect: there(() => s.newTable(object.schema)),
     },
   ]
 
   if (object.type === 'table') {
     items.push({
-      label: s.capabilities?.truncateIsDelete ? 'Empty table (DELETE)' : 'Empty table (TRUNCATE)',
+      label: s.browseCapabilities?.truncateIsDelete
+        ? 'Empty table (DELETE)'
+        : 'Empty table (TRUNCATE)',
       separatorBefore: true,
       danger: true,
-      onSelect: () => void s.truncateTable(ref),
+      onSelect: there(() => s.truncateTable(ref)),
     })
   }
   items.push({
     label: object.type === 'view' ? 'Drop view…' : 'Drop table…',
     separatorBefore: object.type !== 'table',
     danger: true,
-    onSelect: () => void s.dropObject(ref, object.type),
+    onSelect: there(() => s.dropObject(ref, object.type)),
   })
   return items
 }
@@ -82,7 +91,9 @@ export function ObjectListMenu({ children }: { children: React.ReactNode }) {
   const onContextMenuCapture = useCallback((e: React.MouseEvent) => {
     const el = (e.target as Element).closest<HTMLElement>('[data-object]')
     const key = el?.dataset.object
-    const hit = key ? useStore.getState().objects.find((o) => objectKey(o) === key) : undefined
+    const hit = key
+      ? useStore.getState().browseObjects.find((o) => objectKey(o) === key)
+      : undefined
     if (hit && (hit.type === 'table' || hit.type === 'view')) {
       row.current = el
       setObject(hit)

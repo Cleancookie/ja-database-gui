@@ -157,29 +157,29 @@ describe('table tabs', () => {
   })
 })
 
-describe('openWorkspace', () => {
-  async function server() {
-    vi.resetModules()
-    const api = {
-      connect: async (_id: string, _pw: string | null, database: string) => ({
-        capabilities: { serverHostsDatabases: true },
-        databases: [{ name: 'one' }, { name: 'two' }],
-        defaultDatabase: database || 'one',
-      }),
-      listObjects: async () => [],
-    }
-    vi.doMock('./api', () => ({
-      api: new Proxy(api, {
-        get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? (async () => ({})),
-      }),
-      errorMessage: String,
-      transportName: 'test',
-    }))
-    const { useStore } = await import('./store')
-    useStore.setState({ connections: [{ id: 'c', name: 'C', kind: 'postgres' }] })
-    return useStore
+async function server() {
+  vi.resetModules()
+  const api = {
+    connect: async (_id: string, _pw: string | null, database: string) => ({
+      capabilities: { serverHostsDatabases: true },
+      databases: [{ name: 'one' }, { name: 'two' }],
+      defaultDatabase: database || 'one',
+    }),
+    listObjects: async () => [],
   }
+  vi.doMock('./api', () => ({
+    api: new Proxy(api, {
+      get: (t, k) => (t as Record<string | symbol, unknown>)[k] ?? (async () => ({})),
+    }),
+    errorMessage: String,
+    transportName: 'test',
+  }))
+  const { useStore } = await import('./store')
+  useStore.setState({ connections: [{ id: 'c', name: 'C', kind: 'postgres' }] })
+  return useStore
+}
 
+describe('openWorkspace', () => {
   it('uses the current tab while it has no database', async () => {
     const useStore = await server()
     const s = () => useStore.getState()
@@ -214,5 +214,82 @@ describe('openWorkspace', () => {
     expect(s().view).toBe('sql')
     await s().openWorkspace('c', 'one')
     expect(s().view).toBe('data')
+  })
+})
+
+describe('the TABLES browser', () => {
+  it('lists another database without adding a tab', async () => {
+    const useStore = await server()
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    expect(s().browseDatabase).toBe('one')
+    await s().browse('c', 'two')
+    expect(s().tabs).toHaveLength(1)
+    expect(s().browseDatabase).toBe('two')
+    expect(s().activeDatabase).toBe('one')
+  })
+
+  it('stays where it is when the tab changes', async () => {
+    const useStore = await server()
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    const first = s().activeTabId
+    await s().openWorkspace('c', 'two')
+    expect(s().browseDatabase).toBe('one')
+    s().switchTab(first)
+    await s().browse('c', 'two')
+    s().cycleTab(1)
+    s().cycleTab(1)
+    expect(s().browseDatabase).toBe('two')
+  })
+
+  it('opens a table from another database in a tab bound there', async () => {
+    const useStore = await server()
+    const { browsePlace } = await import('./store')
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    await s().openObject(table('a'))
+    const first = s().activeTabId
+    await s().browse('c', 'two')
+    await s().openObject(table('b'), browsePlace(s()))
+    expect(s().tabs).toHaveLength(2)
+    expect(s().activeTabId).not.toBe(first)
+    expect(s().activeDatabase).toBe('two')
+    expect(s().activeRef).toEqual({ database: 'two', schema: '', name: 'b' })
+  })
+
+  it('switches to the tab a browsed table is already open in', async () => {
+    const useStore = await server()
+    const { browsePlace } = await import('./store')
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    await s().openObject(table('a'))
+    const first = s().activeTabId
+    await s().browse('c', 'two')
+    await s().openObject(table('b'), browsePlace(s()))
+    await s().browse('c', 'one')
+    await s().openObject(table('a'), browsePlace(s()))
+    expect(s().tabs).toHaveLength(2)
+    expect(s().activeTabId).toBe(first)
+  })
+
+  it('uses an empty unbound tab for a browsed table', async () => {
+    const useStore = await server()
+    const { browsePlace } = await import('./store')
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    await s().openObject(table('a'))
+    s().newTab()
+    await s().openObject(table('b'), browsePlace(s()))
+    expect(s().tabs).toHaveLength(2)
+    expect(s().activeRef).toEqual({ database: 'one', schema: '', name: 'b' })
+  })
+
+  it('lets go of a disconnected connection', async () => {
+    const useStore = await server()
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    await s().disconnect('c')
+    expect(s().browseConnectionId).toBeNull()
   })
 })
