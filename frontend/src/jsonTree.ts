@@ -12,6 +12,7 @@ import {
   jsonPathChild,
   jsonPathOf,
   JSON_PATH_ROOT,
+  summarise,
   type JsonKind,
   type JsonSeg,
 } from './json'
@@ -85,6 +86,22 @@ export function treeRows(value: unknown, open: ReadonlySet<string>): TreeRow[] {
   }
   walk(value, null, JSON_PATH_ROOT, [], 0, -1, false)
   return rows
+}
+
+/**
+ * Rows as indented `key: value` lines, for copying a selection that spans
+ * them. Strings are quoted so a newline inside one cannot break the indent and
+ * "null" cannot pass for null.
+ */
+export function treeRowsText(rows: readonly TreeRow[]): string {
+  const base = Math.min(...rows.map((r) => r.depth))
+  return rows
+    .map((r) => {
+      const value = r.container ? summarise(r.value) : JSON.stringify(r.value)
+      const key = r.name === null ? '' : `${r.name}: `
+      return '  '.repeat(r.depth - base) + key + value
+    })
+    .join('\n')
 }
 
 /** What a key does to the tree: move focus, or open or close a container. */

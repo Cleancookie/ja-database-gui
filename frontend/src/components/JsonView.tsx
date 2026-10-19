@@ -9,7 +9,7 @@ import {
   summarise,
   type JsonKind,
 } from '../json'
-import { editMarks, initialOpen, treeKey, treeRows, type TreeRow } from '../jsonTree'
+import { editMarks, initialOpen, treeKey, treeRows, treeRowsText, type TreeRow } from '../jsonTree'
 import { useStore } from '../store'
 import type { JSONEdit } from '../types'
 import { ContextMenu, type MenuItem } from '../ui'
@@ -462,6 +462,20 @@ export function JsonView({
         tabIndex={0}
         aria-activedescendant={focusedId}
         onKeyDown={onKeyDown}
+        onCopy={(e) => {
+          // The tree's text has no line breaks or indent of its own, so a
+          // selection across rows copies as the rows. Within one row the
+          // browser's copy is already right.
+          const sel = window.getSelection()
+          const rowAt = (n: Node | null | undefined) =>
+            (n instanceof Element ? n : n?.parentElement)?.closest('[data-item]')
+          const range = sel?.rangeCount ? sel.getRangeAt(0) : null
+          const ids = [rowAt(range?.startContainer)?.id, rowAt(range?.endContainer)?.id]
+          const [from, to] = ids.map((x) => rows.findIndex((_, i) => rowId(i) === x))
+          if (from < 0 || to < 0 || from === to) return
+          e.preventDefault()
+          e.clipboardData.setData('text/plain', treeRowsText(rows.slice(from, to + 1)))
+        }}
         // Focus handed back to the tree — by a closing palette, say — goes on
         // to an open editor, which is where the user was.
         onFocus={(e) => {

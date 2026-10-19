@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { editMarks, initialOpen, treeKey, treeRows } from './jsonTree'
+import { editMarks, initialOpen, treeKey, treeRows, treeRowsText } from './jsonTree'
 
 const key = (k: string, extra: Partial<KeyboardEvent> = {}) => ({
   key: k,
@@ -78,5 +78,15 @@ describe('editMarks', () => {
       '$.d': 'self',
       '$.e': 'self',
     })
+  })
+})
+
+describe('treeRowsText', () => {
+  it('indents rows by depth from the shallowest, quoting strings', () => {
+    const doc = { a: { b: 'x\ny', c: null }, d: [1] }
+    const rows = treeRows(doc, new Set(['$', '$.a']))
+    expect(treeRowsText(rows.slice(1, 5))).toBe(
+      ['a: { 2 keys }', '  b: "x\\ny"', '  c: null', 'd: [ 1 item ]'].join('\n'),
+    )
   })
 })
