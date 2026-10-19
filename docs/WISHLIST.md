@@ -125,9 +125,8 @@ Worth doing only when someone needs a multi-statement edit session across runs.
   paginator and a palette command run `COUNT(*)` once; the total holds until
   the filter or table changes. `Paginator.tsx`, `countTotal` in `store.ts`.
 - **Sidebar polish** — the open tab's group is a shade, not a border; rows and
-  pills share one radius. The open tables and the table list each have their
-  own pill, both on the table on screen. The open list's height is dragged on
-  its divider (`openListHeightPx`); Tables and Views fold from their headings.
+  pills share one radius. The table list's pill sits on the table on screen;
+  Tables and Views fold from their headings.
 
 Long values, the activity tray and autocomplete are recorded in full, request
 verbatim and decisions taken, in `REQUIREMENTS.md` under 2026-08-17; schema

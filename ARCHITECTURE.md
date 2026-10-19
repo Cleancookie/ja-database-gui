@@ -163,12 +163,13 @@ because inside a palette it is already the emacs-style move-up binding.
 
 ## Tabs, and a palette that remembers
 
-The left rail is the tab sidebar (ADR 0006, amended by ADR 0009). A tab is a
-workspace on one connection and one database: the tables opened in it, each
-with its filter, sort and page, plus that tab's own SQL editor and details
-page. The sidebar has two sections: `TABS`, one line per tab, and `TABLES`,
-the active tab's table search, SQL editor, open tables and every table and
-view. With no database chosen, the main panel shows a
+The left rail is the tab sidebar (ADR 0006, amended by ADR 0011). A tab is one
+table, with its filter, sort and page, or a SQL editor, on one connection and
+database, as tabs are in a browser. The table's details page is a view of its
+tab. The sidebar has two sections: `TABS`, one line per tab naming its table
+then its connection and database, and `TABLES`, a search and every table and
+view of the active tab's database, with a picker that opens a tab on another
+one. With no database chosen, the main panel shows a
 stepped picker (`WorkspacePicker`), headed by a `Servers / server / Databases`
 path; the sidebar holds tabs and tables only. A bound tab with no table open shows `EmptyPanel`.
 
@@ -180,24 +181,22 @@ tray are global. A response meant for a tab the user has left is dropped (row
 fetches by the existing sequence counter, connect / database / details by a
 check of the active tab), and a tab left mid-load reloads when returned to.
 
-Open tables work the same way one level down. `openTables` holds each table's
-filter, sort and page; `activeRef` is the one on screen, and its entry is stale
-while it is. `openObjectAt` in `store.ts` is the single choke point: it writes
-the live controls into the table being left, then restores the target's and
-fetches its rows. Rows are never kept for a table that is not on screen.
-
-`Ctrl+P` opens a table in the *current* tab; open tabs appear in the same
-palette as a `Tabs` group to jump to. Choosing another database goes through
-`openWorkspace`, which opens a new tab unless the current one has no database
-yet.
+`openObject` in `store.ts` is how a table is opened, from the sidebar, `Ctrl+P`
+or anywhere else: a table already open in a tab switches to that tab, an empty
+bound tab takes it, otherwise a new tab opens on the same database.
+`openObjectAt` is the one place a table enters the active tab. `Ctrl+E` opens a
+SQL editor tab the same way. Open tabs also appear in the palette as a `Tabs`
+group. Choosing another database goes through `openWorkspace`, which opens a
+new tab unless the current one has no database yet.
 
 The main panel is routed. What it shows is a *page* (`pageOf` in `tabs.ts`):
 empty, table, SQL editor, details or activity. A subscription at the bottom of
 `store.ts` records every change of page, switching tab included, into one list
 (`nav`, `navAt`). The mouse back / forward buttons walk it across tabs, with
 the filter, sort and page a table had when it was left (Shift: between tabs).
-Going back is wrapped in `navigating` so it does not record itself, and pages of
-closed tabs are skipped. Going back to a table that was closed opens it again.
+Going back is wrapped in `navigating` so it does not record itself. Pages of
+closed tabs are skipped, and so are empty pages: going back to the empty page a
+table tab started on would take the table out of it.
 
 Focus moves with the panes (`frontend/src/paneFocus.ts`): each pane's root
 carries `data-pane`, and the control its keys drive carries `data-focus-home`.

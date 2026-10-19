@@ -1,7 +1,7 @@
 # 9. Tabs are database workspaces
 
 Date: 2026-10-06
-Status: Accepted. Amends 0006
+Status: Superseded by [0011](0011-a-tab-is-one-table.md)
 
 ## Context
 

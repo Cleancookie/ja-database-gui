@@ -718,7 +718,7 @@ test — which is the intended speed bump.
 | JSON tree edits splice the text: bytes outside an edited node are unchanged | `jsonEdits.test.ts` (`applyJsonEdits`). Same reason: a parse-edit-stringify round trip rounds big integers and drops repeated keys |
 | No app-shell component subscribes to the staged edits | Same reason as the selection rule above: `DataGrid`, `ChangesStatus`, `ReviewChangesDialog`, `LargeEditorHost`, each sidebar `TableMark` and each tab's `TabMark` subscribe — the last two with a boolean — and `App` does not |
 | The sidebar subscribes to no selection, rows or staged edits | It is always mounted beside the grid. `frontend/src/invariants.test.ts` reads its source for those selectors |
-| A tab's open tables change only in the store actions: `openObjectAt`, `closeOpenTable`, `selectDatabase`, `connect`, `disconnect`, `runDrop` | `openObjectAt` is the one place a table's filter, sort and page are saved and restored. `frontend/src/openTables.test.ts` |
+| A table is opened only through `openObject`, and enters the active tab only in `openObjectAt` | `openObject` decides which tab: the one already showing it, an empty bound one, or a new one. The sidebar, palette, object menu and `createTable` cannot disagree. `frontend/src/tableTabs.test.ts` |
 | A context-menu item fires a store action the palette also exposes | The palette is the primary surface. A menu that calls the API directly is a second code path where the confirmation and the refresh afterwards can drift |
 | Truncate and drop are decided in the store action, never at the call site | `runTruncate` / `runDrop` skip the confirmation by design; anything but a confirmation dialog calling them is a destructive statement with no prompt |
 | No DDL builder emits `CASCADE` | The engine refusing is the useful answer. `CASCADE` would act on objects the user never named |
@@ -783,6 +783,9 @@ New users have nothing to play with until they have a database. Ship a sample on
 The API takes no path. The only file ever written is the fixed sample file in the config directory (plus its temp file there), created 0600 like the other config files. The seed is embedded and trusted, and runs through the SQLite driver, never a shell. Building the file happens before any connection exists, so it is not a user query and does not appear in the activity log; everything after that goes through the normal middleware chain.
 
 ## 2026-10-06 — tabs are database workspaces
+
+> What a tab is, the open tables and their keys are superseded by
+> [2026-10-19 — a tab is one table](#2026-10-19--a-tab-is-one-table).
 
 ### Brief
 
@@ -923,3 +926,26 @@ Reverses the 2026-08-26 double-click entry and the in-cell drag of the drag entr
 | Not Windows | `mssqlDriver.DSN` fails with "Windows authentication only works in the Windows app" (devserver on Linux) |
 | Form | An "Auth" select (SQL login / Windows) for SQL Server only. Windows hides User and Password and says "Signs in as the current Windows user" |
 | Not built | NTLM with an explicit domain user and password |
+
+## 2026-10-19 — a tab is one table
+
+### Brief
+
+Each open table is its own tab, like a browser, instead of a tab holding a list of open tables. `docs/adr/0011`.
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| What a tab is | One table (`activeRef`, with its filter, sort and page in `TAB_FIELDS`), or a SQL editor, on one connection and database. No `openTables` |
+| Opening a table | `openObject`: a tab on this connection already showing it is switched to; else a bound tab with nothing open takes it; else a new tab on the same connection and database. Sidebar, palette, object menu, `createTable` alike |
+| Tab row | Table name (`SQL` for an editor, `New tab` for nothing), then `connection / database` faint (`tabLabel`). Dirty dot on every row, the active one too (`TabMark`) |
+| `TABLES` | Every table and view of the active tab's database, a green dot on each open in any tab (`openRefKeys`). Header: connection and the database picker, which opens a tab on the chosen database |
+| SQL editor | A tab kind. `Ctrl+E` on an empty tab shows the editor there, on an editor does nothing, else opens an editor tab on the same database. The editor's database picker opens an editor tab |
+| Details | A view of the table's tab. `openDetails` opens the table first |
+| Closing | `Ctrl+W` closes the tab. With staged edits on its table and no other tab showing it, asks first (`ConfirmDiscardDialog`) and discards only that table's |
+| Keys removed | `Alt+W`, `Alt+PageUp` / `Alt+PageDown`, and their palette entries |
+| Palette | Open tables are grouped "Open in a tab"; choosing one switches to its tab. `Tabs` entries are named by `tabLabel` |
+| Back / forward | Skip empty pages as well as closed tabs' |
+| Reopen closed tab | Brings back its table and SQL text, not the runs |
+| Drop, disconnect | A dropped table blanks every tab showing it. Disconnect blanks every tab on that connection |
