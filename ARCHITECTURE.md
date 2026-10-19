@@ -166,8 +166,10 @@ because inside a palette it is already the emacs-style move-up binding.
 The left rail is the tab sidebar (ADR 0006, amended by ADR 0011). A tab is one
 table, with its filter, sort and page, or a SQL editor, on one connection and
 database, as tabs are in a browser. The table's details page is a view of its
-tab. The sidebar has two sections: `TABS`, one line per tab naming its table
-then its connection and database, and `TABLES`, a search and every table and
+tab. The sidebar is two stacked islands, each folded to its header by its title
+or the palette (`tabsFolded` / `tablesFolded` in settings); the open one takes
+the freed height. `TABS` holds one line per tab naming its table
+then its connection and database. `TABLES` holds a search and every table and
 view of a database of its own: global `browse*` store fields, not tab state.
 Its header has server and database dropdowns (`BrowsePicker`) that change only
 what is listed. It is seeded from the first tab to reach a database, and a

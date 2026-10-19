@@ -970,3 +970,12 @@ Changing the database in the `TABLES` header opened a tab. It must only change w
 | Refresh | `selectDatabase` on the browse database also fills `browseObjects`, so create, drop and empty refresh it. Disconnect or delete of its connection clears it |
 | Palette | Unchanged: lists the active tab's objects. `Ctrl+L` focuses the `TABLES` search |
 | Persisted | No. Tabs are not kept across restarts, so neither is this |
+
+## 2026-10-19 — sidebar cards
+
+| Question | Choice |
+| --- | --- |
+| Layout | `TABS` and `TABLES` are two islands stacked in the left rail, the shell's gap between. One resizer and one slide (`Ctrl+←`) for both |
+| Folding | The title (chevron, `aria-expanded`) folds a card to its header; the other takes the height. Both may be folded. Palette: "Toggle tabs section", "Toggle tables section" |
+| Persisted | `tabsFolded`, `tablesFolded` in settings, as `tabStripHidden` |
+| Table search | `Ctrl+L` / `/` unfolds `TABLES` first |
