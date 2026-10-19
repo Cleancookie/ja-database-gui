@@ -6,11 +6,7 @@ import { tabLabel } from '../tabs'
 import { DatabasePicker } from './DatabasePicker'
 import { LIMITS, Resizer, useResizable } from './Resizer'
 import { ObjectList } from './sidebar/ObjectList'
-import { OpenList } from './sidebar/OpenList'
 import { TabMark } from './TableMark'
-
-/** Stable, so the memoised ObjectList is not re-rendered by a new element each time. */
-const WORKSPACE_EXTRAS = <OpenList />
 
 /**
  * The tab sidebar down the left edge.
@@ -180,7 +176,7 @@ export const TabStrip = memo(function TabStrip({ open }: { open: boolean }) {
           </div>
           <div className="flex min-h-0 flex-1 flex-col">
             {bound ? (
-              <ObjectList active={false}>{WORKSPACE_EXTRAS}</ObjectList>
+              <ObjectList active={false} />
             ) : (
               <p className="px-3 py-1.5 text-[var(--color-faint)]">
                 Choose the server and database in the main panel

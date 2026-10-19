@@ -94,7 +94,7 @@ describe('table tabs', () => {
     expect(s().view).toBe('details')
   })
 
-  it('asks before closing a table with staged edits, and drops only its edits', async () => {
+  it('asks before closing a tab whose table has staged edits, and drops only its edits', async () => {
     const useStore = await fresh()
     const s = () => useStore.getState()
     await s().openObject(table('a'))
@@ -111,7 +111,7 @@ describe('table tabs', () => {
       }),
     )
 
-    await s().closeOpenTable()
+    s().closeTab()
     const d = s().dialog
     expect(d.kind).toBe('confirmDiscard')
     expect(s().activeRef?.name).toBe('a')

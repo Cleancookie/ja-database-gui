@@ -36,10 +36,7 @@ import { mark, reportText } from './startup'
 import { applyTheme, DEFAULT_THEME } from './themes'
 import {
   blankFields,
-  closeOpen,
-  findOpen,
   FRESH_CONTROLS,
-  neighbourOf,
   newTab as makeTab,
   pageOf,
   recordPage,
@@ -47,11 +44,9 @@ import {
   sameRef,
   snapshot,
   type Controls,
-  type OpenTable,
   type Page,
   type Tab,
   type TabFields,
-  upsertOpen,
 } from './tabs'
 import type {
   ActivityResult,
@@ -202,8 +197,6 @@ export interface State extends EditState, EditActions {
 
   // active object
   activeRef: ObjectRef | null
-  /** The tables opened in this tab, each with how it was left (`tabs.ts`). */
-  openTables: OpenTable[]
   /**
    * Objects opened this session, most recent first, as refKey strings.
    *
@@ -343,13 +336,6 @@ export interface State extends EditState, EditActions {
    */
   openWorkspace: (connectionId: string, database?: string, view?: View) => Promise<void>
   openObject: (o: SchemaObject) => Promise<void>
-  /**
-   * Closes one of the tab's open tables, the one on screen by default, and
-   * shows its neighbour. Asks first when the table has staged edits.
-   */
-  closeOpenTable: (ref?: ObjectRef) => Promise<void>
-  /** Shows the next (1) or previous (-1) of the tab's open tables, wrapping. */
-  cycleOpenTable: (delta: number) => Promise<void>
   reload: () => Promise<void>
   /** Counts the open table's rows under the current filter, once. */
   countRows: () => Promise<void>
@@ -357,7 +343,10 @@ export interface State extends EditState, EditActions {
   loadMore: () => Promise<void>
   /** Opens a blank tab and switches to it. */
   newTab: () => void
-  /** Closes a tab, the active one by default. Closing the last leaves a blank one. */
+  /**
+   * Closes a tab, the active one by default. Closing the last leaves a blank one.
+   * Asks first when its table has staged edits and no other tab shows it.
+   */
   closeTab: (id?: number) => void
   /** Brings back the most recently closed tab, as a new tab. */
   reopenTab: () => void
@@ -523,11 +512,7 @@ const CLOSED_TABS_LIMIT = 10
 
 /** A tab with nothing opened in it is not worth bringing back. */
 function worthReopening(f: TabFields): boolean {
-  return f.openTables.length > 0 || !!f.sqlText || f.view !== 'data'
-}
-
-function controlsOf(s: Pick<State, 'filter' | 'orderBy' | 'sortChosen' | 'page'>): Controls {
-  return { filter: s.filter, orderBy: s.orderBy, sortChosen: s.sortChosen, page: s.page }
+  return !!f.activeRef || !!f.sqlText || f.view !== 'data'
 }
 
 /** The table-shaped fields of a tab with no table on screen. */
@@ -737,16 +722,9 @@ export const useStore = create<State>((set, get) => {
     }
     const ref = { database: s.activeDatabase, schema: o.schema, name: o.name }
     const key = refKey(ref.database, ref.schema, ref.name)
-    // The table being left keeps how it was filtered, sorted and paged, and the
-    // one being opened gets back what it had — unless the caller says otherwise.
-    const left =
-      s.activeRef && findOpen(s.openTables, s.activeRef)
-        ? upsertOpen(s.openTables, s.activeRef, controlsOf(s))
-        : s.openTables
-    const controls = restore ?? findOpen(left, ref)?.controls ?? FRESH_CONTROLS
+    const controls = restore ?? FRESH_CONTROLS
     set({
       activeRef: ref,
-      openTables: upsertOpen(left, ref, controls),
       // Moved to the front, and de-duplicated, so re-opening a table does not
       // leave a stale copy further down the list.
       recentObjects: [key, ...s.recentObjects.filter((k) => k !== key)].slice(0, RECENT_LIMIT),
@@ -821,7 +799,6 @@ export const useStore = create<State>((set, get) => {
     activeDatabase: '',
     objects: [],
     activeRef: null,
-    openTables: [],
     recentObjects: [],
     columns: [],
     result: null,
@@ -963,7 +940,6 @@ export const useStore = create<State>((set, get) => {
           connectedIds,
           objects: [],
           activeRef: null,
-          openTables: [],
           result: null,
           columns: [],
           filter: '',
@@ -1009,7 +985,6 @@ export const useStore = create<State>((set, get) => {
               activeDatabase: '',
               objects: [],
               activeRef: null,
-              openTables: [],
               result: null,
               columns: [],
               totalCount: null,
@@ -1022,9 +997,7 @@ export const useStore = create<State>((set, get) => {
       const id = get().activeConnectionId
       if (!id) return
       const tabId = get().activeTabId
-      // Open tables belong to the database they were opened in.
-      const openTables = name === get().activeDatabase ? get().openTables : []
-      set({ activeDatabase: name, openTables, busy: true, objects: [] })
+      set({ activeDatabase: name, busy: true, objects: [] })
       try {
         const objects = await tracked(() => api.listObjects(id, name))
         if (get().activeTabId !== tabId) return
@@ -1075,51 +1048,6 @@ export const useStore = create<State>((set, get) => {
       await openObjectAt(o)
     },
 
-    async closeOpenTable(ref) {
-      const s = get()
-      const target = ref ?? s.activeRef
-      if (!target || !findOpen(s.openTables, target)) return
-      if (s.activeConnectionId) {
-        const key = tableKey(s.activeConnectionId, target)
-        const count = countOf(editsFor(s.staged, key)).total
-        if (count > 0) {
-          set({
-            dialog: {
-              kind: 'confirmDiscard',
-              count,
-              proceed: () => {
-                set({ ...withStaged(get(), removeTable(get().staged, key)), editing: null })
-                return get().closeOpenTable(target)
-              },
-            },
-          })
-          return
-        }
-      }
-      const next = neighbourOf(s.openTables, target)
-      const openTables = closeOpen(s.openTables, target)
-      if (!sameRef(s.activeRef, target)) {
-        set({ openTables })
-        return
-      }
-      if (!next) {
-        set({ ...NO_TABLE, openTables })
-        return
-      }
-      set({ openTables })
-      await openObjectAt(objectFor(next.ref), next.controls)
-    },
-
-    async cycleOpenTable(delta) {
-      const { openTables, activeRef } = get()
-      const n = openTables.length
-      if (n === 0) return
-      const i = activeRef ? openTables.findIndex((t) => sameRef(t.ref, activeRef)) : -1
-      const next = openTables[i < 0 ? (delta > 0 ? 0 : n - 1) : (i + delta + n) % n]
-      if (sameRef(activeRef, next.ref) && get().view === 'data') return
-      await openObjectAt(objectFor(next.ref))
-    },
-
     newTab() {
       const tab = makeTab(++tabSeq, blank())
       enter(tab, [...stashed(), tab])
@@ -1144,7 +1072,33 @@ export const useStore = create<State>((set, get) => {
       const target = id ?? s.activeTabId
       const at = s.tabs.findIndex((t) => t.id === target)
       if (at < 0) return
-      const closing = stashed()[at].saved
+      const all = stashed()
+      const closing = all[at].saved
+      const conn = closing?.activeConnectionId
+      const ref = closing?.activeRef
+      if (conn && ref) {
+        const key = tableKey(conn, ref)
+        const count = countOf(editsFor(s.staged, key)).total
+        const shownElsewhere = all.some(
+          (t) =>
+            t.id !== target &&
+            t.saved?.activeConnectionId === conn &&
+            sameRef(t.saved.activeRef, ref),
+        )
+        if (count > 0 && !shownElsewhere) {
+          set({
+            dialog: {
+              kind: 'confirmDiscard',
+              count,
+              proceed: () => {
+                set({ ...withStaged(get(), removeTable(get().staged, key)), editing: null })
+                get().closeTab(target)
+              },
+            },
+          })
+          return
+        }
+      }
       if (closing && worthReopening(closing)) {
         // Reopen brings back the editor text, not the results: they may be sensitive.
         const forgotten = { ...closing, sqlRuns: [], sqlActiveRun: null, sqlResultIndex: 0 }
@@ -1327,15 +1281,13 @@ export const useStore = create<State>((set, get) => {
       // Leaving the grid pointed at something that no longer exists would make
       // every refresh an error, so the view goes back to nothing selected.
       if (sameRef(get().activeRef, ref)) set(NO_TABLE)
-      // Another tab may have it open, or be showing it.
+      // Another tab may be showing it.
       set({
-        openTables: closeOpen(get().openTables, ref),
-        tabs: get().tabs.map((t) => {
-          if (t.saved?.activeConnectionId !== connectionId) return t
-          const saved = { ...t.saved, openTables: closeOpen(t.saved.openTables, ref) }
-          if (!sameRef(t.saved.activeRef, ref)) return { ...t, saved }
-          return { ...t, saved: { ...saved, ...NO_TABLE }, needsLoad: false }
-        }),
+        tabs: get().tabs.map((t) =>
+          t.saved?.activeConnectionId === connectionId && sameRef(t.saved.activeRef, ref)
+            ? { ...t, saved: { ...t.saved, ...NO_TABLE }, needsLoad: false }
+            : t,
+        ),
       })
       set({
         ...forgetTable(get(), ref),

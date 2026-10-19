@@ -1,19 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   blankFields,
-  closeOpen,
-  FRESH_CONTROLS,
-  neighbourOf,
   newTab,
   openRefKeys,
-  openTableKeys,
   recordPage,
   samePage,
   TAB_FIELDS,
   tabHistory,
   tabLabel,
   tabTitle,
-  upsertOpen,
   type Page,
   type TabFields,
 } from './tabs'
@@ -145,31 +140,6 @@ describe('samePage', () => {
   })
 })
 
-describe('open tables', () => {
-  const open = (...names: string[]) => names.map((n) => ({ ref: ref(n), controls: FRESH_CONTROLS }))
-  const names = (l: { ref: { name: string } }[]) => l.map((t) => t.ref.name)
-  const filtered = { ...FRESH_CONTROLS, filter: 'id > 3' }
-
-  it('appends a new table and updates one already open in place', () => {
-    expect(names(upsertOpen(open('a'), ref('b'), FRESH_CONTROLS))).toEqual(['a', 'b'])
-    const l = upsertOpen(open('a', 'b'), ref('a'), filtered)
-    expect(names(l)).toEqual(['a', 'b'])
-    expect(l[0].controls.filter).toBe('id > 3')
-  })
-  it('closes by ref', () => {
-    expect(names(closeOpen(open('a', 'b', 'c'), ref('b')))).toEqual(['a', 'c'])
-  })
-  it('picks the next table along, else the previous, else none', () => {
-    expect(neighbourOf(open('a', 'b', 'c'), ref('b'))?.ref.name).toBe('c')
-    expect(neighbourOf(open('a', 'b', 'c'), ref('c'))?.ref.name).toBe('b')
-    expect(neighbourOf(open('a'), ref('a'))).toBeNull()
-    expect(neighbourOf(open('a'), ref('x'))).toBeNull()
-  })
-  it('keys open tables the way the recent list does', () => {
-    expect(openTableKeys(open('a')).has(refKey('db', '', 'a'))).toBe(true)
-  })
-})
-
 describe('blankFields', () => {
   it('names exactly the per-tab fields', () => {
     expect(Object.keys(blankFields(100, true)).sort()).toEqual([...TAB_FIELDS].sort())
@@ -238,10 +208,7 @@ describe('store tabs', () => {
     const { useStore } = await import('./store')
     const s = () => useStore.getState()
 
-    const opened = (name: string) => ({
-      activeRef: ref(name),
-      openTables: [{ ref: ref(name), controls: FRESH_CONTROLS }],
-    })
+    const opened = (name: string) => ({ activeRef: ref(name) })
     useStore.setState(opened('a'))
     s().newTab()
     useStore.setState(opened('b'))
@@ -274,10 +241,7 @@ describe('closing a tab', () => {
     s().closeTab()
     expect(s().toasts).toEqual([])
 
-    useStore.setState({
-      activeRef: ref('a'),
-      openTables: [{ ref: ref('a'), controls: FRESH_CONTROLS }],
-    })
+    useStore.setState({ activeRef: ref('a') })
     s().closeTab()
     const toast = s().toasts.at(-1)
     expect(toast?.message).toBe('Tab closed')

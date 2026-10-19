@@ -17,8 +17,6 @@ const SHORTCUTS: [string, string][] = [
   ['Ctrl+=  /  Ctrl+-  /  Ctrl+0', 'Increase / decrease / reset the font size'],
   ['Ctrl+F', 'Focus the WHERE filter'],
   ['Ctrl+L', 'Search the tables in the sidebar'],
-  ['Alt+W', 'Close the table on screen (the tab keeps its other open tables)'],
-  ['Alt+PageUp  /  Alt+PageDown', 'Previous / next open table in this tab'],
   ['Enter', 'Apply the filter'],
   ['Ctrl+E', 'New SQL editor tab on this database'],
   ['Ctrl+Enter', 'Run the query, or only the selected text (in the editor)'],

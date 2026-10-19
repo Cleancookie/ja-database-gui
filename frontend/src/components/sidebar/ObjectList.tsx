@@ -38,8 +38,7 @@ type Row =
 
 /**
  * Every table and view in the tab's database, grouped by kind, under a filter
- * field. Enter in the field opens the highlighted one. `children` sit between
- * the field and the list; pass a stable element, or the memo is lost.
+ * field. Enter in the field opens the highlighted one.
  *
  * Virtualised and memoised: it is always on screen, a database can hold
  * thousands of tables, and none of its cost should be the reason a parent
@@ -48,11 +47,9 @@ type Row =
 export const ObjectList = memo(function ObjectList({
   active = false,
   className = '',
-  children,
 }: {
   active?: boolean
   className?: string
-  children?: React.ReactNode
 }) {
   const activeConnectionId = useStore((s) => s.activeConnectionId)
   const activeDatabase = useStore((s) => s.activeDatabase)
@@ -139,25 +136,18 @@ export const ObjectList = memo(function ObjectList({
 
   if (!activeConnectionId) return null
 
-  // The children sit inside this list but are not it: focus or keys in the
-  // open tables above must not move this list's cursor or pill.
-  const ours = (n: EventTarget | null) =>
-    n instanceof Node && !!(field.current?.contains(n) || scroller.current?.contains(n))
-
   return (
     <div
-      onKeyDown={(e) => {
-        if (ours(e.target)) onKeyDown(e)
-      }}
-      onFocus={(e) => {
-        if (focused || !ours(e.target)) return
+      onKeyDown={onKeyDown}
+      onFocus={() => {
+        if (focused) return
         setFocused(true)
         // The key cursor starts where the pill already is, not back at the top.
         const at = order.findIndex((o) => refKey(activeDatabase, o.schema, o.name) === current)
         if (at >= 0) setSelected(at)
       }}
       onBlur={(e) => {
-        if (!ours(e.relatedTarget)) setFocused(false)
+        if (!e.currentTarget.contains(e.relatedTarget)) setFocused(false)
       }}
       className="flex min-h-0 flex-col"
     >
@@ -177,9 +167,7 @@ export const ObjectList = memo(function ObjectList({
           className={INPUT}
         />
       </div>
-      {children}
       <div ref={scroller} data-highlight-clip className={`min-h-0 overflow-y-auto ${className}`}>
-        {/* Its own pill: one shared with the open tables glided between the two. */}
         <Highlight className="px-1.5 pb-2" pillClassName={PILL} hoverClassName={HOVER_PILL}>
           {objects.length === 0 && (
             <p className="px-2 py-2 text-[var(--color-faint)]">
@@ -234,7 +222,7 @@ export const ObjectList = memo(function ObjectList({
                       <ObjectRow
                         o={row.o}
                         // The keys move the pill while they would; otherwise it
-                        // sits on the table on screen, as the open list's does.
+                        // sits on the table on screen.
                         highlighted={
                           focused
                             ? row.index === selected

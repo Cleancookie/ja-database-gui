@@ -24,7 +24,6 @@ export const TAB_FIELDS = [
   'activeDatabase',
   'objects',
   'activeRef',
-  'openTables',
   'columns',
   'result',
   'orderBy',
@@ -76,7 +75,6 @@ export function blankFields(pageSize: number, paginationEnabled: boolean): TabFi
     activeDatabase: '',
     objects: [],
     activeRef: null,
-    openTables: [],
     columns: [],
     result: null,
     orderBy: [],
@@ -108,54 +106,11 @@ export function newTab(id: number, fields: TabFields | null): Tab {
   return { id, saved: fields, needsLoad: false }
 }
 
-/**
- * Open tables.
- *
- * A tab is one connection and one database, and the tables opened in it are
- * kept as a list, each with the filter, sort and page it had when it was left.
- * Rows are never kept: going back to a table fetches them again.
- *
- * `activeRef` is the table on screen. Its entry's controls are stale while it
- * is — the live fields are the truth, as with the active tab's `saved`.
- */
-export interface OpenTable {
-  ref: ObjectRef
-  controls: Controls
-}
-
+/** How a table freshly opened is filtered, sorted and paged: not at all. */
 export const FRESH_CONTROLS: Controls = { filter: '', orderBy: [], sortChosen: false, page: 1 }
 
 export function sameRef(a: ObjectRef | null | undefined, b: ObjectRef): boolean {
   return !!a && a.database === b.database && a.schema === b.schema && a.name === b.name
-}
-
-export function findOpen(list: OpenTable[], ref: ObjectRef): OpenTable | undefined {
-  return list.find((t) => sameRef(t.ref, ref))
-}
-
-/** Puts `ref` in the list with `controls`, in place if it is already there, else at the end. */
-export function upsertOpen(list: OpenTable[], ref: ObjectRef, controls: Controls): OpenTable[] {
-  const at = list.findIndex((t) => sameRef(t.ref, ref))
-  if (at < 0) return [...list, { ref, controls }]
-  const out = list.slice()
-  out[at] = { ref: list[at].ref, controls }
-  return out
-}
-
-export function closeOpen(list: OpenTable[], ref: ObjectRef): OpenTable[] {
-  return list.filter((t) => !sameRef(t.ref, ref))
-}
-
-/** What takes the place of `ref` when it closes: the next one along, else the one before. */
-export function neighbourOf(list: OpenTable[], ref: ObjectRef): OpenTable | null {
-  const at = list.findIndex((t) => sameRef(t.ref, ref))
-  if (at < 0) return null
-  return list[at + 1] ?? list[at - 1] ?? null
-}
-
-/** The open tables as `refKey`s, for marking them in a list of every object. */
-export function openTableKeys(list: OpenTable[]): Set<string> {
-  return new Set(list.map((t) => refKey(t.ref.database, t.ref.schema, t.ref.name)))
 }
 
 /**

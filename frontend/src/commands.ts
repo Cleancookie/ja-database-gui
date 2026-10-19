@@ -233,35 +233,6 @@ export function buildActionCommands(s: Store): Command[] {
       run: () => s.cycleTab(-1),
     })
   }
-  if (s.activeRef) {
-    cmds.push({
-      id: 'table:close',
-      title: 'Close table',
-      subtitle: s.activeRef.name,
-      group: 'Tables',
-      shortcut: 'Alt+W',
-      candidate: { name: 'Close table', keywords: 'open tables remove sidebar' },
-      run: () => s.closeOpenTable(),
-    })
-  }
-  if (s.openTables.length > 1) {
-    cmds.push({
-      id: 'table:next',
-      title: 'Next open table',
-      group: 'Tables',
-      shortcut: 'Alt+PageDown',
-      candidate: { name: 'Next open table', keywords: 'switch cycle down sidebar' },
-      run: () => s.cycleOpenTable(1),
-    })
-    cmds.push({
-      id: 'table:previous',
-      title: 'Previous open table',
-      group: 'Tables',
-      shortcut: 'Alt+PageUp',
-      candidate: { name: 'Previous open table', keywords: 'switch cycle up sidebar' },
-      run: () => s.cycleOpenTable(-1),
-    })
-  }
   if (s.activeConnectionId) {
     cmds.push({
       id: 'table:search',
