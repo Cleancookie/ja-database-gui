@@ -106,6 +106,17 @@ func TestBinaryTypeBeatsUTF8Validity(t *testing.T) {
 	}
 }
 
+// SQL Server stores the first three GUID groups little-endian; the grid must
+// show what SSMS shows so a copied value works in a WHERE clause.
+func TestUniqueidentifierIsShownAsSQLServerPrintsIt(t *testing.T) {
+	stored := []byte{0x33, 0x22, 0x11, 0x00, 0x55, 0x44, 0x77, 0x66,
+		0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
+	want := "00112233-4455-6677-8899-AABBCCDDEEFF"
+	if got := normalise(stored, "UNIQUEIDENTIFIER"); got != want {
+		t.Errorf("got %v, want %v", got, want)
+	}
+}
+
 func TestInvalidUTF8IsTreatedAsBinary(t *testing.T) {
 	got, ok := normalise([]byte{0xff, 0xfe, 0x00}, "TEXT").(string)
 	if !ok || !strings.HasPrefix(got, "0x") {

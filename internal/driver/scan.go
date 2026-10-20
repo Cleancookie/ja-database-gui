@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -289,19 +288,31 @@ func ReadCell(ctx context.Context, db *sql.DB, query string, maxBytes int, args 
 	}
 	out := &Cell{Query: query}
 
-	var v any
-	if err := db.QueryRowContext(ctx, query, args...).Scan(&v); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			// The row moved or was deleted between the page load and the
-			// click. Saying so beats a bare "no rows in result set".
-			return nil, fmt.Errorf("that row is no longer in the result — refresh and try again")
+	rows, err := db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var dbType string
+	if types, err := rows.ColumnTypes(); err == nil && len(types) > 0 {
+		dbType = types[0].DatabaseTypeName()
+	}
+	if !rows.Next() {
+		if err := rows.Err(); err != nil {
+			return nil, err
 		}
+		// The row moved or was deleted between the page load and the
+		// click. Saying so beats a bare "no rows in result set".
+		return nil, fmt.Errorf("that row is no longer in the result — refresh and try again")
+	}
+	var v any
+	if err := rows.Scan(&v); err != nil {
 		return nil, err
 	}
 
 	// Normalising here means a full-value fetch shows a decimal, a timestamp
 	// or a blob exactly as the grid does, only untruncated.
-	n := normalise(v, "")
+	n := normalise(v, dbType)
 	if n == nil {
 		return out, nil
 	}
@@ -398,6 +409,9 @@ func normalise(v any, dbType string) any {
 // hand back []byte for text, numeric and decimal columns alike; decimals in
 // particular must stay strings so precision is not lost to float64.
 func normaliseBytes(b []byte, dbType string) any {
+	if strings.EqualFold(dbType, "UNIQUEIDENTIFIER") && len(b) == 16 {
+		return mssqlGUID(b)
+	}
 	if isBinaryType(dbType) || !utf8.Valid(b) || containsNUL(b) {
 		n := len(b)
 		preview := b

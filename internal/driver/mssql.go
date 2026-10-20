@@ -16,6 +16,14 @@ import (
 
 func init() { register(mssqlDriver{}) }
 
+// mssqlGUID formats a uniqueidentifier the way SQL Server prints it. The
+// driver hands back the stored bytes, whose first three groups are
+// little-endian, so a plain hex dump would not match SSMS or a WHERE clause.
+func mssqlGUID(b []byte) string {
+	return fmt.Sprintf("%X-%X-%X-%X-%X",
+		[]byte{b[3], b[2], b[1], b[0]}, []byte{b[5], b[4]}, []byte{b[7], b[6]}, b[8:10], b[10:16])
+}
+
 // windowsOS is a variable so tests can exercise both sides of the check.
 var windowsOS = runtime.GOOS == "windows"
 
