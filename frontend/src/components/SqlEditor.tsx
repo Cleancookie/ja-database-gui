@@ -78,7 +78,9 @@ export function SqlEditor() {
 
   return (
     <div className="flex h-full flex-col">
-      <div className="chrome flex items-center gap-2 border-b border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2">
+      {/* Scrolls sideways rather than wrapping: a narrow pane folded the Run
+          button onto two lines. Every control keeps its natural width. */}
+      <div className="chrome flex items-center gap-2 overflow-x-auto border-b border-[var(--color-border)] bg-[var(--color-panel)] px-3 py-2 whitespace-nowrap *:shrink-0">
         <span className="font-semibold tracking-wider text-[var(--color-faint)] uppercase">
           SQL
         </span>
