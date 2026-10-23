@@ -138,6 +138,8 @@ export function buildNavigationCommands(s: Store): Command[] {
     })
   }
 
+  // From the editor, another database or server opens an editor on it.
+  const stayIn = s.view === 'sql' ? 'sql' : undefined
   const connectionId = s.activeConnectionId
   if (connectionId && s.capabilities?.serverHostsDatabases) {
     for (const db of s.databases) {
@@ -148,7 +150,7 @@ export function buildNavigationCommands(s: Store): Command[] {
         subtitle: s.activeDatabase ? 'In a new tab' : undefined,
         group: 'Databases',
         candidate: { name: db, keywords: 'use database switch catalog', bias: -0.05 },
-        run: () => s.openWorkspace(connectionId, db),
+        run: () => s.openWorkspace(connectionId, db, stayIn),
       })
     }
   }
@@ -164,7 +166,7 @@ export function buildNavigationCommands(s: Store): Command[] {
         name: c.name,
         keywords: `connect connection ${c.kind} ${c.host ?? ''} ${c.file ?? ''}`,
       },
-      run: () => s.openWorkspace(c.id),
+      run: () => s.openWorkspace(c.id, '', stayIn),
     })
   }
 
@@ -449,23 +451,39 @@ export function buildActionCommands(s: Store): Command[] {
     )
   }
 
-  // The dropdown is in the editor's header, so the command has to open the
-  // editor before it can focus it — after the render that mounts it, the way
+  // The dropdowns are in the editor's header, so a command has to open the
+  // editor before it can reach one — after the render that mounts it, the way
   // Ctrl+F waits for the filter bar.
-  cmds.push({
-    id: 'sql:pick-database',
-    title: s.activeConnectionId ? 'Choose the database to query' : 'Choose a connection to query',
-    subtitle: 'The dropdown in the SQL editor header',
-    group: 'Query',
-    candidate: {
-      name: 'Choose the database',
-      keywords: 'switch use catalog schema connection editor run against',
-    },
-    run: () => {
-      s.setView('sql')
-      requestAnimationFrame(focusDatabasePicker)
-    },
-  })
+  const pickInEditor = (id: string) => () => {
+    s.setView('sql')
+    requestAnimationFrame(() => openHeaderPicker(id))
+  }
+  if (s.connections.length > 0) {
+    cmds.push({
+      id: 'sql:pick-server',
+      title: s.activeConnectionId ? 'Change the server to query' : 'Choose a server to query',
+      subtitle: 'The server dropdown in the SQL editor header',
+      group: 'Query',
+      candidate: {
+        name: 'Change server',
+        keywords: 'switch connection connect host editor run against',
+      },
+      run: pickInEditor(SERVER_PICKER_ID),
+    })
+  }
+  if (s.activeConnectionId && s.capabilities?.serverHostsDatabases) {
+    cmds.push({
+      id: 'sql:pick-database',
+      title: 'Change the database to query',
+      subtitle: 'The database dropdown in the SQL editor header',
+      group: 'Query',
+      candidate: {
+        name: 'Change database',
+        keywords: 'switch use catalog schema editor run against',
+      },
+      run: pickInEditor(DATABASE_PICKER_ID),
+    })
+  }
 
   cmds.push(
     ...paneCommands({
@@ -1106,15 +1124,25 @@ export async function focusTableSearch(s: Store) {
   })
 }
 
-/** The editor's database picker owns this id — see components/DatabasePicker.tsx. */
+/** The editor header's dropdowns own these ids — see components/DatabasePicker.tsx. */
 export const DATABASE_PICKER_ID = 'database-picker'
+export const SERVER_PICKER_ID = 'server-picker'
 
 /**
- * Unlike the filter, this one is a real `<select>`, so the DOM is enough and no
- * registration handle is needed.
+ * Unlike the filter, these are real `<select>`s, so the DOM is enough and no
+ * registration handle is needed. Opened as well as focused: the command was
+ * the choice to change it, so the list is the next thing wanted.
  */
-export function focusDatabasePicker() {
-  document.getElementById(DATABASE_PICKER_ID)?.focus()
+export function openHeaderPicker(id: string) {
+  const el = document.getElementById(id)
+  el?.focus()
+  if (el instanceof HTMLSelectElement) {
+    try {
+      el.showPicker()
+    } catch {
+      // Refused without a user gesture; focused is the fallback.
+    }
+  }
 }
 
 export function describeConnection(kind: string, host?: string, file?: string): string {

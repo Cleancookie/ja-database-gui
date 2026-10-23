@@ -1,4 +1,4 @@
-import { DATABASE_PICKER_ID } from '../commands'
+import { DATABASE_PICKER_ID, SERVER_PICKER_ID } from '../commands'
 import { useStore, type View } from '../store'
 import { pickerModel } from '../picker'
 
@@ -22,10 +22,8 @@ export function pickerClass(unchosen: boolean): string {
  * The database-side decisions are in `picker.ts`; this only renders them.
  */
 export function DatabasePicker({
-  id = DATABASE_PICKER_ID,
   view,
 }: {
-  id?: string
   /** What a tab opened on another database shows. */
   view?: View
 }) {
@@ -42,7 +40,6 @@ export function DatabasePicker({
   if (connections.length === 0) {
     return (
       <button
-        id={id}
         onClick={() => setDialog({ kind: 'connection', connection: null })}
         className="rounded-lg border border-[var(--color-border)] bg-[var(--color-elevated)] px-2 py-0.5 text-[var(--color-muted)] shadow-xs hover:border-[var(--color-accent)]"
       >
@@ -57,7 +54,7 @@ export function DatabasePicker({
   return (
     <>
       <select
-        id={onDatabases ? undefined : id}
+        id={SERVER_PICKER_ID}
         aria-label="Server"
         title="Statements run on this server"
         value={activeConnectionId ?? ''}
@@ -81,7 +78,7 @@ export function DatabasePicker({
       )}
       {onDatabases && activeConnectionId && (
         <select
-          id={id}
+          id={DATABASE_PICKER_ID}
           aria-label="Database"
           title="Statements run against this database"
           value={model.value}
