@@ -2,10 +2,6 @@ import { describe, expect, it } from 'vitest'
 import { pickerModel, type PickerState } from './picker'
 
 const base: PickerState = {
-  connections: [
-    { id: 'a', name: 'local mysql' },
-    { id: 'b', name: 'prod' },
-  ],
   activeConnectionId: null,
   capabilities: null,
   databases: [],
@@ -16,26 +12,9 @@ const server = { serverHostsDatabases: true }
 const file = { serverHostsDatabases: false }
 
 describe('pickerModel, with no connection open', () => {
-  // The whole point of the change: land in the editor cold and the header
-  // still tells you what to do, instead of hiding itself.
-  it('offers the connections', () => {
-    const m = pickerModel(base)
-    expect(m.kind).toBe('connections')
-    expect(m.options).toEqual([
-      { value: 'a', label: 'local mysql' },
-      { value: 'b', label: 'prod' },
-    ])
-    expect(m.value).toBe('')
-  })
-
-  it('says it is not connected', () => {
-    expect(pickerModel(base).placeholder).toBe('Not connected')
-  })
-
-  it('asks for a connection when none is saved', () => {
-    const m = pickerModel({ ...base, connections: [] })
-    expect(m.options).toEqual([])
-    expect(m.placeholder).toBe('No connections')
+  // The server dropdown beside it is the whole choice.
+  it('shows nothing', () => {
+    expect(pickerModel(base).kind).toBe('none')
   })
 })
 
@@ -69,12 +48,11 @@ describe('pickerModel, connected to a server', () => {
 
 describe('pickerModel, connected to a file', () => {
   // SQLite has no databases — serverHostsDatabases is how the rest of the app
-  // decides this too, and a dropdown of nothing would be a lie.
-  it('names the connection instead of offering a dropdown', () => {
+  // decides this too, and a dropdown of nothing would be a lie. The server
+  // dropdown already names the file.
+  it('shows nothing beside the server', () => {
     const m = pickerModel({ ...base, activeConnectionId: 'b', capabilities: file })
-    expect(m.kind).toBe('static')
-    expect(m.options).toEqual([])
-    expect(m.placeholder).toBe('prod')
+    expect(m.kind).toBe('none')
   })
 })
 

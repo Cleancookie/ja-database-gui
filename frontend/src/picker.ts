@@ -4,8 +4,8 @@
  * The header used to render a read-only chip, and only when a database was
  * already chosen — so arriving in the editor with nothing connected gave you
  * no database, no dropdown and no hint that the sidebar was where to go. The
- * picker is always present instead, and adapts: databases when there are
- * databases to choose, connections when there is not yet a connection.
+ * server dropdown is always present instead; this models the control beside
+ * it: databases when the server has them to choose, nothing otherwise.
  *
  * Pure so the dialect rules are tested without a DOM; `components/
  * DatabasePicker.tsx` is only the `<select>` around it.
@@ -13,7 +13,6 @@
 
 /** The slice of the store the picker depends on — narrow on purpose. */
 export interface PickerState {
-  connections: { id: string; name: string }[]
   activeConnectionId: string | null
   capabilities: { serverHostsDatabases: boolean } | null
   databases: string[]
@@ -27,10 +26,10 @@ export interface PickerOption {
 
 export interface PickerModel {
   /**
-   * What choosing an option means: `connections` connects, `databases`
-   * switches database, `static` is not a dropdown at all.
+   * `databases` switches database, `static` is a label, `none` shows nothing
+   * beside the server dropdown.
    */
-  kind: 'connections' | 'databases' | 'static'
+  kind: 'databases' | 'static' | 'none'
   options: PickerOption[]
   /** '' when nothing is chosen, which is when the placeholder shows. */
   value: string
@@ -38,15 +37,10 @@ export interface PickerModel {
   placeholder: string
 }
 
+const NONE: PickerModel = { kind: 'none', options: [], value: '', placeholder: '' }
+
 export function pickerModel(s: PickerState): PickerModel {
-  if (!s.activeConnectionId) {
-    return {
-      kind: 'connections',
-      options: s.connections.map((c) => ({ value: c.id, label: c.name })),
-      value: '',
-      placeholder: s.connections.length === 0 ? 'No connections' : 'Not connected',
-    }
-  }
+  if (!s.activeConnectionId) return NONE
 
   // capabilities arrive with the connect response, so there is a window with an
   // id and nothing yet known about the dialect. Saying so beats offering an
@@ -55,12 +49,9 @@ export function pickerModel(s: PickerState): PickerModel {
     return { kind: 'static', options: [], value: '', placeholder: 'Connecting…' }
   }
 
-  // SQLite: one file, no databases. The same flag gates the sidebar's database
-  // section and the database entries in the palette.
-  if (!s.capabilities.serverHostsDatabases) {
-    const name = s.connections.find((c) => c.id === s.activeConnectionId)?.name ?? ''
-    return { kind: 'static', options: [], value: '', placeholder: name }
-  }
+  // SQLite: one file, no databases; the server dropdown already names it. The
+  // same flag gates the sidebar's database section and the palette's entries.
+  if (!s.capabilities.serverHostsDatabases) return NONE
 
   return {
     kind: 'databases',
