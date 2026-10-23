@@ -963,7 +963,7 @@ Changing the database in the `TABLES` header opened a tab. It must only change w
 | Question | Choice |
 | --- | --- |
 | Where `TABLES` is | Global `browseConnectionId`, `browseCapabilities`, `browseDatabases`, `browseDatabase`, `browseObjects`, `browseBusy`. Not in `TAB_FIELDS`; switching tabs never moves it |
-| Seeding | From the first tab to reach a database, and again whenever it is unset (after a disconnect of its connection). After that only its dropdowns move it |
+| Seeding | From the first tab to reach a database, and again whenever it is unset (after a disconnect of its connection). Amended 2026-10-23: also whenever a tab opens another database (`connect`, `selectDatabase` to a new name) — cleared and "Loading…" until listed, back where it was if the connect fails. Switching tabs still never moves it |
 | Header | Colour dot, server dropdown, and on a server that hosts databases a database dropdown (`BrowsePicker`). Choosing either calls `browse`: connects if needed (`api.connect`, password prompt for ask-every-time), lists objects, opens no tab |
 | No database yet | A server with several databases and none saved shows "Choose a database" until one is picked. SQLite or a saved database lists at once |
 | Clicking a table | `openObject(o, browsePlace(s))`. A tab showing that connection, database and table is switched to. Else the active tab if it is on that database, or empty and unbound. Else a new tab bound there (`openWorkspace`) |

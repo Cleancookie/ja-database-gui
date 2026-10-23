@@ -552,6 +552,19 @@ export function tabIsAt(
   return s.activeConnectionId === p.connectionId && s.activeDatabase === p.database
 }
 
+type BrowseState = Pick<State, keyof typeof NO_BROWSE>
+
+function browseState(s: State): BrowseState {
+  return {
+    browseConnectionId: s.browseConnectionId,
+    browseCapabilities: s.browseCapabilities,
+    browseDatabases: s.browseDatabases,
+    browseDatabase: s.browseDatabase,
+    browseObjects: s.browseObjects,
+    browseBusy: s.browseBusy,
+  }
+}
+
 const NO_BROWSE = {
   browseConnectionId: null,
   browseCapabilities: null,
@@ -621,6 +634,16 @@ export const useStore = create<State>((set, get) => {
     } finally {
       set({ inFlight: get().inFlight - 1 })
     }
+  }
+
+  /**
+   * Moves TABLES to where the tab is going, cleared and loading, so a slow
+   * listing does not leave the last database's tables on show. Returns the
+   * browse sequence so the caller can tell whether TABLES has since moved again.
+   */
+  function followTab(to: Omit<BrowseState, 'browseObjects' | 'browseBusy'>): number {
+    set({ ...to, browseObjects: [], browseBusy: true })
+    return ++browseSeq
   }
 
   /**
@@ -984,6 +1007,13 @@ export const useStore = create<State>((set, get) => {
         return
       }
       const tabId = get().activeTabId
+      const before = browseState(get())
+      const seq = followTab({
+        browseConnectionId: id,
+        browseDatabase: database,
+        browseCapabilities: null,
+        browseDatabases: [],
+      })
       set({ busy: true })
       try {
         const res = await tracked(() => api.connect(id, password, database))
@@ -996,10 +1026,18 @@ export const useStore = create<State>((set, get) => {
         // The user moved to another tab while this was connecting: the
         // connection is open, but the tab they are looking at is not its to change.
         if (get().activeTabId !== tabId) {
-          set({ connectedIds })
+          set({ connectedIds, ...(seq === browseSeq ? before : {}) })
           return
         }
         set({
+          ...(seq === browseSeq
+            ? {
+                browseCapabilities: res.capabilities,
+                browseDatabases: databases,
+                browseDatabase: active,
+                browseBusy: !!active,
+              }
+            : {}),
           activeConnectionId: id,
           capabilities: res.capabilities,
           databases,
@@ -1016,7 +1054,7 @@ export const useStore = create<State>((set, get) => {
         })
         if (active) await get().selectDatabase(active)
       } catch (e) {
-        set({ busy: false })
+        set({ busy: false, ...(seq === browseSeq ? before : {}) })
         // A typed password that did not work: ask again, with the reason, rather
         // than making the user find the connection again.
         if (conn?.askPassword && password !== null) {
@@ -1072,6 +1110,14 @@ export const useStore = create<State>((set, get) => {
       const mirror = (patch: Partial<State>) => {
         const b = get()
         if (b.browseConnectionId === id && b.browseDatabase === name) set(patch)
+      }
+      if (name !== get().activeDatabase) {
+        followTab({
+          browseConnectionId: id,
+          browseDatabase: name,
+          browseCapabilities: get().capabilities,
+          browseDatabases: get().databases,
+        })
       }
       mirror({ browseBusy: true })
       set({ activeDatabase: name, busy: true, objects: [] })

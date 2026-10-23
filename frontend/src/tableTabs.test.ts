@@ -157,7 +157,9 @@ describe('table tabs', () => {
   })
 })
 
-async function server() {
+async function server(
+  listObjects: (id: string, db: string) => Promise<unknown[]> = async () => [],
+) {
   vi.resetModules()
   const api = {
     connect: async (id: string, _pw: string | null, database: string) =>
@@ -172,7 +174,7 @@ async function server() {
             databases: [{ name: 'one' }, { name: 'two' }],
             defaultDatabase: database || 'one',
           },
-    listObjects: async () => [],
+    listObjects,
   }
   vi.doMock('./api', () => ({
     api: new Proxy(api, {
@@ -247,12 +249,43 @@ describe('the TABLES browser', () => {
     await s().openWorkspace('c', 'one')
     const first = s().activeTabId
     await s().openWorkspace('c', 'two')
-    expect(s().browseDatabase).toBe('one')
     s().switchTab(first)
-    await s().browse('c', 'two')
-    s().cycleTab(1)
-    s().cycleTab(1)
     expect(s().browseDatabase).toBe('two')
+    await s().browse('c', 'one')
+    s().cycleTab(1)
+    s().cycleTab(1)
+    expect(s().browseDatabase).toBe('one')
+  })
+
+  it('follows a tab to the database it opens, cleared while that loads', async () => {
+    let release: (() => void) | null = null
+    const useStore = await server((_id, db) =>
+      db === 'two'
+        ? new Promise((done) => (release = () => done([table('b')])))
+        : Promise.resolve([table('a')]),
+    )
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    expect(s().browseObjects.map((o) => o.name)).toEqual(['a'])
+    const opening = s().openWorkspace('c', 'two')
+    await vi.waitFor(() => expect(release).not.toBeNull())
+    expect(s().browseDatabase).toBe('two')
+    expect(s().browseObjects).toEqual([])
+    expect(s().browseBusy).toBe(true)
+    release!()
+    await opening
+    expect(s().browseObjects.map((o) => o.name)).toEqual(['b'])
+    expect(s().browseBusy).toBe(false)
+  })
+
+  it('follows a tab that connects to another server', async () => {
+    const useStore = await server()
+    const s = () => useStore.getState()
+    await s().openWorkspace('c', 'one')
+    await s().openWorkspace('file')
+    expect(s().browseConnectionId).toBe('file')
+    expect(s().browseDatabase).toBe('main')
+    expect(s().browseCapabilities?.serverHostsDatabases).toBe(false)
   })
 
   it('opens a table from another database in a tab bound there', async () => {
