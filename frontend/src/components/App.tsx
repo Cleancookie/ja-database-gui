@@ -384,14 +384,16 @@ function useGlobalHotkeys() {
 
       // Ctrl+arrow toggles the pane on that edge. Skipped while typing, where
       // Ctrl+Left/Right mean "move by word". There is no top pane, so Ctrl+Up
-      // is free. Ctrl+Space toggles the right pane too, and only outside a
-      // field: in the SQL editor it is autocomplete.
+      // is free. Ctrl+Space toggles the right pane too, even while typing: the
+      // editor's Ctrl+Space autocomplete binding is removed in ui/Editor.tsx.
       if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowLeft') {
         e.preventDefault()
         void setPane(s, 'left', s.settings.tabStripHidden)
         return
       }
-      if (!typing && mod && !e.shiftKey && !e.altKey && (e.key === 'ArrowRight' || e.key === ' ')) {
+      const toggleRight =
+        mod && !e.shiftKey && !e.altKey && ((!typing && e.key === 'ArrowRight') || e.key === ' ')
+      if (toggleRight) {
         e.preventDefault()
         void setPane(s, 'right', !s.settings.rowPaneOpen)
         return

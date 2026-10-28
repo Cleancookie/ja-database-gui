@@ -283,7 +283,13 @@ export function Editor({
         // which is what the textarea this replaced already did.
         { key: 'Tab', run: acceptCompletion },
       ]),
-      keymap.of([...completionKeymap, ...historyKeymap, ...defaultKeymap, indentWithTab]),
+      // Ctrl+Space toggles the right pane app-wide; completion opens as you type.
+      keymap.of([
+        ...completionKeymap.filter((b) => b.key !== 'Ctrl-Space'),
+        ...historyKeymap,
+        ...defaultKeymap,
+        indentWithTab,
+      ]),
       autocompletion({
         override: [(ctx) => complete(ctx, live.current.completion)],
         icons: false,

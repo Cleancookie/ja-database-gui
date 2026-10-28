@@ -993,6 +993,6 @@ Changing the database in the `TABLES` header opened a tab. It must only change w
 | No row selected | Every column with its type in place of a value, and a hint to select a cell. Search and click still work |
 | Search | Fuzzy over column names with the palette's matcher and cutoff; matched characters highlighted. Enter takes the top match |
 | Click a column | Selects that cell in the cursor row, so the grid scrolls to it. With no row, the grid scrolls the column into view and the selection is untouched |
-| Toggle | Ctrl+→, Ctrl+Space, and Show / Hide / Toggle right pane in the palette. Neither key fires while typing: Ctrl+→ is move-by-word, Ctrl+Space is the editor's autocomplete |
+| Toggle | Ctrl+→, Ctrl+Space, and Show / Hide / Toggle right pane in the palette. Ctrl+→ does not fire while typing (move-by-word). Ctrl+Space does, since the editor's Ctrl+Space autocomplete binding is removed; completion opens as you type |
 | Persistence | `rowPaneOpen` and `rowPaneWidthPx` in Settings, like the left pane's. Width 220–720px, 320 by default |
 | Re-renders | Only the pane subscribes to the selection, and only to the cursor's row and column. App must not (`invariants.test.ts`) |
