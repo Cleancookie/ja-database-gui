@@ -20,6 +20,7 @@ import { countOf, editsFor, EMPTY_EDITS, removeTable, rowKeyOf, tableKey } from 
 import { gridView } from './gridView'
 import { RECENT_LIMIT, refKey } from './recency'
 import { downloadText } from './dom'
+import { newConnections, type Transfer } from './transfer'
 import { copyOf, csv, inAny, rectOf, type CellPos, type Selection } from './selection'
 import { startFlushing } from './perf'
 import {
@@ -117,6 +118,7 @@ export type DialogState =
   | { kind: 'none' }
   | { kind: 'connection'; connection: Connection | null }
   | { kind: 'shortcuts' }
+  | { kind: 'transfer' }
   /** Asks for an ask-every-time connection's password. `error` is why the last try failed. */
   | {
       kind: 'password'
@@ -478,6 +480,8 @@ export interface State extends EditState, EditActions {
   /** Puts a run's SQL back in the editor (the active run by default). */
   restoreSqlRunText: (id?: number) => void
   saveConnection: (c: Connection, password: string | null) => Promise<void>
+  /** Applies an imported file; returns a one-line summary of what changed. */
+  importTransfer: (t: Transfer) => Promise<string>
   deleteConnection: (id: string) => Promise<void>
   /** Removes a saved connection, asking first unless confirmations are off. */
   removeConnection: (c: Connection) => void
@@ -1874,6 +1878,29 @@ export const useStore = create<State>((set, get) => {
       } catch (e) {
         get().pushToast('error', errorMessage(e))
       }
+    },
+
+    async importTransfer(t) {
+      const s = get()
+      const done: string[] = []
+      if (t.settings || t.hotkeys) {
+        await s.saveSettings({
+          ...s.settings,
+          ...t.settings,
+          ...(t.hotkeys ? { hotkeys: t.hotkeys } : {}),
+        })
+        if (t.settings) done.push('settings')
+        if (t.hotkeys) done.push('hotkeys')
+      }
+      if (t.connections) {
+        const fresh = newConnections(t.connections, s.connections)
+        for (const connection of fresh) await api.saveConnection({ connection, password: null })
+        await get().refreshConnections()
+        done.push(`${fresh.length} connection${fresh.length === 1 ? '' : 's'}`)
+        if (fresh.length < t.connections.length)
+          done.push(`${t.connections.length - fresh.length} already present`)
+      }
+      return `Imported ${done.join(', ')}`
     },
 
     removeConnection(c) {

@@ -336,6 +336,21 @@ export function SettingsDialog() {
             />
           </Group>
 
+          <Group label="Backup">
+            <Row
+              label="Export or import settings, hotkeys and connections"
+              control={
+                <button
+                  type="button"
+                  onClick={() => cancel({ kind: 'transfer' })}
+                  className={dialogButton.secondary}
+                >
+                  Export / import…
+                </button>
+              }
+            />
+          </Group>
+
           <Group label="Feature flags">
             <Row
               label="Docked bottom pane"
@@ -365,6 +380,7 @@ const SECTIONS = [
   'Catalogue',
   'Safety',
   'Hotkeys',
+  'Backup',
   'Feature flags',
 ] as const
 

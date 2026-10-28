@@ -33,6 +33,7 @@ import { RowPane } from './RowPane'
 import { SettingsDialog } from './SettingsDialog'
 import { PasswordDialog } from './PasswordDialog'
 import { HotkeysPage } from './HotkeysPage'
+import { TransferDialog } from './TransferDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { SqlEditor } from './SqlEditor'
 import { TabStrip } from './TabStrip'
@@ -148,6 +149,7 @@ export function App() {
         />
       )}
       {dialog.kind === 'shortcuts' && <ShortcutsDialog />}
+      {dialog.kind === 'transfer' && <TransferDialog />}
       {dialog.kind === 'settings' && <SettingsDialog />}
       {dialog.kind === 'cell' && <CellDialog cell={dialog.cell} />}
       {dialog.kind === 'confirmDelete' && (

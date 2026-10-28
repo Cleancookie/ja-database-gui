@@ -963,6 +963,18 @@ export function buildActionCommands(s: Store): Command[] {
   )
 
   cmds.push({
+    id: 'app:transfer',
+    title: 'Export or import settings',
+    subtitle: 'Settings, hotkeys and connections (never passwords) as a JSON file',
+    group: 'App',
+    candidate: {
+      name: 'Export or import settings',
+      keywords: 'backup json file save load connections hotkeys',
+    },
+    run: () => s.setDialog({ kind: 'transfer' }),
+  })
+
+  cmds.push({
     id: 'app:hotkeys',
     title: 'Hotkeys',
     subtitle: 'Rebind the pane, palette and tab keys',
