@@ -412,8 +412,8 @@ export interface Settings {
   infiniteScroll: boolean
   /** Feature flag: the activity tray takes its own row instead of floating over the panes. */
   dockedBottomPane: boolean
-  /** Action id to its replacement chord; absent ids keep their defaults. See `hotkeys.ts`. */
-  hotkeys?: Record<string, string>
+  /** Command id to its chords, replacing the defaults; `[]` is none. See `hotkeys.ts`. */
+  hotkeys?: Record<string, string[]>
 }
 
 /**

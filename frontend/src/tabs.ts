@@ -166,7 +166,7 @@ export function openRefKeys(
  * Nothing is pushed by hand. `store.ts` watches `pageOf` and records whenever it
  * changes, so a new way of reaching a page is recorded without being told to.
  */
-export type PageKind = 'empty' | 'table' | 'sql' | 'details' | 'activity'
+export type PageKind = 'empty' | 'table' | 'sql' | 'details' | 'activity' | 'hotkeys'
 
 /** What a table page needs to be shown as it was left. */
 export interface Controls {
@@ -277,6 +277,8 @@ export function pageTitle(p: Page): string {
       return 'SQL'
     case 'activity':
       return 'Activity'
+    case 'hotkeys':
+      return 'Hotkeys'
     case 'empty':
       return 'Nothing open'
   }

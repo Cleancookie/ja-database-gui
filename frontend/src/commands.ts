@@ -28,7 +28,14 @@ export interface Command {
   title: string
   subtitle?: string
   group: string
+  /** Default hotkeys, "Ctrl+B / Ctrl+←". Rebinding lives in Settings.hotkeys. */
   shortcut?: string
+  /**
+   * False when the command does not apply right now. It is hidden from the
+   * palette but still listed on the Hotkeys page, and its key is still claimed
+   * so the webview's own meaning for it never runs.
+   */
+  when?: boolean
   /** How this entry is matched and ranked. */
   candidate: Candidate
   run: () => void | Promise<void>
@@ -217,12 +224,13 @@ export function buildActionCommands(s: Store): Command[] {
       run: () => s.dismissAllToasts(),
     })
   }
-  if (s.tabs.length > 1) {
+  {
     cmds.push({
       id: 'tab:next',
       title: 'Next tab',
       group: 'Tabs',
-      shortcut: 'Ctrl+Tab',
+      when: s.tabs.length > 1,
+      shortcut: 'Ctrl+Tab / Ctrl+PageDown',
       candidate: { name: 'Next tab', keywords: 'switch right down' },
       run: () => s.cycleTab(1),
     })
@@ -230,17 +238,19 @@ export function buildActionCommands(s: Store): Command[] {
       id: 'tab:previous',
       title: 'Previous tab',
       group: 'Tabs',
-      shortcut: 'Ctrl+Shift+Tab',
+      when: s.tabs.length > 1,
+      shortcut: 'Ctrl+Shift+Tab / Ctrl+PageUp',
       candidate: { name: 'Previous tab', keywords: 'switch left up' },
       run: () => s.cycleTab(-1),
     })
   }
-  if (s.activeConnectionId) {
+  {
     cmds.push({
       id: 'table:search',
       title: 'Search tables',
       subtitle: 'The table search in the sidebar',
       group: 'Tables',
+      when: !!s.activeConnectionId,
       shortcut: 'Ctrl+L',
       candidate: { name: 'Search tables', keywords: 'find filter sidebar focus list' },
       run: () => focusTableSearch(s),
@@ -426,29 +436,28 @@ export function buildActionCommands(s: Store): Command[] {
 
   // Offered only while something is running, in the editor or not: a run goes
   // on when the user changes tab, and the palette is how they stop it.
+  cmds.push({
+    id: 'sql:cancel',
+    title: 'Cancel running query',
+    subtitle: 'The SQL editor statement in flight',
+    group: 'Query',
+    when: !!s.sqlRun,
+    shortcut: 'Ctrl+.',
+    candidate: { name: 'Cancel running query', keywords: 'stop abort kill editor sql' },
+    run: () => s.cancelSql(),
+  })
   if (s.sqlRun) {
-    cmds.push(
-      {
-        id: 'sql:cancel',
-        title: 'Cancel running query',
-        subtitle: 'The SQL editor statement in flight',
-        group: 'Query',
-        shortcut: 'Ctrl+.',
-        candidate: { name: 'Cancel running query', keywords: 'stop abort kill editor sql' },
-        run: () => s.cancelSql(),
+    cmds.push({
+      id: 'sql:cancel-connection',
+      title: 'Cancel all running queries on this connection',
+      subtitle: 'The editor and anything else this app is running there',
+      group: 'Query',
+      candidate: {
+        name: 'Cancel all running queries',
+        keywords: 'stop abort kill everything connection activity',
       },
-      {
-        id: 'sql:cancel-connection',
-        title: 'Cancel all running queries on this connection',
-        subtitle: 'The editor and anything else this app is running there',
-        group: 'Query',
-        candidate: {
-          name: 'Cancel all running queries',
-          keywords: 'stop abort kill everything connection activity',
-        },
-        run: () => s.cancelConnectionSql(),
-      },
-    )
+      run: () => s.cancelConnectionSql(),
+    })
   }
 
   // The dropdowns are in the editor's header, so a command has to open the
@@ -601,7 +610,7 @@ export function buildActionCommands(s: Store): Command[] {
       name: 'Open connections',
       keywords: 'activity sessions processes pool disconnect',
     },
-    run: () => s.setView('activity'),
+    run: () => s.setView(s.view === 'activity' ? 'data' : 'activity'),
   })
 
   if (s.selection) {
@@ -759,6 +768,30 @@ export function buildActionCommands(s: Store): Command[] {
     })
   }
 
+  cmds.push(
+    {
+      id: 'data:refresh',
+      title: 'Refresh rows',
+      group: 'Query',
+      when: !!s.activeRef,
+      shortcut: 'Ctrl+R',
+      candidate: { name: 'Refresh rows', keywords: 'reload requery' },
+      run: () => s.reload(),
+    },
+    {
+      id: 'data:focus-filter',
+      title: 'Filter rows (SQL after WHERE)',
+      group: 'Query',
+      when: !!s.activeRef,
+      shortcut: 'Ctrl+F',
+      candidate: { name: 'Filter rows', keywords: 'where search find condition' },
+      run: () => {
+        if (s.view !== 'data') s.setView('data')
+        requestAnimationFrame(focusFilter)
+      },
+    },
+  )
+
   if (s.activeRef) {
     cmds.push({
       id: 'data:details',
@@ -811,27 +844,11 @@ export function buildActionCommands(s: Store): Command[] {
     }
 
     cmds.push({
-      id: 'data:refresh',
-      title: 'Refresh rows',
-      group: 'Query',
-      shortcut: 'Ctrl+R',
-      candidate: { name: 'Refresh rows', keywords: 'reload requery' },
-      run: () => s.reload(),
-    })
-    cmds.push({
       id: 'data:count',
       title: 'Count rows',
       group: 'Query',
       candidate: { name: 'Count rows', keywords: 'count total how many size' },
       run: () => s.countRows(),
-    })
-    cmds.push({
-      id: 'data:focus-filter',
-      title: 'Filter rows (SQL after WHERE)',
-      group: 'Query',
-      shortcut: 'Ctrl+F',
-      candidate: { name: 'Filter rows', keywords: 'where search find condition' },
-      run: () => focusFilter(),
     })
     if (s.filter) {
       cmds.push({
@@ -925,42 +942,65 @@ export function buildActionCommands(s: Store): Command[] {
     run: () => s.setDialog({ kind: 'settings' }),
   })
 
+  cmds.push(
+    {
+      id: 'palette:go',
+      title: 'Go to…',
+      subtitle: 'Connections, databases, tables and tabs',
+      group: 'App',
+      shortcut: 'Ctrl+P',
+      candidate: { name: 'Go to', keywords: 'open palette navigate quick' },
+      run: () => s.setPalette('go'),
+    },
+    {
+      id: 'palette:do',
+      title: 'Run a command…',
+      group: 'App',
+      shortcut: 'Ctrl+Shift+P',
+      candidate: { name: 'Run a command', keywords: 'palette actions' },
+      run: () => s.setPalette(s.palette === 'do' ? null : 'do'),
+    },
+  )
+
   cmds.push({
     id: 'app:hotkeys',
     title: 'Hotkeys',
     subtitle: 'Rebind the pane, palette and tab keys',
     group: 'App',
     candidate: { name: 'Hotkeys', keywords: 'keys bindings shortcuts rebind remap keyboard' },
-    run: () => s.setDialog({ kind: 'hotkeys' }),
+    run: () => s.setView('hotkeys'),
   })
 
   const fontKeywords = 'font size text zoom bigger smaller larger appearance'
-  if (s.settings.fontSizePx < FONT_SIZE_MAX) {
+  {
     cmds.push({
       id: 'app:font:increase',
       title: 'Increase font size',
       group: 'App',
-      shortcut: 'Ctrl+=',
+      when: s.settings.fontSizePx < FONT_SIZE_MAX,
+      shortcut: 'Ctrl+= / Ctrl+Plus / Ctrl+Shift+Plus',
       candidate: { name: 'Increase font size', keywords: fontKeywords },
       run: () => s.adjustFontSize(1),
     })
   }
-  if (s.settings.fontSizePx > FONT_SIZE_MIN) {
+  {
     cmds.push({
       id: 'app:font:decrease',
       title: 'Decrease font size',
       group: 'App',
-      shortcut: 'Ctrl+-',
+      when: s.settings.fontSizePx > FONT_SIZE_MIN,
+      shortcut: 'Ctrl+- / Ctrl+Shift+_',
       candidate: { name: 'Decrease font size', keywords: fontKeywords },
       run: () => s.adjustFontSize(-1),
     })
   }
 
-  if (s.settings.fontSizePx !== FONT_SIZE_DEFAULT) {
+  {
     cmds.push({
       id: 'app:font:reset',
       title: 'Reset font size',
       group: 'App',
+      when: s.settings.fontSizePx !== FONT_SIZE_DEFAULT,
       shortcut: 'Ctrl+0',
       candidate: { name: 'Reset font size', keywords: fontKeywords },
       run: () => s.resetFontSize(),

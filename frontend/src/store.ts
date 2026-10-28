@@ -117,7 +117,6 @@ export type DialogState =
   | { kind: 'none' }
   | { kind: 'connection'; connection: Connection | null }
   | { kind: 'shortcuts' }
-  | { kind: 'hotkeys' }
   /** Asks for an ask-every-time connection's password. `error` is why the last try failed. */
   | {
       kind: 'password'
@@ -154,7 +153,7 @@ export type ResultSource = 'browse' | 'sql'
 export type PaletteMode = 'go' | 'do'
 
 /** Which pane fills the main area. */
-export type View = 'data' | 'sql' | 'activity' | 'details'
+export type View = 'data' | 'sql' | 'activity' | 'details' | 'hotkeys'
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: DEFAULT_THEME,
@@ -853,6 +852,7 @@ export const useStore = create<State>((set, get) => {
           return
         case 'sql':
         case 'activity':
+        case 'hotkeys':
           set({ view: p.kind })
           return
         case 'details':

@@ -36,7 +36,9 @@ export function CommandPalette() {
   const commands = useMemo(() => {
     if (mode === null) return []
     const s = useStore.getState()
-    return mode === 'go' ? buildNavigationCommands(s) : buildActionCommands(s)
+    return mode === 'go'
+      ? buildNavigationCommands(s)
+      : buildActionCommands(s).filter((c) => c.when !== false)
   }, [mode])
 
   // Cut to what is rendered *before* grouping. A database with thousands of

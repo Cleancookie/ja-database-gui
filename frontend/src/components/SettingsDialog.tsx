@@ -324,7 +324,10 @@ export function SettingsDialog() {
               control={
                 <button
                   type="button"
-                  onClick={() => cancel({ kind: 'hotkeys' })}
+                  onClick={() => {
+                    cancel()
+                    useStore.getState().setView('hotkeys')
+                  }}
                   className={dialogButton.secondary}
                 >
                   Edit hotkeys…

@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from 'react'
-import { focusFilter, focusTableSearch } from '../commands'
+import { buildActionCommands, type Command } from '../commands'
 import { isTypingTarget } from '../dom'
-import { actionFor } from '../hotkeys'
+import { chord, commandFor, firesWhileTyping, WORKS_OVER_MODALS } from '../hotkeys'
 import { activeSqlResult, isBound, isInfinite, useStore } from '../store'
 import { ActivityPage } from './ActivityPage'
 import { TableDetailsPage } from './TableDetailsPage'
@@ -25,14 +25,14 @@ import { ReviewChangesDialog } from './ReviewChangesDialog'
 import { RowPane } from './RowPane'
 import { SettingsDialog } from './SettingsDialog'
 import { PasswordDialog } from './PasswordDialog'
-import { HotkeysDialog } from './HotkeysDialog'
+import { HotkeysPage } from './HotkeysPage'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { SqlEditor } from './SqlEditor'
 import { TabStrip } from './TabStrip'
 import { StorageNotice } from './StorageNotice'
 import { WorkspacePicker } from './WorkspacePicker'
 import { Toasts } from './Toasts'
-import { recoverFocus, setPane } from '../paneFocus'
+import { recoverFocus } from '../paneFocus'
 
 export function App() {
   const init = useStore((s) => s.init)
@@ -86,7 +86,9 @@ export function App() {
           tabIndex={-1}
           className="island flex min-w-0 flex-1 flex-col outline-none"
         >
-          {view === 'activity' ? (
+          {view === 'hotkeys' ? (
+            <HotkeysPage />
+          ) : view === 'activity' ? (
             <ActivityPage />
           ) : view === 'details' ? (
             <TableDetailsPage />
@@ -139,7 +141,6 @@ export function App() {
         />
       )}
       {dialog.kind === 'shortcuts' && <ShortcutsDialog />}
-      {dialog.kind === 'hotkeys' && <HotkeysDialog />}
       {dialog.kind === 'settings' && <SettingsDialog />}
       {dialog.kind === 'cell' && <CellDialog cell={dialog.cell} />}
       {dialog.kind === 'confirmDelete' && (
@@ -187,49 +188,26 @@ function useGlobalHotkeys() {
       const target = e.target as HTMLElement | null
       const typing = isTypingTarget(target)
 
-      // The two palettes. Ctrl+P goes somewhere, Ctrl+Shift+P does something —
-      // the same split as an editor's quick-open versus command palette.
-      // preventDefault matters on Ctrl+P: the webview would otherwise print.
-      //
-      // Handled before the typing guard so a palette is reachable from the
-      // filter box and the SQL editor, which is most of where the caret is.
-      // Ctrl+P *inside* an open palette belongs to it (move-up), so the switch
-      // only fires when none is open.
-      const action = actionFor(s.settings.hotkeys, e, typing)
-      if (action === 'palette.do') {
+      // Rebindable commands. Ctrl+P, Ctrl+Shift+P, Ctrl+, and Ctrl+. are claimed
+      // before the typing and modal guards so they work from the filter box,
+      // the SQL editor and over a dialog. Ctrl+P *inside* an open palette
+      // belongs to it (move-up), so "Go to" only fires when none is open.
+      let cmds: Command[] | undefined
+      const dispatch = (overModals: boolean) => {
+        const c = chord(e)
+        if (!c || !(mod || e.altKey)) return false
+        cmds ??= buildActionCommands(s)
+        const cmd = commandFor(cmds, s.settings.hotkeys, c)
+        if (!cmd || WORKS_OVER_MODALS.has(cmd.id) !== overModals) return false
+        if (typing && !firesWhileTyping(c, target)) return false
+        if (cmd.id === 'palette:go' && s.palette !== null) return false
+        // Claimed even when the command does not apply right now: Ctrl+R would
+        // otherwise reload the webview and Ctrl+W close it.
         e.preventDefault()
-        s.setPalette(s.palette === 'do' ? null : 'do')
-        return
+        if (cmd.when !== false) void cmd.run()
+        return true
       }
-      if (action === 'palette.go' && s.palette === null) {
-        e.preventDefault()
-        s.setPalette('go')
-        return
-      }
-
-      // Ctrl+K used to open the "go" palette as well, and Ctrl+J the tray. Both
-      // letters now belong to the grid's vim movement — Ctrl+H/J/K/L — because
-      // hjkl is only worth having if all four are the same modifier. The
-      // palettes keep Ctrl+P and Ctrl+Shift+P, which were always the primary
-      // pair; the tray moved to Ctrl+` , as a bottom panel is in an editor.
-
-      // Ctrl+, is conventional for preferences and is worth honouring even
-      // from inside a dialog, so it is handled before the modal guard.
-      if (mod && e.key === ',') {
-        e.preventDefault()
-        s.setDialog({ kind: 'settings' })
-        return
-      }
-
-      // Ctrl+. stops the editor's running statement. Claimed before the typing
-      // guard so it works with the caret in the editor, which is where it is
-      // needed. No CodeMirror binding uses it, and Escape cannot be the key: it
-      // already closes popups and the palette.
-      if (mod && !e.shiftKey && e.key === '.') {
-        e.preventDefault()
-        if (s.sqlRun) void s.cancelSql()
-        return
-      }
+      if (dispatch(true)) return
 
       // Escape here only closes the palette, which is hand-rolled. Dialogs and
       // menus dismiss themselves through the ui layer — unmounting them from
@@ -242,7 +220,7 @@ function useGlobalHotkeys() {
         }
         // The details page is a read-only detour from the rows, so Escape backs
         // out of it the way it closes anything else opened on top.
-        if (s.view === 'details') s.setView('data')
+        if (s.view === 'details' || s.view === 'hotkeys') s.setView('data')
         return
       }
 
@@ -252,85 +230,7 @@ function useGlobalHotkeys() {
 
       if (recoverFocus(e)) return
 
-      // Ctrl+= is the unshifted half of Ctrl++, so both keys zoom in. preventDefault
-      // stops the webview applying its own page zoom on top.
-      if (mod && (e.key === '=' || e.key === '+')) {
-        e.preventDefault()
-        void s.adjustFontSize(1)
-        return
-      }
-      if (mod && (e.key === '-' || e.key === '_')) {
-        e.preventDefault()
-        void s.adjustFontSize(-1)
-        return
-      }
-      if (mod && e.key === '0') {
-        e.preventDefault()
-        void s.resetFontSize()
-        return
-      }
-
-      if (action === 'pane.left') {
-        e.preventDefault()
-        void setPane(s, 'left', s.settings.tabStripHidden)
-        return
-      }
-      if (action === 'pane.right') {
-        e.preventDefault()
-        void setPane(s, 'right', !s.settings.rowPaneOpen)
-        return
-      }
-      if (action === 'pane.tray') {
-        e.preventDefault()
-        void setPane(s, 'tray', !s.trayOpen)
-        return
-      }
-
-      // Tabs. Ctrl+Tab and Ctrl+PageUp/PageDown cycle as in a browser; Ctrl+T and
-      // Ctrl+W open and close. The Tab key itself still means "transpose" below,
-      // which is why that rule insists on no modifier.
-      if (mod && (e.key === 'Tab' || e.key === 'PageDown' || e.key === 'PageUp')) {
-        e.preventDefault()
-        s.cycleTab(e.key === 'PageUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1)
-        return
-      }
-      if (action === 'tab.new') {
-        e.preventDefault()
-        s.newTab()
-        return
-      }
-      if (mod && e.shiftKey && e.key.toLowerCase() === 't') {
-        e.preventDefault()
-        s.reopenTab()
-        return
-      }
-      if (action === 'tab.close') {
-        e.preventDefault()
-        s.closeTab()
-        return
-      }
-
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'a') {
-        e.preventDefault()
-        s.setView(s.view === 'activity' ? 'data' : 'activity')
-        return
-      }
-
-      // Ctrl+L, as for a browser's location bar: works from inside a field too.
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 'l') {
-        e.preventDefault()
-        void focusTableSearch(s)
-        return
-      }
-
-      if (mod && e.key.toLowerCase() === 'f') {
-        e.preventDefault()
-        if (s.view !== 'data') s.setView('data')
-        // The bar only exists once a table is open; focusing after the render
-        // that mounts it is what makes Ctrl+F work on the first press.
-        requestAnimationFrame(focusFilter)
-        return
-      }
+      if (dispatch(false)) return
 
       // Ctrl+S is Accept changes: it opens the review and runs nothing. Claimed
       // from any view while something is staged — edits outlive the table they
@@ -347,18 +247,6 @@ function useGlobalHotkeys() {
         return
       }
 
-      if (mod && e.key.toLowerCase() === 'e') {
-        e.preventDefault()
-        s.openSql()
-        return
-      }
-
-      if (mod && e.key.toLowerCase() === 'r') {
-        e.preventDefault()
-        void s.reload()
-        return
-      }
-
       // Alt+[ and Alt+] step through the SQL editor's kept runs. Claimed inside
       // the editor too: CodeMirror leaves both unbound. e.code, not e.key, since
       // some layouts type a character on Alt+bracket.
@@ -371,21 +259,6 @@ function useGlobalHotkeys() {
       ) {
         e.preventDefault()
         s.stepSqlRun(e.code === 'BracketLeft' ? -1 : 1)
-        return
-      }
-
-      // Alt+arrows are the browser's back and forward, and the keyboard twin of
-      // the mouse buttons. Left alone inside the SQL editor, which uses them to
-      // move by syntax; a plain <input> has no use for them.
-      if (
-        !target?.isContentEditable &&
-        e.altKey &&
-        !mod &&
-        !e.shiftKey &&
-        (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
-      ) {
-        e.preventDefault()
-        void s.stepHistory(e.key === 'ArrowLeft' ? -1 : 1)
         return
       }
 

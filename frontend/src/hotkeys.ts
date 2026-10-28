@@ -1,62 +1,96 @@
+import type { Command } from './commands'
 import type { Settings } from './types'
 
-export interface HotkeyAction {
-  id: string
-  label: string
-  defaults: string[]
+type Overrides = Settings['hotkeys']
+
+/**
+ * Commands whose keys the editor or grid handle themselves, so they cannot be
+ * rebound here. They are listed read-only and still count towards conflicts.
+ * Reload stays fixed on purpose: it is the way out when the UI wedges.
+ */
+const FIXED = new Set([
+  'sql:run',
+  'sql:format',
+  'sql:prev-run',
+  'sql:next-run',
+  'grid:copy',
+  'grid:transpose',
+  'app:reload',
+])
+
+export const isFixed = (id: string) => FIXED.has(id) || id.startsWith('edit:')
+
+/** Ids the window handler runs before it checks for an open palette or dialog. */
+export const WORKS_OVER_MODALS = new Set(['palette:go', 'palette:do', 'app:settings', 'sql:cancel'])
+
+const GLYPHS: Record<string, string> = {
+  '←': 'ArrowLeft',
+  '→': 'ArrowRight',
+  '↑': 'ArrowUp',
+  '↓': 'ArrowDown',
 }
-
-/** The rebindable shortcuts. Everything else is fixed and listed in ShortcutsDialog. */
-export const HOTKEY_ACTIONS: HotkeyAction[] = [
-  { id: 'palette.go', label: 'Go to… palette', defaults: ['Ctrl+P'] },
-  { id: 'palette.do', label: 'Command palette', defaults: ['Ctrl+Shift+P'] },
-  { id: 'pane.left', label: 'Toggle left pane', defaults: ['Ctrl+B', 'Ctrl+ArrowLeft'] },
-  { id: 'pane.right', label: 'Toggle right pane', defaults: ['Ctrl+ArrowRight', 'Ctrl+Space'] },
-  { id: 'pane.tray', label: 'Toggle activity tray', defaults: ['Ctrl+`', 'Ctrl+ArrowDown'] },
-  { id: 'tab.new', label: 'New tab', defaults: ['Ctrl+T'] },
-  { id: 'tab.close', label: 'Close tab', defaults: ['Ctrl+W'] },
-]
-
 const MODIFIER_KEYS = new Set(['Control', 'Shift', 'Alt', 'Meta'])
+const MOD_ORDER = ['Ctrl', 'Alt', 'Shift']
+
+function keyName(key: string): string {
+  if (key === ' ') return 'Space'
+  if (key === '+') return 'Plus'
+  return key.length === 1 ? key.toUpperCase() : key
+}
 
 /** "Ctrl+Shift+P" for a keydown, or null for a bare modifier press. Meta counts as Ctrl. */
 export function chord(e: KeyboardEvent): string | null {
   if (MODIFIER_KEYS.has(e.key)) return null
-  const key = e.key === ' ' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.key
-  const parts: string[] = []
-  if (e.ctrlKey || e.metaKey) parts.push('Ctrl')
-  if (e.altKey) parts.push('Alt')
-  if (e.shiftKey) parts.push('Shift')
-  parts.push(key)
-  return parts.join('+')
+  const mods = []
+  if (e.ctrlKey || e.metaKey) mods.push('Ctrl')
+  if (e.altKey) mods.push('Alt')
+  if (e.shiftKey) mods.push('Shift')
+  return [...mods, keyName(e.key)].join('+')
 }
 
-export function bindingsFor(overrides: Settings['hotkeys'], id: string): string[] {
-  const own = overrides?.[id]
-  if (own) return [own]
-  return HOTKEY_ACTIONS.find((a) => a.id === id)?.defaults ?? []
+/** A command's `shortcut` text as chords: "Ctrl+B / Ctrl+←" is two. */
+export function parseShortcut(text?: string): string[] {
+  if (!text) return []
+  return text
+    .split(' / ')
+    .map((part) => {
+      const pieces = part.trim().split('+')
+      const key = pieces.pop()!
+      const mods = MOD_ORDER.filter((m) => pieces.includes(m))
+      return [...mods, keyName(GLYPHS[key] ?? key)].join('+')
+    })
+    .filter(Boolean)
 }
 
-/** Arrow chords mean "move by word" in a field, so they never fire while typing. */
-export function firesWhileTyping(combo: string): boolean {
-  return !combo.split('+').at(-1)!.startsWith('Arrow')
+/** What `cmd` is bound to now: the user's list if they made one, else its defaults. */
+export function bindingsOf(cmd: Command, overrides: Overrides): string[] {
+  const own = overrides?.[cmd.id]
+  return own && !isFixed(cmd.id) ? own : parseShortcut(cmd.shortcut)
 }
 
-/** The action a keydown triggers, or null. */
-export function actionFor(
-  overrides: Settings['hotkeys'],
-  e: KeyboardEvent,
-  typing: boolean,
-): string | null {
-  const c = chord(e)
-  if (!c) return null
-  for (const a of HOTKEY_ACTIONS) {
-    if (bindingsFor(overrides, a.id).includes(c) && (!typing || firesWhileTyping(c))) return a.id
-  }
-  return null
+/** Arrow chords mean "move by word" in a field; Alt+arrows only stay out of the SQL editor. */
+export function firesWhileTyping(c: string, target: HTMLElement | null): boolean {
+  if (!c.split('+').at(-1)!.startsWith('Arrow')) return true
+  return c.startsWith('Alt+') && !target?.isContentEditable
 }
 
-/** Another action already bound to `combo`, for the conflict warning. */
-export function conflict(overrides: Settings['hotkeys'], id: string, combo: string) {
-  return HOTKEY_ACTIONS.find((a) => a.id !== id && bindingsFor(overrides, a.id).includes(combo))
+/** The rebindable command bound to `c`, if any. */
+export function commandFor(cmds: Command[], overrides: Overrides, c: string): Command | null {
+  return cmds.find((cmd) => !isFixed(cmd.id) && bindingsOf(cmd, overrides).includes(c)) ?? null
+}
+
+/** Other commands already using `c`, fixed ones included. */
+export function conflictsFor(
+  cmds: Command[],
+  overrides: Overrides,
+  id: string,
+  c: string,
+): Command[] {
+  return cmds.filter((cmd) => cmd.id !== id && bindingsOf(cmd, overrides).includes(c))
+}
+
+/** "Ctrl+ArrowLeft" as "Ctrl+←". */
+export function display(c: string): string {
+  const glyph = Object.entries(GLYPHS).find(([, name]) => c.endsWith(`+${name}`))
+  return glyph ? c.slice(0, -glyph[1].length) + glyph[0] : c.replace(/\+Plus$/, '++')
 }

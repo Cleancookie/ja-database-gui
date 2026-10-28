@@ -78,9 +78,9 @@ type Settings struct {
 	// DockedBottomPane is a feature flag: the activity tray takes its own row
 	// under the panes instead of floating over them.
 	DockedBottomPane bool `json:"dockedBottomPane"`
-	// Hotkeys maps an action id to the one chord that replaces its defaults.
-	// An absent id keeps the defaults; the ids live in frontend/src/hotkeys.ts.
-	Hotkeys map[string]string `json:"hotkeys"`
+	// Hotkeys maps a palette command id to the chords that replace its
+	// defaults. An absent id keeps them; an empty list means no hotkey.
+	Hotkeys map[string][]string `json:"hotkeys"`
 }
 
 // MaxAnimationScale is as slow as animations go: 4× is for watching one.
@@ -149,11 +149,6 @@ func (s Settings) clamp() Settings {
 	// absurd value falls back.
 	if s.TextCapChars < 0 || s.TextCapChars > 1_000_000 {
 		s.TextCapChars = d.TextCapChars
-	}
-	for id, chord := range s.Hotkeys {
-		if chord == "" {
-			delete(s.Hotkeys, id)
-		}
 	}
 	return s
 }

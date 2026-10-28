@@ -996,3 +996,17 @@ Changing the database in the `TABLES` header opened a tab. It must only change w
 | Toggle | Ctrl+→, Ctrl+Space, and Show / Hide / Toggle right pane in the palette. Ctrl+→ does not fire while typing (move-by-word). Ctrl+Space does, since the editor's Ctrl+Space autocomplete binding is removed; completion opens as you type |
 | Persistence | `rowPaneOpen` and `rowPaneWidthPx` in Settings, like the left pane's. Width 220–720px, 320 by default |
 | Re-renders | Only the pane subscribes to the selection, and only to the cursor's row and column. App must not (`invariants.test.ts`) |
+
+## 2026-10-28 — the hotkeys page
+
+### Decided
+
+| Question | Choice |
+| --- | --- |
+| What | A page in the main area (View `hotkeys`), from Settings → Hotkeys, the palette's "Hotkeys", or Esc/✕ to leave. One row per palette command, any number of keys each, or none |
+| Storage | `Settings.hotkeys`: command id → chords. Absent id keeps the command's `shortcut` defaults; `[]` is no key |
+| Dispatch | One lookup in `useGlobalHotkeys` against `buildActionCommands`. `Command.when === false` hides it from the palette, still lists it here, and still claims the key so the webview's own meaning (Ctrl+R, Ctrl+W) never runs |
+| Over modals | `palette:go`, `palette:do`, `app:settings`, `sql:cancel` fire before the typing and modal guards |
+| Fixed | Editor and grid keys (`isFixed` in `hotkeys.ts`) and Reload are listed read-only and still count in conflicts |
+| Conflicts | ⚠ on shared chords, a Conflicts filter, and Replace/Cancel when recording onto a taken key. New keys need Ctrl or Alt |
+| Not yet | Commands whose ids change with data (open table, connection, tab) cannot be bound |
