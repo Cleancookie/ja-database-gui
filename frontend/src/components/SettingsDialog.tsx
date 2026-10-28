@@ -57,17 +57,17 @@ export function SettingsDialog() {
     if ('animationScale' in p) applyMotion(next.animationScale)
   }
 
-  const cancel = () => {
+  const cancel = (next: Parameters<typeof setDialog>[0] = { kind: 'none' }) => {
     document.documentElement.style.fontSize = `${saved.fontSizePx}px`
     applyTheme(saved.theme)
     applyMotion(saved.animationScale)
-    setDialog({ kind: 'none' })
+    setDialog(next)
   }
 
   return (
     <FormDialog
       open
-      onClose={cancel}
+      onClose={() => cancel()}
       title="Settings"
       widthClass="w-[min(46rem,94vw)]"
       onSubmit={() => {
@@ -76,7 +76,11 @@ export function SettingsDialog() {
       }}
       footer={
         <>
-          <button type="button" onClick={cancel} className={`ml-auto ${dialogButton.ghost}`}>
+          <button
+            type="button"
+            onClick={() => cancel()}
+            className={`ml-auto ${dialogButton.ghost}`}
+          >
             Cancel
           </button>
           <button type="submit" className={dialogButton.primary}>
@@ -314,6 +318,21 @@ export function SettingsDialog() {
             />
           </Group>
 
+          <Group label="Hotkeys">
+            <Row
+              label="Rebind pane, palette and tab keys"
+              control={
+                <button
+                  type="button"
+                  onClick={() => cancel({ kind: 'hotkeys' })}
+                  className={dialogButton.secondary}
+                >
+                  Edit hotkeys…
+                </button>
+              }
+            />
+          </Group>
+
           <Group label="Feature flags">
             <Row
               label="Docked bottom pane"
@@ -342,6 +361,7 @@ const SECTIONS = [
   'Browsing',
   'Catalogue',
   'Safety',
+  'Hotkeys',
   'Feature flags',
 ] as const
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react'
 import { focusFilter, focusTableSearch } from '../commands'
 import { isTypingTarget } from '../dom'
+import { actionFor } from '../hotkeys'
 import { activeSqlResult, isBound, isInfinite, useStore } from '../store'
 import { ActivityPage } from './ActivityPage'
 import { TableDetailsPage } from './TableDetailsPage'
@@ -24,6 +25,7 @@ import { ReviewChangesDialog } from './ReviewChangesDialog'
 import { RowPane } from './RowPane'
 import { SettingsDialog } from './SettingsDialog'
 import { PasswordDialog } from './PasswordDialog'
+import { HotkeysDialog } from './HotkeysDialog'
 import { ShortcutsDialog } from './ShortcutsDialog'
 import { SqlEditor } from './SqlEditor'
 import { TabStrip } from './TabStrip'
@@ -137,6 +139,7 @@ export function App() {
         />
       )}
       {dialog.kind === 'shortcuts' && <ShortcutsDialog />}
+      {dialog.kind === 'hotkeys' && <HotkeysDialog />}
       {dialog.kind === 'settings' && <SettingsDialog />}
       {dialog.kind === 'cell' && <CellDialog cell={dialog.cell} />}
       {dialog.kind === 'confirmDelete' && (
@@ -192,12 +195,13 @@ function useGlobalHotkeys() {
       // filter box and the SQL editor, which is most of where the caret is.
       // Ctrl+P *inside* an open palette belongs to it (move-up), so the switch
       // only fires when none is open.
-      if (mod && e.shiftKey && e.key.toLowerCase() === 'p') {
+      const action = actionFor(s.settings.hotkeys, e, typing)
+      if (action === 'palette.do') {
         e.preventDefault()
         s.setPalette(s.palette === 'do' ? null : 'do')
         return
       }
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 'p' && s.palette === null) {
+      if (action === 'palette.go' && s.palette === null) {
         e.preventDefault()
         s.setPalette('go')
         return
@@ -266,9 +270,19 @@ function useGlobalHotkeys() {
         return
       }
 
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 'b') {
+      if (action === 'pane.left') {
         e.preventDefault()
         void setPane(s, 'left', s.settings.tabStripHidden)
+        return
+      }
+      if (action === 'pane.right') {
+        e.preventDefault()
+        void setPane(s, 'right', !s.settings.rowPaneOpen)
+        return
+      }
+      if (action === 'pane.tray') {
+        e.preventDefault()
+        void setPane(s, 'tray', !s.trayOpen)
         return
       }
 
@@ -280,7 +294,7 @@ function useGlobalHotkeys() {
         s.cycleTab(e.key === 'PageUp' || (e.key === 'Tab' && e.shiftKey) ? -1 : 1)
         return
       }
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 't') {
+      if (action === 'tab.new') {
         e.preventDefault()
         s.newTab()
         return
@@ -290,7 +304,7 @@ function useGlobalHotkeys() {
         s.reopenTab()
         return
       }
-      if (mod && !e.shiftKey && e.key.toLowerCase() === 'w') {
+      if (action === 'tab.close') {
         e.preventDefault()
         s.closeTab()
         return
@@ -299,13 +313,6 @@ function useGlobalHotkeys() {
       if (mod && e.shiftKey && e.key.toLowerCase() === 'a') {
         e.preventDefault()
         s.setView(s.view === 'activity' ? 'data' : 'activity')
-        return
-      }
-
-      // Ctrl+` for the bottom tray, as in every editor with a bottom panel.
-      if (mod && e.key === '`') {
-        e.preventDefault()
-        void setPane(s, 'tray', !s.trayOpen)
         return
       }
 
@@ -379,28 +386,6 @@ function useGlobalHotkeys() {
       ) {
         e.preventDefault()
         void s.stepHistory(e.key === 'ArrowLeft' ? -1 : 1)
-        return
-      }
-
-      // Ctrl+arrow toggles the pane on that edge. Skipped while typing, where
-      // Ctrl+Left/Right mean "move by word". There is no top pane, so Ctrl+Up
-      // is free. Ctrl+Space toggles the right pane too, even while typing: the
-      // editor's Ctrl+Space autocomplete binding is removed in ui/Editor.tsx.
-      if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowLeft') {
-        e.preventDefault()
-        void setPane(s, 'left', s.settings.tabStripHidden)
-        return
-      }
-      const toggleRight =
-        mod && !e.shiftKey && !e.altKey && ((!typing && e.key === 'ArrowRight') || e.key === ' ')
-      if (toggleRight) {
-        e.preventDefault()
-        void setPane(s, 'right', !s.settings.rowPaneOpen)
-        return
-      }
-      if (!typing && mod && !e.shiftKey && !e.altKey && e.key === 'ArrowDown') {
-        e.preventDefault()
-        void setPane(s, 'tray', !s.trayOpen)
         return
       }
 

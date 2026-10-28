@@ -925,6 +925,15 @@ export function buildActionCommands(s: Store): Command[] {
     run: () => s.setDialog({ kind: 'settings' }),
   })
 
+  cmds.push({
+    id: 'app:hotkeys',
+    title: 'Hotkeys',
+    subtitle: 'Rebind the pane, palette and tab keys',
+    group: 'App',
+    candidate: { name: 'Hotkeys', keywords: 'keys bindings shortcuts rebind remap keyboard' },
+    run: () => s.setDialog({ kind: 'hotkeys' }),
+  })
+
   const fontKeywords = 'font size text zoom bigger smaller larger appearance'
   if (s.settings.fontSizePx < FONT_SIZE_MAX) {
     cmds.push({
