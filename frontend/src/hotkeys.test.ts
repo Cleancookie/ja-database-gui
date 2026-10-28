@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { Command } from './commands'
 import {
+  advance,
   chord,
-  commandFor,
+  clashingBindings,
   conflictsFor,
   display,
   firesWhileTyping,
@@ -35,14 +36,14 @@ describe('hotkeys', () => {
 
   it('an override replaces the defaults, [] clears them', () => {
     const cmds = [cmd('a', 'Ctrl+A'), cmd('b', 'Ctrl+B')]
-    expect(commandFor(cmds, { a: ['Ctrl+J'] }, 'Ctrl+A')).toBeNull()
-    expect(commandFor(cmds, { a: ['Ctrl+J'] }, 'Ctrl+J')?.id).toBe('a')
-    expect(commandFor(cmds, { b: [] }, 'Ctrl+B')).toBeNull()
+    expect(advance(cmds, { a: ['Ctrl+J'] }, [], 'Ctrl+A').type).toBe('none')
+    expect(advance(cmds, { a: ['Ctrl+J'] }, [], 'Ctrl+J')).toMatchObject({ type: 'run' })
+    expect(advance(cmds, { b: [] }, [], 'Ctrl+B').type).toBe('none')
   })
 
   it('fixed commands ignore overrides and still conflict', () => {
     const cmds = [cmd('sql:run', 'Ctrl+Enter'), cmd('x')]
-    expect(commandFor(cmds, { 'sql:run': ['Ctrl+J'] }, 'Ctrl+J')).toBeNull()
+    expect(advance(cmds, { 'sql:run': ['Ctrl+J'] }, [], 'Ctrl+J').type).toBe('none')
     expect(conflictsFor(cmds, {}, 'x', 'Ctrl+Enter').map((c) => c.id)).toEqual(['sql:run'])
   })
 
@@ -55,5 +56,31 @@ describe('hotkeys', () => {
   it('shows arrows as glyphs', () => {
     expect(display('Ctrl+ArrowLeft')).toBe('Ctrl+←')
     expect(display('Ctrl+Shift+Plus')).toBe('Ctrl+Shift++')
+  })
+
+  describe('chords', () => {
+    const cmds = [cmd('a', 'Ctrl+K Ctrl+S'), cmd('b', 'Ctrl+K Ctrl+T'), cmd('c', 'Ctrl+J')]
+
+    it('parses a space as the next step', () => {
+      expect(parseShortcut('Ctrl+K Ctrl+S / Ctrl+B')).toEqual(['Ctrl+K Ctrl+S', 'Ctrl+B'])
+      expect(display('Ctrl+K Ctrl+ArrowLeft')).toBe('Ctrl+K Ctrl+←')
+    })
+
+    it('waits on a shared first step, then runs on the second', () => {
+      expect(advance(cmds, {}, [], 'Ctrl+K')).toEqual({ type: 'wait', pending: ['Ctrl+K'] })
+      const r = advance(cmds, {}, ['Ctrl+K'], 'Ctrl+T')
+      expect(r.type === 'run' && r.cmd.id).toBe('b')
+    })
+
+    it('a key that continues nothing abandons the chord and is tried afresh', () => {
+      expect(advance(cmds, {}, ['Ctrl+K'], 'Ctrl+J')).toMatchObject({ type: 'run' })
+      expect(advance(cmds, {}, ['Ctrl+K'], 'Ctrl+Q').type).toBe('abort')
+    })
+
+    it('flags a binding that shadows or equals another', () => {
+      const shadow = [cmd('a', 'Ctrl+K Ctrl+S'), cmd('b', 'Ctrl+K'), cmd('c', 'Ctrl+J')]
+      expect([...clashingBindings(shadow, {})].sort()).toEqual(['Ctrl+K', 'Ctrl+K Ctrl+S'])
+      expect(conflictsFor(shadow, {}, 'c', 'Ctrl+K').map((x) => x.id)).toEqual(['a', 'b'])
+    })
   })
 })

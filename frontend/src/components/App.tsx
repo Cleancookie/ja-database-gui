@@ -1,7 +1,14 @@
 import { useCallback, useEffect } from 'react'
 import { buildActionCommands, type Command } from '../commands'
 import { isTypingTarget } from '../dom'
-import { chord, commandFor, firesWhileTyping, WORKS_OVER_MODALS } from '../hotkeys'
+import {
+  advance,
+  chord,
+  display,
+  firesWhileTyping,
+  WORKS_OVER_MODALS,
+  type Advance,
+} from '../hotkeys'
 import { activeSqlResult, isBound, isInfinite, useStore } from '../store'
 import { ActivityPage } from './ActivityPage'
 import { TableDetailsPage } from './TableDetailsPage'
@@ -162,6 +169,21 @@ export function App() {
       )}
       <LargeEditorHost />
       <Toasts />
+      <PendingChord />
+    </div>
+  )
+}
+
+/** The first steps of a chord, so a half-typed one is never a mystery. */
+function PendingChord() {
+  const pending = useStore((s) => s.pendingChord)
+  if (pending.length === 0) return null
+  return (
+    <div
+      role="status"
+      className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-[var(--color-border-strong)] bg-[var(--color-elevated)] px-3 py-1.5 font-[var(--font-mono)] text-[var(--color-accent)] shadow-lg"
+    >
+      {pending.map(display).join(' ')} …
     </div>
   )
 }
@@ -171,6 +193,9 @@ function Placeholder({ text }: { text: string }) {
     <div className="flex h-full items-center justify-center text-[var(--color-faint)]">{text}</div>
   )
 }
+
+/** How long the first step of a chord waits for the next. */
+const CHORD_TIMEOUT_MS = 2000
 
 /**
  * Global keyboard shortcuts.
@@ -182,6 +207,8 @@ function Placeholder({ text }: { text: string }) {
  */
 function useGlobalHotkeys() {
   useEffect(() => {
+    let pending: string[] = []
+    let timer: ReturnType<typeof setTimeout> | undefined
     const onKey = (e: KeyboardEvent) => {
       const s = useStore.getState()
       const mod = e.ctrlKey || e.metaKey
@@ -193,18 +220,47 @@ function useGlobalHotkeys() {
       // the SQL editor and over a dialog. Ctrl+P *inside* an open palette
       // belongs to it (move-up), so "Go to" only fires when none is open.
       let cmds: Command[] | undefined
-      const dispatch = (overModals: boolean) => {
+      let result: Advance | undefined
+      const resolve = (): Advance => {
+        if (result) return result
         const c = chord(e)
-        if (!c || !(mod || e.altKey)) return false
+        const first = pending.length === 0
+        if (
+          !c ||
+          (first && !(mod || e.altKey)) ||
+          (first && typing && !firesWhileTyping(c, target))
+        ) {
+          return (result = { type: 'none' })
+        }
         cmds ??= buildActionCommands(s)
-        const cmd = commandFor(cmds, s.settings.hotkeys, c)
-        if (!cmd || WORKS_OVER_MODALS.has(cmd.id) !== overModals) return false
-        if (typing && !firesWhileTyping(c, target)) return false
-        if (cmd.id === 'palette:go' && s.palette !== null) return false
+        return (result = advance(cmds, s.settings.hotkeys, pending, c))
+      }
+      const setPending = (next: string[]) => {
+        pending = next
+        clearTimeout(timer)
+        if (next.length > 0) timer = setTimeout(() => setPending([]), CHORD_TIMEOUT_MS)
+        useStore.setState({ pendingChord: next })
+      }
+      const dispatch = (overModals: boolean) => {
+        const r = resolve()
+        if (r.type === 'abort') {
+          e.preventDefault()
+          setPending([])
+          return true
+        }
+        if (r.type === 'wait') {
+          if (overModals) return false
+          e.preventDefault()
+          setPending(r.pending)
+          return true
+        }
+        if (r.type !== 'run' || WORKS_OVER_MODALS.has(r.cmd.id) !== overModals) return false
+        setPending([])
+        if (r.cmd.id === 'palette:go' && s.palette !== null) return false
         // Claimed even when the command does not apply right now: Ctrl+R would
         // otherwise reload the webview and Ctrl+W close it.
         e.preventDefault()
-        if (cmd.when !== false) void cmd.run()
+        if (r.cmd.when !== false) void r.cmd.run()
         return true
       }
       if (dispatch(true)) return
@@ -226,7 +282,10 @@ function useGlobalHotkeys() {
 
       // Everything below would otherwise steal keys from the palette or a
       // dialog while the user is typing in it.
-      if (s.palette !== null || s.dialog.kind !== 'none') return
+      if (s.palette !== null || s.dialog.kind !== 'none') {
+        if (pending.length > 0) setPending([])
+        return
+      }
 
       if (recoverFocus(e)) return
 

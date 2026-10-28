@@ -324,6 +324,8 @@ export interface State extends EditState, EditActions {
    *  while this is above zero, so an idle app issues no requests at all. */
   inFlight: number
   trayOpen: boolean
+  /** Steps of a hotkey chord pressed so far, shown until it completes or times out. */
+  pendingChord: string[]
   /** null when no palette is open. */
   palette: PaletteMode | null
   dialog: DialogState
@@ -922,6 +924,7 @@ export const useStore = create<State>((set, get) => {
     activityPolledAt: 0,
     inFlight: 0,
     trayOpen: false,
+    pendingChord: [],
     palette: null,
     dialog: { kind: 'none' },
     busy: false,

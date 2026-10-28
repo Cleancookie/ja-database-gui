@@ -48,19 +48,27 @@ export function chord(e: KeyboardEvent): string | null {
   return [...mods, keyName(e.key)].join('+')
 }
 
-/** A command's `shortcut` text as chords: "Ctrl+B / Ctrl+←" is two. */
+/** One step of a binding as a combo: "Shift+Alt+F" is "Alt+Shift+F". */
+function normaliseStep(step: string): string {
+  const pieces = step.trim().split('+')
+  const key = pieces.pop()!
+  const mods = MOD_ORDER.filter((m) => pieces.includes(m))
+  return [...mods, keyName(GLYPHS[key] ?? key)].join('+')
+}
+
+/**
+ * A command's `shortcut` text as bindings. " / " separates alternatives and a
+ * space separates the steps of a chord: "Ctrl+K Ctrl+S / Ctrl+B" is two.
+ */
 export function parseShortcut(text?: string): string[] {
   if (!text) return []
   return text
     .split(' / ')
-    .map((part) => {
-      const pieces = part.trim().split('+')
-      const key = pieces.pop()!
-      const mods = MOD_ORDER.filter((m) => pieces.includes(m))
-      return [...mods, keyName(GLYPHS[key] ?? key)].join('+')
-    })
+    .map((part) => part.trim().split(/\s+/).map(normaliseStep).join(' '))
     .filter(Boolean)
 }
+
+export const stepsOf = (binding: string) => binding.split(' ')
 
 /** What `cmd` is bound to now: the user's list if they made one, else its defaults. */
 export function bindingsOf(cmd: Command, overrides: Overrides): string[] {
@@ -68,29 +76,89 @@ export function bindingsOf(cmd: Command, overrides: Overrides): string[] {
   return own && !isFixed(cmd.id) ? own : parseShortcut(cmd.shortcut)
 }
 
-/** Arrow chords mean "move by word" in a field; Alt+arrows only stay out of the SQL editor. */
+/** Arrow combos mean "move by word" in a field; Alt+arrows only stay out of the SQL editor. */
 export function firesWhileTyping(c: string, target: HTMLElement | null): boolean {
   if (!c.split('+').at(-1)!.startsWith('Arrow')) return true
   return c.startsWith('Alt+') && !target?.isContentEditable
 }
 
-/** The rebindable command bound to `c`, if any. */
-export function commandFor(cmds: Command[], overrides: Overrides, c: string): Command | null {
-  return cmds.find((cmd) => !isFixed(cmd.id) && bindingsOf(cmd, overrides).includes(c)) ?? null
+const startsWith = (steps: string[], prefix: string[]) => prefix.every((p, i) => steps[i] === p)
+
+export type Advance =
+  | { type: 'run'; cmd: Command }
+  | { type: 'wait'; pending: string[] }
+  | { type: 'abort' }
+  | { type: 'none' }
+
+/**
+ * What a keypress does given the steps already pressed. An exact match runs at
+ * once, even when a longer chord shares its start — the page flags that as a
+ * conflict. A key that continues no chord abandons the pending one and is tried
+ * afresh, so a mistyped second key never leaves the first one stuck.
+ */
+export function advance(
+  cmds: Command[],
+  overrides: Overrides,
+  pending: string[],
+  c: string,
+): Advance {
+  const seq = [...pending, c]
+  let exact: Command | null = null
+  let longer = false
+  for (const cmd of cmds) {
+    if (isFixed(cmd.id)) continue
+    for (const b of bindingsOf(cmd, overrides)) {
+      const steps = stepsOf(b)
+      if (!startsWith(steps, seq)) continue
+      if (steps.length === seq.length) exact ??= cmd
+      else longer = true
+    }
+  }
+  if (exact) return { type: 'run', cmd: exact }
+  if (longer) return { type: 'wait', pending: seq }
+  if (pending.length === 0) return { type: 'none' }
+  const fresh = advance(cmds, overrides, [], c)
+  return fresh.type === 'none' ? { type: 'abort' } : fresh
 }
 
-/** Other commands already using `c`, fixed ones included. */
+const overlaps = (a: string, b: string) => {
+  const x = stepsOf(a)
+  const y = stepsOf(b)
+  return startsWith(x, y) || startsWith(y, x)
+}
+
+/** Other commands whose bindings equal `binding` or share its start, fixed ones included. */
 export function conflictsFor(
   cmds: Command[],
   overrides: Overrides,
   id: string,
-  c: string,
+  binding: string,
 ): Command[] {
-  return cmds.filter((cmd) => cmd.id !== id && bindingsOf(cmd, overrides).includes(c))
+  return cmds.filter(
+    (cmd) => cmd.id !== id && bindingsOf(cmd, overrides).some((b) => overlaps(b, binding)),
+  )
 }
 
-/** "Ctrl+ArrowLeft" as "Ctrl+←". */
-export function display(c: string): string {
-  const glyph = Object.entries(GLYPHS).find(([, name]) => c.endsWith(`+${name}`))
-  return glyph ? c.slice(0, -glyph[1].length) + glyph[0] : c.replace(/\+Plus$/, '++')
+/** Every binding that equals or shadows another command's. */
+export function clashingBindings(cmds: Command[], overrides: Overrides): Set<string> {
+  const all = cmds.flatMap((cmd) => bindingsOf(cmd, overrides).map((b) => ({ id: cmd.id, b })))
+  const out = new Set<string>()
+  for (const x of all) for (const y of all) if (x.id !== y.id && overlaps(x.b, y.b)) out.add(x.b)
+  return out
+}
+
+const displayStep = (c: string) => {
+  const glyph = Object.entries(GLYPHS).find(([, name]) => c.endsWith(`+${name}`) || c === name)
+  if (glyph) return c.slice(0, c.length - glyph[1].length) + glyph[0]
+  return c.replace(/\+Plus$/, '++')
+}
+
+/** "Ctrl+K Ctrl+ArrowLeft" as "Ctrl+K Ctrl+←". */
+export const display = (binding: string) => stepsOf(binding).map(displayStep).join(' ')
+
+/** One step split into its held modifiers and the key struck. */
+export function parseStep(step: string): { mods: Set<string>; key: string } {
+  const pieces = step.split('+')
+  const key = pieces.pop()!
+  return { mods: new Set(pieces), key }
 }
