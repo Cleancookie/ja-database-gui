@@ -962,17 +962,27 @@ export function buildActionCommands(s: Store): Command[] {
     },
   )
 
-  cmds.push({
-    id: 'app:transfer',
-    title: 'Export or import settings',
-    subtitle: 'Settings, hotkeys and connections (never passwords) as a JSON file',
-    group: 'App',
-    candidate: {
-      name: 'Export or import settings',
-      keywords: 'backup json file save load connections hotkeys',
+  cmds.push(
+    {
+      id: 'app:export',
+      title: 'Export settings…',
+      subtitle: 'Settings, hotkeys and connections (never passwords) to a JSON file',
+      group: 'App',
+      candidate: { name: 'Export settings', keywords: 'backup json file save connections hotkeys' },
+      run: () => s.setDialog({ kind: 'transfer', mode: 'export' }),
     },
-    run: () => s.setDialog({ kind: 'transfer' }),
-  })
+    {
+      id: 'app:import',
+      title: 'Import settings…',
+      subtitle: 'From a JSON file written by Export',
+      group: 'App',
+      candidate: {
+        name: 'Import settings',
+        keywords: 'restore json file load connections hotkeys',
+      },
+      run: () => s.setDialog({ kind: 'transfer', mode: 'import' }),
+    },
+  )
 
   cmds.push({
     id: 'app:hotkeys',

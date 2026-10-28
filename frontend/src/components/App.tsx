@@ -149,7 +149,7 @@ export function App() {
         />
       )}
       {dialog.kind === 'shortcuts' && <ShortcutsDialog />}
-      {dialog.kind === 'transfer' && <TransferDialog />}
+      {dialog.kind === 'transfer' && <TransferDialog mode={dialog.mode} />}
       {dialog.kind === 'settings' && <SettingsDialog />}
       {dialog.kind === 'cell' && <CellDialog cell={dialog.cell} />}
       {dialog.kind === 'confirmDelete' && (

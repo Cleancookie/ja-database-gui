@@ -11,12 +11,12 @@ that guarantee is gone.
 
 ## What is here
 
-| File | Wraps | Why not hand-rolled |
-| --- | --- | --- |
-| `Dialog.tsx` | `@radix-ui/react-dialog` | Focus trap, focus restore on close, scroll lock, `aria-modal` wiring, Escape and outside-click handling. `Layer` lends the same to a hand-drawn overlay (the palette) so it stacks over a dialog |
-| `Menu.tsx` | `@radix-ui/react-context-menu` | Arrow-key navigation, typeahead, collision-aware positioning, focus return to the trigger |
-| `Editor.tsx` | `@codemirror/*` | A completion popup with its own keyboard handling and positioning, dialect-aware SQL tokenising, undo history, and room for error squiggles later |
-| `CodeEditor.tsx` | `@codemirror/*` | Editing a value of several megabytes: the document stays in CodeMirror's state and is read once on stage, where a controlled `value` would copy it into React per keystroke. Line numbers, wrapping, JSON highlighting |
+| File             | Wraps                          | Why not hand-rolled                                                                                                                                                                                                    |
+| ---------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Dialog.tsx`     | `@radix-ui/react-dialog`       | Focus trap, focus restore on close, scroll lock, `aria-modal` wiring, Escape and outside-click handling. `Layer` lends the same to a hand-drawn overlay (the palette) so it stacks over a dialog                       |
+| `Menu.tsx`       | `@radix-ui/react-context-menu` | Arrow-key navigation, typeahead, collision-aware positioning, focus return to the trigger                                                                                                                              |
+| `Editor.tsx`     | `@codemirror/*`                | A completion popup with its own keyboard handling and positioning, dialect-aware SQL tokenising, undo history, and room for error squiggles later                                                                      |
+| `CodeEditor.tsx` | `@codemirror/*`                | Editing a value of several megabytes: the document stays in CodeMirror's state and is read once on stage, where a controlled `value` would copy it into React per keystroke. Line numbers, wrapping, JSON highlighting |
 
 ### Why CodeMirror and not Monaco
 
@@ -32,7 +32,7 @@ worth knowing before adding more of it.
 It is therefore **loaded on demand**, via `LazyEditor.tsx`, and `ui/index.ts`
 exports that wrapper rather than `Editor.tsx` itself. Importing the real one
 from anywhere eager puts CodeMirror back in the startup bundle and undoes the
-split. This matters more than it first appears: at launch *neither* surface
+split. This matters more than it first appears: at launch _neither_ surface
 that uses the editor is mounted — the filter bar renders only once a table is
 open, the SQL editor only on the SQL view — so eager loading made every launch
 pay for something many sessions never touch. With the split, the startup chunk

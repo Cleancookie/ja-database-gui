@@ -338,14 +338,27 @@ export function SettingsDialog() {
 
           <Group label="Backup">
             <Row
-              label="Export or import settings, hotkeys and connections"
+              label="Export settings, hotkeys and connections"
+              hint="To a JSON file. Passwords are never included."
               control={
                 <button
                   type="button"
-                  onClick={() => cancel({ kind: 'transfer' })}
+                  onClick={() => cancel({ kind: 'transfer', mode: 'export' })}
                   className={dialogButton.secondary}
                 >
-                  Export / import…
+                  Export…
+                </button>
+              }
+            />
+            <Row
+              label="Import from a file"
+              control={
+                <button
+                  type="button"
+                  onClick={() => cancel({ kind: 'transfer', mode: 'import' })}
+                  className={dialogButton.secondary}
+                >
+                  Import…
                 </button>
               }
             />

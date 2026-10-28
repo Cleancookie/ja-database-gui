@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
+	"os"
 	"path/filepath"
 	"sync/atomic"
 
@@ -55,6 +57,57 @@ func NewApp() (*App, error) {
 		svc:     api.New(store, settings, engine.New(), activity.New()),
 		logFile: logFile,
 	}, nil
+}
+
+// TextFile is a file the user picked: where it was and what it held.
+type TextFile struct {
+	Path string `json:"path"`
+	Text string `json:"text"`
+}
+
+// maxTextFile keeps a wrong pick, such as a database file, from being read whole.
+const maxTextFile = 8 << 20
+
+var jsonFilter = []runtime.FileFilter{{DisplayName: "JSON (*.json)", Pattern: "*.json"}}
+
+// SaveTextFile asks where to save with the OS dialog, writes content there and
+// returns the path. An empty path means the user cancelled. The browser dev
+// server has no dialog, so the UI downloads instead.
+func (a *App) SaveTextFile(suggested, content string) (string, error) {
+	path, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+		DefaultFilename: suggested,
+		Filters:         jsonFilter,
+	})
+	if err != nil || path == "" {
+		return "", err
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		return "", err
+	}
+	log.Printf("ja-db: saved %d bytes to %s", len(content), path)
+	return path, nil
+}
+
+// OpenTextFile asks for a file with the OS dialog. An empty Path means the
+// user cancelled.
+func (a *App) OpenTextFile() (TextFile, error) {
+	path, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{Filters: jsonFilter})
+	if err != nil || path == "" {
+		return TextFile{}, err
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return TextFile{}, err
+	}
+	if info.Size() > maxTextFile {
+		return TextFile{}, fmt.Errorf("%s is too large to be a settings export", filepath.Base(path))
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return TextFile{}, err
+	}
+	log.Printf("ja-db: read %d bytes from %s", len(b), path)
+	return TextFile{Path: path, Text: string(b)}, nil
 }
 
 func (a *App) SetUnsavedChanges(v bool) { a.svc.SetUnsavedChanges(v) }

@@ -118,7 +118,7 @@ export type DialogState =
   | { kind: 'none' }
   | { kind: 'connection'; connection: Connection | null }
   | { kind: 'shortcuts' }
-  | { kind: 'transfer' }
+  | { kind: 'transfer'; mode: 'export' | 'import' }
   /** Asks for an ask-every-time connection's password. `error` is why the last try failed. */
   | {
       kind: 'password'

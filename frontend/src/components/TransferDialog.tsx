@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { nativeFiles } from '../api'
 import { downloadText } from '../dom'
 import { useStore } from '../store'
 import {
@@ -18,7 +19,7 @@ const LABEL: Record<Section, string> = {
 }
 
 /** Export chosen parts of the configuration to a JSON file, or import one. */
-export function TransferDialog() {
+export function TransferDialog({ mode }: { mode: 'export' | 'import' }) {
   const settings = useStore((s) => s.settings)
   const connections = useStore((s) => s.connections)
   const importTransfer = useStore((s) => s.importTransfer)
@@ -38,25 +39,46 @@ export function TransferDialog() {
     put(next)
   }
 
-  const doExport = () => {
+  const doExport = async () => {
     const t = buildTransfer(
       SECTIONS.filter((s) => exporting.has(s)),
       settings,
       connections,
     )
-    downloadText('ja-db-export.json', JSON.stringify(t, null, 2), 'application/json')
-    pushToast('info', 'Exported to ja-db-export.json — it contains no passwords')
+    const text = JSON.stringify(t, null, 2)
+    try {
+      if (nativeFiles.available()) {
+        const path = await nativeFiles.save('ja-db-export.json', text)
+        if (!path) return
+        pushToast('info', `Exported to ${path} — it contains no passwords`)
+      } else {
+        downloadText('ja-db-export.json', text, 'application/json')
+        pushToast('info', 'Exported to ja-db-export.json — it contains no passwords')
+      }
+      close()
+    } catch (e) {
+      pushToast('error', e instanceof Error ? e.message : String(e))
+    }
   }
 
-  const pick = async (f: File | undefined) => {
-    if (!f) return
+  const read = async (text: string) => {
     try {
-      const t = parseTransfer(await f.text(), settings)
+      const t = parseTransfer(text, settings)
       setIncoming(t)
       setImporting(new Set(sectionsIn(t)))
       setError('')
     } catch (e) {
       setIncoming(null)
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
+  const choose = async () => {
+    if (!nativeFiles.available()) return file.current?.click()
+    try {
+      const f = await nativeFiles.open()
+      if (f) await read(f.text)
+    } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     }
   }
@@ -88,7 +110,7 @@ export function TransferDialog() {
     <Dialog
       open
       onClose={close}
-      title="Export and import"
+      title={mode === 'export' ? 'Export' : 'Import'}
       widthClass="w-[min(30rem,92vw)]"
       footer={
         <button onClick={close} className={`ml-auto ${dialogButton.secondary}`}>
@@ -96,51 +118,58 @@ export function TransferDialog() {
         </button>
       }
     >
-      <div className="flex flex-col gap-5 p-4">
-        <section className="flex flex-col gap-2">
-          <h3 className="font-semibold tracking-wider text-[var(--color-faint)] uppercase">
-            Export
-          </h3>
-          {SECTIONS.map((s) => box(s, exporting, setExporting))}
-          <p className="text-[var(--color-faint)]">
-            Saved passwords stay in the keyring. Imported connections ask for one on first connect.
-          </p>
-          <button
-            onClick={doExport}
-            disabled={exporting.size === 0}
-            className={`self-start ${dialogButton.primary}`}
-          >
-            Export to file
-          </button>
-        </section>
-
-        <section className="flex flex-col gap-2">
-          <h3 className="font-semibold tracking-wider text-[var(--color-faint)] uppercase">
-            Import
-          </h3>
-          <input
-            ref={file}
-            type="file"
-            accept="application/json,.json"
-            onChange={(e) => void pick(e.target.files?.[0])}
-          />
-          {error && <p className="text-[var(--color-danger,#e5484d)]">{error}</p>}
-          {incoming && (
-            <>
-              {sectionsIn(incoming).map((s) => box(s, importing, setImporting, countOf(s)))}
-              <p className="text-[var(--color-faint)]">
-                Settings and hotkeys replace yours. Connections already present are skipped.
-              </p>
-              <button
-                onClick={() => void doImport()}
-                disabled={importing.size === 0}
-                className={`self-start ${dialogButton.primary}`}
-              >
-                Import
-              </button>
-            </>
-          )}
-        </section>
+      <div className="flex flex-col gap-3 p-4">
+        {mode === 'export' ? (
+          <>
+            {SECTIONS.map((s) => box(s, exporting, setExporting))}
+            <p className="text-[var(--color-faint)]">
+              Saved passwords stay in the keyring. Imported connections ask for one on first
+              connect.
+            </p>
+            <button
+              onClick={() => void doExport()}
+              disabled={exporting.size === 0}
+              className={`self-start ${dialogButton.primary}`}
+            >
+              Export to file…
+            </button>
+          </>
+        ) : (
+          <>
+            <input
+              ref={file}
+              type="file"
+              hidden
+              accept="application/json,.json"
+              onChange={(e) => {
+                const f = e.target.files?.[0]
+                if (f) void f.text().then(read)
+              }}
+            />
+            <button
+              onClick={() => void choose()}
+              className={`self-start ${dialogButton.secondary}`}
+            >
+              {incoming ? 'Choose another file…' : 'Choose file…'}
+            </button>
+            {error && <p className="text-[var(--color-danger,#e5484d)]">{error}</p>}
+            {incoming && (
+              <>
+                {sectionsIn(incoming).map((s) => box(s, importing, setImporting, countOf(s)))}
+                <p className="text-[var(--color-faint)]">
+                  Settings and hotkeys replace yours. Connections already present are skipped.
+                </p>
+                <button
+                  onClick={() => void doImport()}
+                  disabled={importing.size === 0}
+                  className={`self-start ${dialogButton.primary}`}
+                >
+                  Import
+                </button>
+              </>
+            )}
+          </>
+        )}
       </div>
     </Dialog>
   )

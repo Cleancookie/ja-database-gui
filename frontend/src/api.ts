@@ -110,6 +110,19 @@ async function invoke<T>(method: string, args: unknown[], httpBody: unknown): Pr
   return (text ? JSON.parse(text) : null) as T
 }
 
+/** The OS file dialogs, which only the Wails window has. Null in the browser dev server. */
+export const nativeFiles = {
+  available: () => !!wailsBindings()?.SaveTextFile,
+  /** The path written, or '' when the user cancelled. */
+  save: (suggested: string, content: string) =>
+    call<string>('SaveTextFile', [suggested, content], {}),
+  /** The file picked, or null when the user cancelled. */
+  open: async () => {
+    const f = await call<{ path: string; text: string }>('OpenTextFile', [], {})
+    return f.path ? f : null
+  },
+}
+
 export const api = {
   drivers: () => call<Record<Kind, Capabilities>>('Drivers', [], {}),
 
