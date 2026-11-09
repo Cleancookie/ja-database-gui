@@ -46,6 +46,8 @@ function CellEditDialog({ editing }: { editing: Editing }) {
   })
   const [error, setError] = useState<string | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [sql, setSql] = useState(!!editing.sql)
+  const modeChanged = sql !== !!editing.sql
 
   const refresh = useCallback(() => {
     const text = handle.current?.getValue() ?? ''
@@ -77,15 +79,19 @@ function CellEditDialog({ editing }: { editing: Editing }) {
   const stage = () => {
     if (editing.loading) return
     const text = handle.current?.getValue() ?? ''
-    if (text === editing.text) return cancelEdit()
-    const block = stageBlock(text, editing.dataType)
+    if (text === editing.text && !modeChanged) return cancelEdit()
+    const block = sql
+      ? text.trim() === ''
+        ? 'An SQL expression cannot be empty'
+        : null
+      : stageBlock(text, editing.dataType)
     if (block) return setError(block)
-    commitEdit(text)
+    commitEdit(text, sql)
   }
 
   const requestClose = () => {
     const text = handle.current?.getValue() ?? editing.text
-    if (text === editing.text || confirming) return cancelEdit()
+    if ((text === editing.text && !modeChanged) || confirming) return cancelEdit()
     setConfirming(true)
   }
 
@@ -102,6 +108,7 @@ function CellEditDialog({ editing }: { editing: Editing }) {
   }
 
   const valid = meta.json?.state === 'valid'
+  const changed = meta.changed || modeChanged
 
   return (
     <Dialog
@@ -124,10 +131,10 @@ function CellEditDialog({ editing }: { editing: Editing }) {
           </span>
           <span
             className={
-              meta.changed ? 'font-semibold text-[var(--color-warn)]' : 'text-[var(--color-faint)]'
+              changed ? 'font-semibold text-[var(--color-warn)]' : 'text-[var(--color-faint)]'
             }
           >
-            {meta.changed ? 'changed' : 'unchanged'}
+            {changed ? 'changed' : 'unchanged'}
           </span>
           <button
             type="button"
@@ -143,7 +150,7 @@ function CellEditDialog({ editing }: { editing: Editing }) {
           <button
             type="button"
             onClick={stage}
-            disabled={editing.loading || !meta.changed}
+            disabled={editing.loading || !changed}
             className={dialogButton.primary}
           >
             Stage{' '}
@@ -153,7 +160,26 @@ function CellEditDialog({ editing }: { editing: Editing }) {
       }
     >
       <div className="flex min-h-9 items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
-        {jsonTools && (
+        <label
+          className="flex items-center gap-1.5"
+          title="Sent as written, not quoted — for NOW(), CURRENT_TIMESTAMP, UUID()"
+        >
+          <input
+            type="checkbox"
+            checked={sql}
+            onChange={(e) => {
+              setSql(e.target.checked)
+              setError(null)
+            }}
+          />
+          SQL expression
+        </label>
+        {sql && (
+          <span className="text-[var(--color-faint)]">
+            sent unquoted, e.g. <code className="font-[var(--font-mono)]">NOW()</code>
+          </span>
+        )}
+        {jsonTools && !sql && (
           <>
             <span
               className={

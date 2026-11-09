@@ -8,6 +8,8 @@ export interface CellView {
   value: Cell
   /** Shown as DEFAULT: staged as such, or a cell of a new row nobody filled in. */
   isDefault: boolean
+  /** `value` is a staged SQL expression, not text. */
+  isExpr?: boolean
   state: CellState
   /** The loaded value, for a dirty cell's tooltip. */
   was?: Cell
@@ -47,6 +49,8 @@ export function gridView(
       if (input?.kind === 'value')
         return { value: input.value ?? '', isDefault: false, state: 'new' }
       if (input?.kind === 'null') return { value: null, isDefault: false, state: 'new' }
+      if (input?.kind === 'sql')
+        return { value: input.value ?? '', isDefault: false, isExpr: true, state: 'new' }
       return { value: null, isDefault: true, state: 'new' }
     }
     const value = result.rows[row][col]
@@ -57,6 +61,14 @@ export function gridView(
     if (!input) return { value, isDefault: false, state: 'clean' }
     if (input.kind === 'default')
       return { value: null, isDefault: true, state: 'dirty', was: value }
+    if (input.kind === 'sql')
+      return {
+        value: input.value ?? '',
+        isDefault: false,
+        isExpr: true,
+        state: 'dirty',
+        was: value,
+      }
     return {
       value: input.kind === 'null' ? null : stagedText(input, value),
       isDefault: false,

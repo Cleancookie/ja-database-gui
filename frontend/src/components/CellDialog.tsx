@@ -96,7 +96,7 @@ export function CellDialog({ cell }: { cell: CellTarget }) {
   // made, and it has to show them.
   const staged = useMemo(() => {
     if (!input) return null
-    if (input.kind === 'value') return input.value ?? ''
+    if (input.kind === 'value' || input.kind === 'sql') return input.value ?? ''
     if (input.kind !== 'json' || !whole) return null
     const r = applyJsonEdits(loaded, input.edits ?? [])
     return r.ok ? r.text : null

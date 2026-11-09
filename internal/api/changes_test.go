@@ -251,7 +251,7 @@ func TestChangesThatDisagreeWithTheTableAreRejected(t *testing.T) {
 			Key: map[string]any{"id": 1.0}}), "no key"},
 		{"unknown op", changes(id, ordersRef, RowChange{Op: "truncate"}), "unknown op"},
 		{"unknown kind", changes(id, ordersRef, update(1,
-			map[string]CellValue{"note": {Kind: "sql", Value: "1; drop table orders"}})), "unknown value kind"},
+			map[string]CellValue{"note": {Kind: "raw", Value: "1; drop table orders"}})), "unknown value kind"},
 		{"unparsable number names the column", changes(id, files, update(1,
 			map[string]CellValue{"n": val("twelve")})), `column "n"`},
 		{"no changes", changes(id, ordersRef), "no changes"},

@@ -152,6 +152,9 @@ export function addJsonEdit(
   if (input?.kind === 'null' || input?.kind === 'default') {
     return { ok: false, reason: `the cell is staged as ${input.kind.toUpperCase()}` }
   }
+  if (input?.kind === 'sql') {
+    return { ok: false, reason: 'the cell is staged as a SQL expression' }
+  }
   if (edit.path.length === 0) {
     return { ok: false, reason: 'a whole-document change is a whole value, not a path edit' }
   }
@@ -167,7 +170,7 @@ const jsonTexts = new WeakMap<CellInput, { base: string; text: string }>()
  * every render and the document may be large.
  */
 export function stagedText(input: CellInput, original: Cell): string {
-  if (input.kind === 'value') return input.value ?? ''
+  if (input.kind === 'value' || input.kind === 'sql') return input.value ?? ''
   if (input.kind !== 'json') return ''
   const base = cellInputText(original)
   const hit = jsonTexts.get(input)
@@ -180,7 +183,7 @@ export function stagedText(input: CellInput, original: Cell): string {
 
 function sameInput(input: CellInput, original: Cell): boolean {
   if (input.kind === 'null') return original === null
-  if (input.kind === 'default' || input.kind === 'json') return false
+  if (input.kind === 'default' || input.kind === 'json' || input.kind === 'sql') return false
   return original !== null && input.value === cellInputText(original)
 }
 

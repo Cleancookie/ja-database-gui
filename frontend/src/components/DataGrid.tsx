@@ -1184,6 +1184,10 @@ function CellContextMenu({
 export function CellBody({ view, cut }: { view: CellView; cut: boolean }) {
   const value = view.value
   if (view.isDefault) return <span className="text-[var(--color-faint)] italic">DEFAULT</span>
+  if (view.isExpr)
+    return (
+      <span className="font-[var(--font-mono)] text-[var(--color-accent)]">{String(value)}</span>
+    )
   if (value === null) return <span className="text-[var(--color-faint)] italic">NULL</span>
   if (value === '') return <span className="text-[var(--color-faint)] italic">empty</span>
   if (typeof value === 'boolean')
@@ -1205,6 +1209,7 @@ export function CellBody({ view, cut }: { view: CellView; cut: boolean }) {
 export function cellTitle(view: CellView, cut: boolean, textCap: number): string {
   const value = view.value
   if (view.isDefault) return 'DEFAULT'
+  if (view.isExpr) return `SQL expression: ${String(value)}`
   if (view.state === 'dirty') {
     return `${value === null ? 'NULL' : String(value)}\n\n(edited, not saved — was ${
       view.was === null || view.was === undefined ? 'NULL' : String(view.was)

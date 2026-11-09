@@ -269,8 +269,11 @@ export interface ReadRowsResult {
  * renamed here because CellValue above is the result of readCell.
  */
 export interface CellInput {
-  kind: 'value' | 'null' | 'default' | 'json'
-  /** Text to store, for kind 'value'. Coerced server-side by the column's type. */
+  kind: 'value' | 'null' | 'default' | 'json' | 'sql'
+  /**
+   * Text to store, for kind 'value'. Coerced server-side by the column's type.
+   * Kind 'sql': an expression such as NOW(), sent unquoted.
+   */
   value?: string
   /** Kind 'json': applied in order to the column's current value in the database. */
   edits?: JSONEdit[]
@@ -312,8 +315,8 @@ export interface ChangesRequest {
 /** What one column of a statement is set to. Go: api.StatementCell. */
 export interface StatementCell {
   column: string
-  kind: 'value' | 'null' | 'default' | 'json'
-  /** Characters of the new text; 0 unless kind is 'value'. */
+  kind: 'value' | 'null' | 'default' | 'json' | 'sql'
+  /** Characters of the new text or expression; 0 unless kind is 'value' or 'sql'. */
   chars: number
   /** Kind 'json': how many path edits. */
   edits?: number

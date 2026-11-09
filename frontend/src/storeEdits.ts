@@ -65,6 +65,8 @@ export interface Editing {
   loading?: boolean
   /** The whole value of a cell the grid only holds a capped copy of. */
   full?: string
+  /** The text is a SQL expression such as NOW(), staged unquoted. */
+  sql?: boolean
 }
 
 export interface ReviewState {
@@ -106,8 +108,9 @@ export interface EditActions {
    * Shift+F2 (`large`) always uses the large one. A capped cell fetches its whole
    * value first.
    */
-  startEdit: (large?: boolean) => Promise<void>
-  commitEdit: (text: string) => void
+  startEdit: (large?: boolean, sql?: boolean) => Promise<void>
+  /** `sql` stages the text as an expression; omitted, it keeps the editor's mode. */
+  commitEdit: (text: string, sql?: boolean) => void
   cancelEdit: () => void
   /**
    * Stages one path edit from the JSON tree on a cell of the page. Returns why
@@ -408,7 +411,7 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
   }
 
   const actions: EditActions = {
-    async startEdit(large = false) {
+    async startEdit(large = false, sql = false) {
       const s = get()
       const sel = browseSelection(s)
       if (!sel || s.view !== 'data') return
@@ -487,17 +490,19 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
       }
 
       const original = cellInputText(loaded)
-      const text = input ? stagedText(input, loaded) : original
-      const mode = large || wantsLarge(text, dataType) ? 'large' : 'inline'
-      set({ editing: { ...base, mode, text, original } })
+      // The expression box lives in the large editor, so an expression opens there.
+      const expr = sql || input?.kind === 'sql'
+      const text = input ? stagedText(input, loaded) : expr ? '' : original
+      const mode = expr || large || wantsLarge(text, dataType) ? 'large' : 'inline'
+      set({ editing: { ...base, mode, text, original, sql: expr } })
     },
 
-    commitEdit(text) {
+    commitEdit(text, sql) {
       const s = get()
       const ed = s.editing
       if (!ed || !s.result) return
       const { original } = currentInput(s, ed.row, ed.col)
-      const input: CellInput = { kind: 'value', value: text }
+      const input: CellInput = { kind: (sql ?? ed.sql) ? 'sql' : 'value', value: text }
       const patch = stage(s, (e) =>
         stageOne(s, e, ed.row, ed.col, input, ed.full !== undefined ? ed.full : original),
       )

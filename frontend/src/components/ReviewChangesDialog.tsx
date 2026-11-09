@@ -239,6 +239,7 @@ const StatementRow = memo(function StatementRow({
 /** What a chip says a column becomes: its size, its path edits, or NULL / DEFAULT. */
 function cellChip(c: StatementCell): string {
   if (c.kind === 'value') return `${c.chars.toLocaleString()} chars`
+  if (c.kind === 'sql') return 'SQL expression'
   if (c.kind === 'json') {
     const n = c.edits ?? 0
     return `${n} JSON edit${n === 1 ? '' : 's'}`

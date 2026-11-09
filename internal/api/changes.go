@@ -22,6 +22,7 @@ import (
 // preview shows is what apply runs — not two implementations that agree today.
 // Nothing here trusts the grid: the key must be the table's own, every column
 // must exist and be writable, and values are coerced and bound, never spliced in.
+// The one exception is kind "sql", which the user asked to have written in as is.
 
 // CellValue is what one cell is to become. "empty string", "NULL" and "whatever
 // the column defaults to" are three different intents that a bare string cannot

@@ -1116,6 +1116,14 @@ function buildEditCommands(s: Store): Command[] {
       'Line numbers, wrapping and JSON tools, for a value too big for the cell',
     )
     add('null', 'Set to NULL', 'null clear empty', () => s.setSelectionNull(), 'Ctrl+Backspace')
+    add(
+      'sql-expr',
+      'Set to SQL expression…',
+      'raw now() current_timestamp function unquoted unescaped',
+      () => s.startEdit(true, true),
+      undefined,
+      'Sent as written, not quoted — NOW(), CURRENT_TIMESTAMP, UUID()',
+    )
     if (s.capabilities?.setToDefault) {
       add('default', 'Set to default', 'default reset', () => s.setSelectionDefault())
     }
