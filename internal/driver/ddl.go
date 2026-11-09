@@ -114,6 +114,12 @@ func validateFragment(what, column, frag string) error {
 	return nil
 }
 
+// ValidateExpr guards a SQL expression set as a cell's value, on the same
+// terms as a column definition's fragments.
+func ValidateExpr(column, expr string) error {
+	return validateFragment("SQL expression", column, expr)
+}
+
 // buildDrop renders DROP for the object types the tree can point at.
 func buildDrop(target string, typ ObjectType) (string, error) {
 	switch typ {

@@ -25,12 +25,14 @@ import (
 
 // CellValue is what one cell is to become. "empty string", "NULL" and "whatever
 // the column defaults to" are three different intents that a bare string cannot
-// tell apart; "json" changes part of the JSON already there.
+// tell apart; "json" changes part of the JSON already there; "sql" is an
+// expression such as NOW() written into the statement unquoted.
 type CellValue struct {
-	// Kind is "value", "null", "default" or "json".
+	// Kind is "value", "null", "default", "json" or "sql".
 	Kind string `json:"kind"`
 	// Value is the text to store, for kind "value". It is coerced by the
 	// column's type, so "42" is written as a number to an integer column.
+	// For kind "sql" it is the expression, which is not bound or escaped.
 	Value string `json:"value,omitempty"`
 	// Edits, for kind "json", are applied in order to the column's current value.
 	// Update only, on a json or text column.
@@ -77,7 +79,7 @@ type ChangesRequest struct {
 // show "data: 48,211 chars" without reading the SQL.
 type StatementCell struct {
 	Column string `json:"column"`
-	// Kind is "value", "null", "default" or "json".
+	// Kind is "value", "null", "default", "json" or "sql".
 	Kind string `json:"kind"`
 	// Chars is the length in characters of the new text, for kind "value", or
 	// of all the edits' values together, for kind "json".
@@ -311,7 +313,7 @@ func statementCells(ch driver.Change, rc RowChange) []StatementCell {
 		cv := rc.Set[a.Column]
 		cell := StatementCell{Column: a.Column, Kind: cv.Kind}
 		switch cv.Kind {
-		case "value":
+		case "value", "sql":
 			cell.Chars = utf8.RuneCountInString(cv.Value)
 		case "json":
 			cell.Edits = len(cv.Edits)
@@ -431,8 +433,11 @@ func toAssignment(c driver.Column, cv CellValue) (driver.Assignment, error) {
 	case "json":
 		edits, err := toJSONEdits(c, cv.Edits)
 		return driver.Assignment{Column: c.Name, DataType: c.DataType, Edits: edits}, err
+	case "sql":
+		expr := strings.TrimSpace(cv.Value)
+		return driver.Assignment{Column: c.Name, Expr: expr}, driver.ValidateExpr(c.Name, expr)
 	}
-	return driver.Assignment{}, fmt.Errorf("column %q: unknown value kind %q (want value, null, default or json)", c.Name, cv.Kind)
+	return driver.Assignment{}, fmt.Errorf("column %q: unknown value kind %q (want value, null, default, json or sql)", c.Name, cv.Kind)
 }
 
 // toJSONEdits checks the edits' shape; what a dialect cannot express it refuses

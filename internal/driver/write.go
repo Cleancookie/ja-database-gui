@@ -27,13 +27,15 @@ const (
 )
 
 // Assignment sets one column. Value is what is bound; nil binds NULL. Default
-// wins over Value and writes the DEFAULT keyword instead of a parameter. Edits,
+// wins over Value and writes the DEFAULT keyword instead of a parameter. Expr,
+// when set, is a SQL expression such as NOW() written in as is, not bound. Edits,
 // on an update, change the column's current JSON by path instead (jsonedit.go);
 // DataType is the column's declared type, which some dialects cast by.
 type Assignment struct {
 	Column   string
 	Value    any
 	Default  bool
+	Expr     string
 	Edits    []JSONEdit
 	DataType string
 }
@@ -177,6 +179,9 @@ func renderChange(d writerDriver, target string, ch Change, val func(any) string
 func assignedValue(a Assignment, val func(any) string) string {
 	if a.Default {
 		return "DEFAULT"
+	}
+	if a.Expr != "" {
+		return a.Expr
 	}
 	return val(a.Value)
 }

@@ -165,6 +165,38 @@ func TestInsertDefaultOmitsTheColumnOnSQLite(t *testing.T) {
 	}
 }
 
+func TestSQLExpressionIsWrittenInNotQuoted(t *testing.T) {
+	svc, id := newTestService(t)
+	mustRun(t, svc, id, `CREATE TABLE t (id INTEGER PRIMARY KEY, label TEXT)`)
+	mustRun(t, svc, id, `INSERT INTO t VALUES (1, 'x')`)
+	ref := driver.ObjectRef{Database: "main", Name: "t"}
+	expr := CellValue{Kind: "sql", Value: " upper('now') "}
+
+	prev, err := svc.PreviewChanges(context.Background(),
+		changes(id, ref, update(1, map[string]CellValue{"label": expr})))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := prev.Statements[0].Display; !strings.Contains(got, `"label" = upper('now') WHERE`) {
+		t.Errorf("display = %s, want the expression unquoted", got)
+	}
+	apply(t, svc, changes(id, ref,
+		update(1, map[string]CellValue{"label": expr}),
+		RowChange{Op: "insert", Set: map[string]CellValue{"label": expr}},
+	))
+	if got := scalar(t, svc, id, `SELECT count(*) FROM t WHERE label = 'NOW'`); got != "2" {
+		t.Errorf("rows set by the expression = %s, want 2", got)
+	}
+
+	for _, bad := range []string{"", "1; DROP TABLE t", "1 -- x", "1 /* x */"} {
+		_, err := svc.PreviewChanges(context.Background(),
+			changes(id, ref, update(1, map[string]CellValue{"label": {Kind: "sql", Value: bad}})))
+		if err == nil {
+			t.Errorf("expression %q was accepted", bad)
+		}
+	}
+}
+
 func TestTablesWithoutAKeyAndViewsAreRejected(t *testing.T) {
 	svc, id := newTestService(t)
 	seed(t, svc, id, 1)
