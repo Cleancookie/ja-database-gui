@@ -490,10 +490,9 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
       }
 
       const original = cellInputText(loaded)
-      // The expression box lives in the large editor, so an expression opens there.
       const expr = sql || input?.kind === 'sql'
       const text = input ? stagedText(input, loaded) : expr ? '' : original
-      const mode = expr || large || wantsLarge(text, dataType) ? 'large' : 'inline'
+      const mode = large || wantsLarge(text, dataType) ? 'large' : 'inline'
       set({ editing: { ...base, mode, text, original, sql: expr } })
     },
 
@@ -502,7 +501,12 @@ export function createEditSlice(set: (p: Partial<State>) => void, get: () => Sta
       const ed = s.editing
       if (!ed || !s.result) return
       const { original } = currentInput(s, ed.row, ed.col)
-      const input: CellInput = { kind: (sql ?? ed.sql) ? 'sql' : 'value', value: text }
+      const raw = sql ?? ed.sql
+      if (raw && text.trim() === '') {
+        set({ editing: null })
+        return toast('info', 'Not staged — a raw SQL expression cannot be empty')
+      }
+      const input: CellInput = { kind: raw ? 'sql' : 'value', value: text }
       const patch = stage(s, (e) =>
         stageOne(s, e, ed.row, ed.col, input, ed.full !== undefined ? ed.full : original),
       )

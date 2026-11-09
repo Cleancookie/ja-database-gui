@@ -1120,7 +1120,7 @@ function buildEditCommands(s: Store): Command[] {
       'sql-expr',
       'Set to SQL expression…',
       'raw now() current_timestamp function unquoted unescaped',
-      () => s.startEdit(true, true),
+      () => s.startEdit(false, true),
       undefined,
       'Sent as written, not quoted — NOW(), CURRENT_TIMESTAMP, UUID()',
     )

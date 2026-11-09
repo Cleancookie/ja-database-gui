@@ -1,9 +1,12 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { useStore } from '../store'
+import { RawChip } from './RawChip'
 
 interface Props {
   /** What the editor opens with: the staged value, else the loaded one. */
   text: string
+  /** Opens as a raw SQL expression. */
+  sql?: boolean
   left: number
   width: number
   /** The row height — the editor starts this tall and grows with its text. */
@@ -25,8 +28,9 @@ export const CELL_EDITOR_LABEL = 'Edit cell'
  * F2 then Enter on a NULL cell from quietly turning it into an empty string:
  * the field starts empty for both, so only having typed can tell them apart.
  */
-export function CellEditor({ text, left, width, height }: Props) {
+export function CellEditor({ text, sql = false, left, width, height }: Props) {
   const [value, setValue] = useState(text)
+  const [raw, setRaw] = useState(sql)
   const typed = useRef(false)
   const ref = useRef<HTMLTextAreaElement>(null)
 
@@ -47,51 +51,59 @@ export function CellEditor({ text, left, width, height }: Props) {
 
   const finish = () => {
     const s = useStore.getState()
-    if (typed.current) s.commitEdit(value)
+    if (typed.current || raw !== sql) s.commitEdit(value, raw)
     else s.cancelEdit()
   }
 
   return (
-    <textarea
-      ref={ref}
-      value={value}
-      rows={1}
-      spellCheck={false}
-      aria-label={CELL_EDITOR_LABEL}
-      onChange={(e) => {
-        typed.current = true
-        setValue(e.target.value)
-      }}
-      onBlur={finish}
-      onKeyDown={(e) => {
-        if (e.key === 'Escape') {
-          e.preventDefault()
-          e.stopPropagation()
-          useStore.getState().cancelEdit()
-        } else if (
-          (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) ||
-          e.key === 'Tab'
-        ) {
-          e.preventDefault()
-          finish()
-        } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-          // Staged first; the window's Ctrl+S then reviews what includes it.
-          finish()
-        }
-      }}
-      // The grid's row menu would otherwise replace the field's own copy/paste.
-      onContextMenu={(e) => e.stopPropagation()}
-      className="absolute top-0 z-[5] resize-none select-text rounded-sm bg-[var(--color-elevated)] px-2 text-[var(--color-text)] ring-2 ring-[var(--color-accent)] outline-none"
-      style={{
-        left,
-        width: Math.max(width, 224),
-        minHeight: height,
-        font: 'inherit',
-        lineHeight: 1.4,
-        // Centres one line in the row's height; more lines just grow the box.
-        paddingBlock: `calc((${height}px - 1.4em) / 2)`,
-        overflowWrap: 'anywhere',
-      }}
-    />
+    <div
+      className="absolute top-0 z-[5]"
+      style={{ left, width: Math.max(width, 224), minHeight: height }}
+    >
+      <textarea
+        ref={ref}
+        value={value}
+        rows={1}
+        spellCheck={false}
+        aria-label={CELL_EDITOR_LABEL}
+        onChange={(e) => {
+          typed.current = true
+          setValue(e.target.value)
+        }}
+        onBlur={finish}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            e.stopPropagation()
+            useStore.getState().cancelEdit()
+          } else if (
+            (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) ||
+            e.key === 'Tab'
+          ) {
+            e.preventDefault()
+            finish()
+          } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+            // Staged first; the window's Ctrl+S then reviews what includes it.
+            finish()
+          }
+        }}
+        // The grid's row menu would otherwise replace the field's own copy/paste.
+        onContextMenu={(e) => e.stopPropagation()}
+        className={`block w-full resize-none select-text rounded-sm bg-[var(--color-elevated)] pr-11 pl-2 text-[var(--color-text)] ring-2 ring-[var(--color-accent)] outline-none ${
+          raw ? 'font-[var(--font-mono)]' : ''
+        }`}
+        style={{
+          minHeight: height,
+          font: 'inherit',
+          lineHeight: 1.4,
+          // Centres one line in the row's height; more lines just grow the box.
+          paddingBlock: `calc((${height}px - 1.4em) / 2)`,
+          overflowWrap: 'anywhere',
+        }}
+      />
+      <span className="absolute right-1.5 flex items-center" style={{ top: 0, height }}>
+        <RawChip on={raw} onToggle={() => setRaw((r) => !r)} />
+      </span>
+    </div>
   )
 }

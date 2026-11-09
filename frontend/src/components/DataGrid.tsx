@@ -691,6 +691,7 @@ function Grid({
                           ed.editing.col === ci && (
                             <CellEditor
                               text={ed.editing.text}
+                              sql={ed.editing.sql}
                               left={c.start}
                               width={c.size}
                               height={v.size}
@@ -1117,6 +1118,7 @@ function RecordsGrid({
                             ed.editing.col === v.index && (
                               <CellEditor
                                 text={ed.editing.text}
+                                sql={ed.editing.sql}
                                 left={c.start - labelWidth}
                                 width={c.size}
                                 height={v.size}

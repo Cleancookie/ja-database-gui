@@ -4,6 +4,7 @@ import { formatBytes } from '../json'
 import { useStore } from '../store'
 import type { Editing } from '../storeEdits'
 import { CodeEditor, Dialog, dialogButton, type CodeEditorHandle } from '../ui'
+import { RawChip } from './RawChip'
 
 /**
  * Mounts the large editor while a cell is being edited in it. Its own component
@@ -80,11 +81,7 @@ function CellEditDialog({ editing }: { editing: Editing }) {
     if (editing.loading) return
     const text = handle.current?.getValue() ?? ''
     if (text === editing.text && !modeChanged) return cancelEdit()
-    const block = sql
-      ? text.trim() === ''
-        ? 'An SQL expression cannot be empty'
-        : null
-      : stageBlock(text, editing.dataType)
+    const block = sql ? null : stageBlock(text, editing.dataType)
     if (block) return setError(block)
     commitEdit(text, sql)
   }
@@ -160,25 +157,13 @@ function CellEditDialog({ editing }: { editing: Editing }) {
       }
     >
       <div className="flex min-h-9 items-center gap-2 border-b border-[var(--color-border)] px-4 py-1.5">
-        <label
-          className="flex items-center gap-1.5"
-          title="Sent as written, not quoted — for NOW(), CURRENT_TIMESTAMP, UUID()"
-        >
-          <input
-            type="checkbox"
-            checked={sql}
-            onChange={(e) => {
-              setSql(e.target.checked)
-              setError(null)
-            }}
-          />
-          SQL expression
-        </label>
-        {sql && (
-          <span className="text-[var(--color-faint)]">
-            sent unquoted, e.g. <code className="font-[var(--font-mono)]">NOW()</code>
-          </span>
-        )}
+        <RawChip
+          on={sql}
+          onToggle={() => {
+            setSql((v) => !v)
+            setError(null)
+          }}
+        />
         {jsonTools && !sql && (
           <>
             <span
